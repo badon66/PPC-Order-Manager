@@ -1,5 +1,5 @@
 import { repo } from '@/lib/data';
-import { putFile } from '@/lib/storage';
+import { putFile, resolveFileUrl } from '@/lib/storage';
 
 /**
  * Upload endpoint for the customer's roster form.
@@ -25,7 +25,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   try {
     const stored = await putFile(file);
-    return Response.json(stored);
+    /*
+     * `fileUrl` is what gets stored — a key in the private bucket. The browser
+     * can't load that, so hand back a signed link too for the thumbnail it
+     * shows the moment the upload finishes. Only the key is ever persisted.
+     */
+    return Response.json({ ...stored, previewUrl: await resolveFileUrl(stored.fileUrl) });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }

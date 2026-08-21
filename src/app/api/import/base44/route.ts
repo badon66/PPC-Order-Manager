@@ -1,7 +1,6 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import { requireRole, currentActor } from '@/lib/auth';
-import { repo } from '@/lib/data';
+import { backend, repo } from '@/lib/data';
+import { putBytes } from '@/lib/storage';
 import { mapOrder, mapRoster, type B44Order, type B44Roster } from '@/lib/migrate-base44';
 import type { Order } from '@/lib/types';
 
@@ -15,9 +14,11 @@ import type { Order } from '@/lib/types';
  *  - Sample/seed orders are cleared out first (this is the real data arriving).
  *  - Matching is by invoice number, falling back to team name, so re-running
  *    updates in place instead of duplicating.
- *  - Artwork rows are created pointing at their Base44 URLs. A second pass
- *    (/api/import/rehost) copies the files locally so they survive Base44 being
- *    switched off — until that runs, the URLs are still Base44's.
+ *  - Artwork rows are created pointing at their Base44 URLs. The PUT below is
+ *    the second pass: the browser fetches each file from Base44 and hands the
+ *    bytes here, and they're stored wherever this deployment keeps artwork —
+ *    the private Supabase bucket when hosted, public/uploads locally. Until
+ *    that runs, the URLs are still Base44's and die with it.
  */
 
 const SEED_TEAMS = new Set([
@@ -140,14 +141,22 @@ export async function PUT(req: Request) {
     return Response.json({ error: 'assetId and file are required' }, { status: 400 });
   }
 
-  const ext = path.extname(file.name).toLowerCase().slice(0, 10);
-  const safeExt = /^\.[a-z0-9]+$/.test(ext) ? ext : '';
-  const key = `b44-${assetId}${safeExt}`;
-  const dir = path.join(process.cwd(), 'public', 'uploads');
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, key), Buffer.from(await file.arrayBuffer()));
+  try {
+    const stored = await putBytes(
+      Buffer.from(await file.arrayBuffer()),
+      file.name,
+      file.type,
+    );
 
-  const { rehostAsset } = await import('@/lib/data/json-store');
-  const ok = await rehostAsset(assetId, `/uploads/${key}`);
-  return Response.json({ ok, fileUrl: `/uploads/${key}` });
+    // Whichever store is live owns its own asset rows.
+    const ok =
+      backend === 'supabase'
+        ? await (await import('@/lib/data/supabase-store')).rehostAssetSupabase(assetId, stored.fileUrl)
+        : await (await import('@/lib/data/json-store')).rehostAsset(assetId, stored.fileUrl);
+
+    if (!ok) return Response.json({ error: 'No such asset' }, { status: 404 });
+    return Response.json({ ok, fileUrl: stored.fileUrl });
+  } catch (e) {
+    return Response.json({ error: (e as Error).message }, { status: 400 });
+  }
 }

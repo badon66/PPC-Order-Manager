@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
-import type { OrderAsset } from '@/lib/types';
+import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
  * Additional logos — sponsor patches and the like.
@@ -19,10 +19,10 @@ interface Group {
   id: string;
   displayName: string;
   notes: string;
-  assets: OrderAsset[];
+  assets: ViewableAsset[];
 }
 
-function groupAssets(assets: OrderAsset[]): Group[] {
+function groupAssets(assets: ViewableAsset[]): Group[] {
   const map = new Map<string, Group>();
   for (const a of assets.filter((x) => x.role === 'additional_logo')) {
     const key = a.groupId ?? a.id;
@@ -46,7 +46,9 @@ function groupAssets(assets: OrderAsset[]): Group[] {
   }));
 }
 
-async function uploadFile(file: File): Promise<{ fileUrl: string; fileName: string }> {
+async function uploadFile(
+  file: File,
+): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const body = new FormData();
   body.append('file', file);
   const res = await fetch('/api/upload', { method: 'POST', body });
@@ -63,7 +65,7 @@ export function AdditionalLogos({
   onRenameGroup,
 }: {
   orderId: string;
-  assets: OrderAsset[];
+  assets: ViewableAsset[];
   onAdd: (a: Omit<OrderAsset, 'id'>) => Promise<void>;
   onRemove: (assetId: string) => Promise<void>;
   onRenameGroup: (groupId: string, patch: { displayName?: string; notes?: string }) => void;
@@ -244,7 +246,7 @@ function LogoCard({
               className="flex items-center gap-2 rounded border border-line bg-surface p-2"
             >
               <a
-                href={a.fileUrl}
+                href={a.viewUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="min-w-0 flex-1 truncate text-xs font-semibold text-ppc-gold hover:underline"

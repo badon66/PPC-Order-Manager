@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
+import { resolveAll } from '@/lib/storage';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { ClientForm } from './client-form';
 
@@ -20,6 +21,17 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
   // Their own previous submission, so a revisit is an edit rather than a
   // blank form they'd have to re-type from scratch.
   const previous = await repo.getLatestSubmissionByRosterToken(token);
+
+  // Their previous uploads are keys in a private bucket. Sign them so a
+  // revisit shows the files they already sent, not broken thumbnails.
+  const previousPreviews = Object.fromEntries(
+    (
+      await resolveAll([
+        ...(previous?.logos ?? []).map((l) => ({ fileUrl: l.fileUrl })),
+        ...(previous?.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
+      ])
+    ).map((f) => [f.fileUrl, f.resolvedUrl]),
+  );
 
   const keys = Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>;
   const asked = keys.filter((k) => link.sections[k]);
@@ -60,6 +72,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
           teamName={link.teamName}
           sections={link.sections}
           existingRosterCount={link.existingRosterCount}
+          previousPreviews={previousPreviews}
           previous={
             previous
               ? {

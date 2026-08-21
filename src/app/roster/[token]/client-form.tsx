@@ -32,6 +32,9 @@ type Props = {
   existingRosterCount: number;
   /** Their last submission, pre-filled so a revisit is an edit. */
   previous: PreviousSubmission | null;
+  /** Signed links for the files in that previous submission, so a revisit
+   *  shows thumbnails rather than broken images. */
+  previousPreviews: Record<string, string>;
 };
 
 const blankPlayer = (): SubmittedPlayer => ({
@@ -53,16 +56,21 @@ async function upload(token: string, file: File) {
   const res = await fetch(`/api/public-upload/${token}`, { method: 'POST', body });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? 'Upload failed');
-  return json as { fileUrl: string; fileName: string };
+  return json as { fileUrl: string; fileName: string; previewUrl: string };
 }
 
-export function ClientForm({ token, teamName, sections, existingRosterCount, previous }: Props) {
+export function ClientForm({
+  token, teamName, sections, existingRosterCount, previous, previousPreviews,
+}: Props) {
   const [players, setPlayers] = useState<SubmittedPlayer[]>(
     previous?.players.length ? previous.players : sections.roster ? [blankPlayer()] : [],
   );
   const [logos, setLogos] = useState<SubmittedLogo[]>(previous?.logos ?? []);
   const [inspiration, setInspiration] = useState<SubmittedInspiration[]>(previous?.inspiration ?? []);
   const [contact, setContact] = useState<SubmittedContact>(previous?.contact ?? blankContact());
+  const [previews, setPreviews] = useState<Record<string, string>>(previousPreviews);
+  const addPreview = (fileUrl: string, url: string) =>
+    setPreviews((p) => ({ ...p, [fileUrl]: url }));
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +121,8 @@ export function ClientForm({ token, teamName, sections, existingRosterCount, pre
       {sections.logos && (
         <Step n={stepNums.logos} title="Logos" hint="Team logo, sponsor logos, crest files. The higher the resolution, the better it prints.">
           <FileList<SubmittedLogo>
+            previews={previews}
+            onPreview={addPreview}
             token={token}
             items={logos}
             blank={blankLogo}
@@ -136,6 +146,8 @@ export function ClientForm({ token, teamName, sections, existingRosterCount, pre
       {sections.inspiration && (
         <Step n={stepNums.inspiration} title="Design Inspiration" hint="Pictures of looks you like — other jerseys, colour combos, anything. Tell us what you like about each one.">
           <FileList<SubmittedInspiration>
+            previews={previews}
+            onPreview={addPreview}
             token={token}
             items={inspiration}
             blank={blankInspiration}
@@ -273,7 +285,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 }
 
 function FileList<T extends { fileUrl: string; fileName: string }>({
-  token, items, blank, onChange, addLabel, emptyHint, render,
+  token, items, blank, onChange, addLabel, emptyHint, render, previews, onPreview,
 }: {
   token: string;
   items: T[];
@@ -282,6 +294,13 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
   addLabel: string;
   emptyHint: string;
   render: (item: T, patch: (p: Partial<T>) => void) => React.ReactNode;
+  /**
+   * Stored fileUrl → a link that loads. What gets submitted is the stored
+   * value; uploads live in a private bucket, so the thumbnail needs the signed
+   * one the upload endpoint hands back.
+   */
+  previews: Record<string, string>;
+  onPreview: (fileUrl: string, url: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -293,6 +312,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
       const added: T[] = [];
       for (const f of Array.from(files)) {
         const stored = await upload(token, f);
+        onPreview(stored.fileUrl, stored.previewUrl);
         added.push({ ...blank(), fileUrl: stored.fileUrl, fileName: stored.fileName });
       }
       onChange([...items, ...added]);
@@ -309,7 +329,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
           <div className="flex items-center gap-3">
-            <Thumb url={item.fileUrl} name={item.fileName} />
+            <Thumb url={previews[item.fileUrl] ?? item.fileUrl} name={item.fileName} />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.fileName}</span>
             <button type="button" className="text-xs text-muted hover:text-red-300"
               onClick={() => onChange(items.filter((_, j) => j !== i))}>Remove</button>

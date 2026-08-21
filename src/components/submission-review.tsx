@@ -16,12 +16,19 @@ import { formatShort } from '@/lib/dates';
  * "look at it, decide, click".
  */
 export function SubmissionReview({
+  signedUrls,
   orderId,
   submissions,
   currentRoster,
 }: {
   orderId: string;
   submissions: ClientRosterSubmission[];
+  /**
+   * Stored fileUrl → a link that actually loads. Artwork sits in a private
+   * bucket, so the server signs these before handing them down; this component
+   * doesn't need to know that's where files live.
+   */
+  signedUrls: Record<string, string>;
   currentRoster: RosterEntry[];
 }) {
   const pending = submissions.filter((s) => !s.acceptedAt);
@@ -38,7 +45,7 @@ export function SubmissionReview({
         <p className="text-sm text-muted">No submissions waiting for review.</p>
       )}
       {pending.map((s) => (
-        <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} />
+        <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} signedUrls={signedUrls} />
       ))}
 
       {accepted.length > 0 && (
@@ -53,7 +60,7 @@ export function SubmissionReview({
           {showAccepted && (
             <div className="mt-2 space-y-3">
               {accepted.map((s) => (
-                <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} />
+                <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} signedUrls={signedUrls} />
               ))}
             </div>
           )}
@@ -67,10 +74,12 @@ function SubmissionCard({
   s,
   orderId,
   currentRoster,
+  signedUrls,
 }: {
   s: ClientRosterSubmission;
   orderId: string;
   currentRoster: RosterEntry[];
+  signedUrls: Record<string, string>;
 }) {
   const [pending, start] = useTransition();
   const done = Boolean(s.acceptedAt);
@@ -190,14 +199,16 @@ function SubmissionCard({
       {s.logos.length > 0 && (
         <FileGrid title={`${s.logos.length} logo${s.logos.length === 1 ? '' : 's'}`}
           items={s.logos.map((l) => ({
-            url: l.fileUrl, name: l.fileName,
+            url: signedUrls[l.fileUrl] ?? l.fileUrl, name: l.fileName,
             caption: [l.logoName, l.placementNotes, l.description].filter(Boolean).join(' — '),
           }))} />
       )}
 
       {(s.inspiration?.length ?? 0) > 0 && (
         <FileGrid title={`${s.inspiration.length} inspiration image${s.inspiration.length === 1 ? '' : 's'}`}
-          items={s.inspiration.map((i) => ({ url: i.fileUrl, name: i.fileName, caption: i.notes }))} />
+          items={s.inspiration.map((i) => ({
+            url: signedUrls[i.fileUrl] ?? i.fileUrl, name: i.fileName, caption: i.notes,
+          }))} />
       )}
     </div>
   );

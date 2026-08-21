@@ -8,6 +8,7 @@ import {
   addonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
 import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
+import { resolveAll } from '@/lib/storage';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { SubmissionReview } from '@/components/submission-review';
@@ -22,7 +23,22 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const bundle = await repo.getOrder(id);
   if (!bundle) notFound();
 
-  const { order, roster, assets, submissions } = bundle;
+  const { order, roster, submissions } = bundle;
+
+  /*
+   * Artwork is a key in a private bucket, so every link on this page has to be
+   * signed first. Submitted logos and inspiration images are signed too — they
+   * went through the same upload path — and handed down as a lookup so the
+   * review panel doesn't need to know where files live.
+   */
+  const assets = (await resolveAll(bundle.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
+  const submittedFiles = submissions.flatMap((s) => [
+    ...s.logos.map((l) => ({ fileUrl: l.fileUrl })),
+    ...(s.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
+  ]);
+  const signedUrls = Object.fromEntries(
+    (await resolveAll(submittedFiles)).map((f) => [f.fileUrl, f.resolvedUrl]),
+  );
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
   const pendingSubs = submissions.filter((s) => !s.acceptedAt);
@@ -238,7 +254,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             : 'Client Submissions'
         }
       >
-        <SubmissionReview orderId={order.id} submissions={submissions} currentRoster={roster} />
+        <SubmissionReview
+          signedUrls={signedUrls} orderId={order.id} submissions={submissions} currentRoster={roster} />
       </Section>
 
       <Section title={`Player Roster (${roster.length})`}>
@@ -299,7 +316,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                   <span className="font-semibold">{a.displayName || a.fileName}</span>
                   <span className="ml-2 text-xs text-muted">{a.role}</span>
                 </span>
-                <a href={a.fileUrl} className="text-ppc-gold hover:underline" target="_blank" rel="noreferrer">
+                <a href={a.viewUrl} className="text-ppc-gold hover:underline" target="_blank" rel="noreferrer">
                   View File →
                 </a>
               </li>

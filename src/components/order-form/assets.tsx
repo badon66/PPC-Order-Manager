@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
-import type { AssetRole, OrderAsset } from '@/lib/types';
+import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
  * Artwork slots.
@@ -18,14 +18,20 @@ export interface AssetGroupProps {
   title: string;
   hint?: string;
   max?: number;
-  assets: OrderAsset[];
+  assets: ViewableAsset[];
   notes?: string;
   onNotesChange?: (v: string) => void;
   onAdd: (asset: Omit<OrderAsset, 'id'>) => Promise<void>;
   onRemove: (assetId: string) => Promise<void>;
 }
 
-async function uploadFile(file: File): Promise<{ fileUrl: string; fileName: string }> {
+/**
+ * `fileUrl` is the key we store; `previewUrl` is a signed link that works right
+ * now, for the thumbnail shown the instant the upload lands.
+ */
+async function uploadFile(
+  file: File,
+): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const body = new FormData();
   body.append('file', file);
   const res = await fetch('/api/upload', { method: 'POST', body });
@@ -117,10 +123,10 @@ export function AssetGroup({
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
           {mine.map((a) => (
             <li key={a.id} className="flex items-center gap-2 rounded border border-line bg-surface p-2">
-              <Thumb asset={a} />
+              <Thumb fileName={a.fileName} url={a.viewUrl} />
               <div className="min-w-0 flex-1">
                 <a
-                  href={a.fileUrl}
+                  href={a.viewUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="block truncate text-xs font-semibold text-ppc-gold hover:underline"
@@ -154,8 +160,8 @@ export function AssetGroup({
   );
 }
 
-function Thumb({ asset }: { asset: OrderAsset }) {
-  const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(asset.fileName);
+function Thumb({ fileName, url }: { fileName: string; url: string }) {
+  const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(fileName);
   if (!isImage) {
     return (
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-surface-2 text-[0.6rem] font-bold text-muted">
@@ -166,7 +172,7 @@ function Thumb({ asset }: { asset: OrderAsset }) {
   // eslint-disable-next-line @next/next/no-img-element
   return (
     <img
-      src={asset.fileUrl}
+      src={url}
       alt=""
       className="h-9 w-9 shrink-0 rounded object-cover"
     />

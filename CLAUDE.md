@@ -16,7 +16,16 @@ rink, so mobile is not an afterthought.
 Run: `npm install` then `npm run dev` → http://localhost:3000
 
 Access code lives in `admin-code.txt` in the project root (gitignored). Change
-it there and restart. `ADMIN_ACCESS_CODE` env var overrides it if set.
+it there and restart. `ADMIN_ACCESS_CODE` env var overrides it if set — and on
+Vercel there is no file, so the env var IS the code.
+
+**Two storage backends, chosen by environment.** Set `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` and the app uses Postgres plus a private artwork
+bucket; leave them unset and it uses `data/db.json` plus `public/uploads/`.
+The switch is `src/lib/data/index.ts`. It keys off credentials rather than a
+flag on purpose: a hosted app pointed at a JSON file writes to a disk that
+disappears on the next deploy, and a laptop pointed at Supabase edits live
+customer data.
 
 ## Non-negotiables
 
@@ -34,8 +43,18 @@ it there and restart. `ADMIN_ACCESS_CODE` env var overrides it if set.
   record (bad date); warning = storable but flag it (duplicate invoice). One
   bad field must not throw away the rest of the autosave.
 - **Public pages are built field-by-field, never by spreading the order.**
-  `getByShareToken` in `json-store.ts` — so a new field on Order doesn't leak
-  to the customer's page by default.
+  `publicViewOf` in `data/logic.ts` — so a new field on Order doesn't leak to
+  the customer's page by default.
+- **Business rules live in `data/logic.ts`, not in a store.** What gets logged,
+  what a customer sees, what accepting a submission does. Both backends call
+  it. Put a rule in one store and the two quietly stop agreeing.
+- **Artwork is private.** Stored `fileUrl` is a bucket key, not a URL. Pages
+  call `resolveFileUrl`/`resolveAll` (`src/lib/storage.ts`) to get a link that
+  expires in an hour. Never persist a signed URL — it works in testing and is
+  dead by the time a customer opens it. `ViewableAsset` is the display type.
+- **Creating a record is never a GET.** New Order is a POST server action.
+  It used to be a link to a route handler that created a draft, and Next
+  prefetches links — so loading the list page spawned blank orders.
 
 ## Access model (as Keenan specified — don't second-guess it)
 
@@ -57,16 +76,21 @@ src/lib/order-utils.ts    set scaffolding, totals reconciliation, tokens
 src/lib/csv.ts            roster CSV export/import (round-trips)
 src/lib/session.ts        access code + signed cookie
 src/lib/auth.ts           who-is-this + requireRole (placeholder for per-person)
-src/lib/storage.ts        file uploads → public/uploads/ (swap for Supabase later)
+src/lib/storage.ts        uploads -> private Supabase bucket, or public/uploads/ locally
 src/lib/data/repository.ts  THE storage interface — every page goes through this
-src/lib/data/json-store.ts  current impl: data/db.json (dev only)
-src/lib/data/index.ts     picks the impl. Swap here for Supabase.
+src/lib/data/logic.ts     store-agnostic rules, shared by both backends
+src/lib/data/json-store.ts  local dev impl: data/db.json
+src/lib/data/supabase-store.ts  hosted impl: Postgres via supabase-js
+src/lib/data/index.ts     picks the impl from the environment
+src/lib/supabase.ts       the service-role client. SERVER ONLY.
+supabase/migrations/      the SQL schema, applied in order
+scripts/migrate-to-supabase.mjs  one-off: local JSON -> Postgres + bucket
 src/proxy.ts              the lock — blocks unauthenticated requests before render
 src/app/orders/actions.ts every mutation. Server actions. Auth-checked.
 src/app/orders/           list, detail, edit
 src/app/queue/            production queue
 src/app/share/[token]/    customer read-only view
-src/app/roster/[token]/   customer roster form (not built yet)
+src/app/roster/[token]/   customer roster form (revisits + change logging)
 src/components/order-form/  the big form: index, fields, roster-table,
                             roster-tally, assets, additional-logos
 ```
@@ -91,19 +115,44 @@ src/components/order-form/  the big form: index, fields, roster-table,
 
 ## Tests
 
-Playwright scripts (not committed — in the Cowork build session, but easy to
-recreate): form suite (autosave, URL, modes, roster, dates, dup invoice), auth
-suite (redirect, cookie httpOnly, code absent from bundles, share public), and
-roster suite (mode-aware columns, tallies, logo groups). Run against
-`npm run build && npm run start`. Rebuild before testing — `next start`
-serves the last build.
+Playwright scripts, not committed — they live in the Cowork build session.
+Two suites: the non-negotiables above (the lock, no money, calendar dates,
+two-tier validation, public pages) and the current feature set (add-on
+filtering by jersey type, pants section, laces photos, Numbers & Names, client
+form revisits and change logging).
+
+Run against `npm run build && npm run start` — `next start` serves the last
+build, so rebuild first or you'll test the previous version and not know it.
+Reset the data from a pristine snapshot before each run; the suites mutate
+state and stacked runs give false failures.
+
+Gotchas worth knowing before writing more: sections are `#sec-<id>`; a choice
+button's active state is `text-ppc-gold`, since `border-ppc-gold` also appears
+in inactive hover classes; React omits `type="text"`, so `input[type="text"]`
+matches nothing — select by placeholder. Pick orders with `!o.deletedAt`,
+because soft-deleted rows are still in the file and 404 on every page.
+
+## Database notes
+
+Every table stores its entity as JSONB in a `data` column; the few fields the
+app filters on are Postgres GENERATED columns over that JSON, and indexed. So
+there is no snake_case mapping layer and no migration to add an add-on. See the
+header of `supabase/migrations/0001_init.sql` for why.
+
+RLS is on everywhere with no policies — the publishable key can read nothing.
+The app uses the service role key server-side. Authorization is the access code
+and the per-order tokens, in app code.
+
+supabase-js has no transactions. `replaceRoster` and `acceptSubmission` are
+ordered so a failure part-way leaves duplicates (visible, deletable) rather
+than missing data. Read the comments there before reordering anything.
 
 ## Not built yet
 
-Client roster submission form · customer approval flow (amendments agreed:
-record IP/UA/timestamp, on-behalf approvals labelled as such, post-approval
-edits flagged, surfaced on list + queue, `approvalRequestedAt` timestamp) ·
-real per-person auth · PDF spec sheet · Gmail thread panel · hosting.
+Customer approval flow (amendments agreed: record IP/UA/timestamp, on-behalf
+approvals labelled as such, post-approval edits flagged, surfaced on list +
+queue, `approvalRequestedAt` timestamp) · real per-person auth · PDF spec
+sheet · Gmail thread panel.
 
 ## Known dead weight from Base44 (don't port)
 

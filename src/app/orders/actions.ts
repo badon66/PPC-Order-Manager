@@ -6,8 +6,9 @@ import { repo } from '@/lib/data';
 import { currentActor, requireRole } from '@/lib/auth';
 import { isCalendarDate } from '@/lib/dates';
 import { ORDER_STATUSES } from '@/lib/types';
-import type { Order, OrderAsset, OrderStatus, RosterEntry } from '@/lib/types';
+import type { Order, OrderAsset, OrderStatus, RosterEntry, ViewableAsset } from '@/lib/types';
 import { setsForMode } from '@/lib/order-utils';
+import { resolveFileUrl } from '@/lib/storage';
 
 /**
  * Every mutation goes through a server action. Authorization is checked here,
@@ -199,12 +200,14 @@ export async function saveRoster(orderId: string, entries: RosterEntry[]): Promi
   return { ok: true };
 }
 
-export async function attachAsset(asset: Omit<OrderAsset, 'id'>): Promise<OrderAsset> {
+export async function attachAsset(asset: Omit<OrderAsset, 'id'>): Promise<ViewableAsset> {
   await requireRole('staff');
   const actor = await currentActor();
   const created = await repo.addAsset(asset, actor);
   revalidatePath(`/orders/${asset.orderId}`);
-  return created;
+  // Signed here so the form can show the thumbnail straight away without a
+  // round trip through the page. `viewUrl` is display-only and never stored.
+  return { ...created, viewUrl: await resolveFileUrl(created.fileUrl) };
 }
 
 /**

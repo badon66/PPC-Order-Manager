@@ -10,7 +10,7 @@ import {
 import { describeSet, setsForMode } from '@/lib/order-utils';
 import type {
   CaptainPatchStyle, JerseyTier, JerseyType, NameStyle, Order, OrderAsset,
-  OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType,
+  OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
 import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
 import { ChoiceGroup, NumberField, TextArea, TextField, Toggle } from './fields';
@@ -51,14 +51,14 @@ export function OrderForm({
 }: {
   initialOrder: Order;
   initialRoster: RosterEntry[];
-  initialAssets: OrderAsset[];
+  initialAssets: ViewableAsset[];
   /** True when arriving from + New Order — offers the wizard first. */
   isNew?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(initialOrder);
   const [roster, setRoster] = useState<RosterEntry[]>(initialRoster);
-  const [assets, setAssets] = useState<OrderAsset[]>(initialAssets);
+  const [assets, setAssets] = useState<ViewableAsset[]>(initialAssets);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');

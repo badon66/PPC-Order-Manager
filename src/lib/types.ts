@@ -182,6 +182,19 @@ export interface OrderAsset {
   groupId?: string;
 }
 
+/**
+ * An asset plus a link the browser can actually load.
+ *
+ * Stored artwork lives in a private bucket, so `fileUrl` is a key, not a URL.
+ * Server components sign it into `viewUrl` before handing assets to anything
+ * that renders them.
+ *
+ * NEVER PERSIST THIS. `viewUrl` expires, so a stored copy is a link that works
+ * in testing and is dead by the time a customer opens it. Everything written
+ * back to the store is a plain OrderAsset.
+ */
+export type ViewableAsset = OrderAsset & { viewUrl: string };
+
 export interface RosterEntry {
   id: string;
   orderId: string;
