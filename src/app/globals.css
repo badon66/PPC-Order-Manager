@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* Powerplay Customs — dark, near-black, gold accent. */
+:root {
+  --background: #0b0b0c;
+  --surface: #141416;
+  --surface-2: #1b1b1e;
+  --border: #2a2a2e;
+  --foreground: #ededed;
+  --muted: #9b9ba1;
+  --gold: #f5b400;
+  --gold-dim: #b98a05;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-ppc-gold: var(--gold);
+  --color-ppc-gold-dim: var(--gold-dim);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html { color-scheme: dark; }
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Comfortable tap targets on a phone — this gets used at a rink. */
+@media (max-width: 640px) {
+  button, a[role="button"], input, select, textarea { min-height: 44px; }
+}
+
+::selection { background: var(--gold); color: #000; }
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+textarea,
+select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+  color: var(--foreground);
+  font-size: 0.925rem;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+input::placeholder, textarea::placeholder { color: #6a6a70; }
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.75); cursor: pointer; }
+
+/* Native checkboxes: gold, sensible size, never stretched to 100% width. */
+input[type="checkbox"], input[type="radio"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  min-height: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
