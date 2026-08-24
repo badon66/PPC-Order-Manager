@@ -7,6 +7,8 @@ import {
   PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
 } from '@/lib/constants';
 import { Card, Field, Section, Stat, StatusBadge, YesNo } from '@/components/ui';
+import { ArtworkGallery } from '@/components/artwork-gallery';
+import { resolveAll } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,17 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const { token } = await params;
   const view = await repo.getByShareToken(token);
   if (!view) notFound();
+
+  /*
+   * Artwork is stored as a bucket key, not a URL, so it has to be signed before
+   * a browser can load it. `publicViewOf` has already dropped the font file —
+   * a licensed typeface is not something the customer ordered.
+   *
+   * The signed links last an hour. A customer who leaves this page open all
+   * afternoon and reloads gets fresh ones; a link forwarded around next week is
+   * dead, which is the point.
+   */
+  const assets = (await resolveAll(view.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
 
   const playing = view.roster.filter((r) => !r.sockOnly);
   const hasPantShells =
@@ -193,6 +206,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
               </tbody>
             </table>
           </div>
+        </Section>
+      )}
+
+      {assets.length > 0 && (
+        <Section title="Logos & Artwork">
+          <ArtworkGallery assets={assets} />
         </Section>
       )}
 

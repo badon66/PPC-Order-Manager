@@ -7,19 +7,33 @@ Everything here is a one-time setup. Once it's done, deploying a change is
 
 ---
 
-## 0. Before anything else: rescue the Base44 artwork
+## 0. Read this before touching the order of the steps
 
-**Do this first, and don't skip it.** The 135 logos, crests and fonts on the
-imported orders still live on base44.app. When that app is switched off they're
-gone, and no amount of hosting work brings them back.
+The Base44 artwork rescue has to happen **after** the data is in Supabase, not
+before. That's the reverse of what an earlier version of this file said, and
+the reason is worth understanding because getting it wrong is silent.
 
-```
-npm run dev
-```
+`src/lib/data/index.ts` chooses its backend by whether `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` are set, and `src/lib/storage.ts` chooses where
+uploads land the same way. So the moment those two variables exist in
+`.env.local`:
 
-Open http://localhost:3000/orders. There's an amber banner counting the files
-still at risk — click **Copy them here**, leave the tab open until it finishes.
-The banner disappears when the count reaches zero.
+- `/orders` reads Supabase, not `data/db.json`. Before the migration runs that
+  is an empty database — no orders, and therefore **no artwork banner**, because
+  the banner counts assets it can see. Nothing is broken; there is simply
+  nothing there yet.
+- The rescue writes into the private Supabase bucket and updates the asset rows
+  in Supabase.
+
+Run the rescue *before* the migration and it writes files to
+`public/uploads/` and stamps `/uploads/…` paths into `db.json` instead. Those
+paths then migrate across and point at a directory that does not exist on
+Vercel, where the filesystem is read-only and wiped on every deploy. Every
+image would 404 in production and the banner would say zero, because the URLs
+no longer look like Base44 ones.
+
+So: **GitHub → Supabase schema → migrate the data → rescue the artwork →
+Vercel.**
 
 ---
 
@@ -98,12 +112,26 @@ it's idempotent.
 
 Then restart `npm run dev`. With `.env.local` set the app is now reading
 Supabase rather than `data/db.json` — same orders, same everything. Click
-around before you go further: open an order, check the artwork loads, open a
-share link.
+around before you go further: open an order, open a share link.
 
 `data/db.json` is still on your disk untouched. Keep it until you're confident.
 
----
+### Now rescue the Base44 artwork
+
+**Do not skip this, and don't leave it for later.** The 135 logos, crests and
+fonts on the imported orders still live on base44.app. When that app is
+switched off they are gone, and no amount of hosting work brings them back.
+
+With the dev server running, open http://localhost:3000/orders. There's an
+amber banner counting the files still at risk — click **Copy them here**, and
+leave the tab open until the count reaches zero. The banner removes itself.
+
+It has to run in your browser: neither the container nor the device bridge has
+a network route to base44.app. Chrome does.
+
+Now that Supabase is configured, each file lands in the private `artwork`
+bucket and its asset row is updated in place, so the result is what production
+will actually serve.
 
 ## 3. Vercel
 

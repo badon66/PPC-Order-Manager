@@ -9,6 +9,7 @@ import {
 } from '@/lib/constants';
 import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
+import { ArtworkGallery } from '@/components/artwork-gallery';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { SubmissionReview } from '@/components/submission-review';
@@ -306,23 +307,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        {assets.length === 0 ? (
-          <p className="text-sm text-muted">No artwork uploaded yet.</p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {assets.map((a) => (
-              <li key={a.id} className="flex items-center justify-between border-b border-line/50 py-2">
-                <span>
-                  <span className="font-semibold">{a.displayName || a.fileName}</span>
-                  <span className="ml-2 text-xs text-muted">{a.role}</span>
-                </span>
-                <a href={a.viewUrl} className="text-ppc-gold hover:underline" target="_blank" rel="noreferrer">
-                  View File →
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ArtworkGallery assets={assets} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

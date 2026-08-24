@@ -42,6 +42,49 @@ const db = createClient(url, key, { auth: { persistSession: false } });
 const results = [];
 const ok = (c, m) => { if (!c) throw new Error(m); };
 const eq = (a, b, m) => { if (a !== b) throw new Error(`${m}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); };
+
+/*
+ * Deep equality that ignores object key order.
+ *
+ * Postgres `jsonb` does not store a document verbatim — it parses it, drops
+ * duplicate keys, and reorders every object's keys by length and then bytewise.
+ * So `JSON.stringify(whatWentIn) === JSON.stringify(whatCameBack)` is false for
+ * essentially every order, while the data is byte-for-byte the same values.
+ *
+ * An earlier version of this file compared the serialised strings and failed
+ * on a perfectly healthy database. Key order carries no meaning in JSON and
+ * none in the app, which reads `data` as an object.
+ *
+ * Arrays are order-sensitive and stay that way — `sets` and roster ordering
+ * are real information.
+ */
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) return a.length === b.length && a.every((v, i) => deepEqual(v, b[i]));
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => Object.hasOwn(b, k) && deepEqual(a[k], b[k]));
+}
+
+/** Report which keys actually differ, rather than dumping two whole documents. */
+function firstDifference(a, b, path = '') {
+  if (deepEqual(a, b)) return null;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object' ||
+      Array.isArray(a) !== Array.isArray(b)) {
+    return `${path || '(root)'}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`;
+  }
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const d = firstDifference(a[k], b[k], path ? `${path}.${k}` : k);
+    if (d) return d;
+  }
+  return `${path || '(root)'}: differing shape`;
+}
+
+const same = (a, b, m) => {
+  if (!deepEqual(a, b)) throw new Error(`${m} — ${firstDifference(a, b)}`);
+};
 async function t(name, fn) {
   try { await fn(); results.push(true); console.log('  ✓', name); }
   catch (e) { results.push(false); console.log('  ✗', name, '—', e.message); }
@@ -83,7 +126,7 @@ try {
     ok(!ins.error, ins.error?.message);
     const got = await db.from('orders').select('data').eq('id', orderId).single();
     ok(!got.error, got.error?.message);
-    eq(JSON.stringify(got.data.data), JSON.stringify(order), 'stored order');
+    same(got.data.data, order, 'stored order differs from what went in');
   });
 
   await t('generated columns pick the right values out of the JSON', async () => {
