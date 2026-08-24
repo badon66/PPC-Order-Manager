@@ -45,18 +45,23 @@ last two are data that belongs in Supabase.
 
 ## 2. Supabase
 
-### Create the project
+### The project and schema are already done
 
-Free tier allows two projects per person and you have two, so free one up or
-upgrade. Then create a project — `powerplay-order-manager`, region
-`ca-central-1` (Canada, closest to you and your customers).
+Project **PPC-Order-Manager** (`usnivtmicsqvegidzzce`), region `us-east-2`,
+created 2026-08-24. All three migrations are applied and verified:
 
-### Apply the schema
+1. `0000_immutable_json_casts.sql` — the two immutable parsers
+2. `0001_init.sql` — 6 tables, 10 generated columns on `orders`, 17 indexes, RLS
+3. `0002_artwork_bucket.sql` — the private `artwork` bucket, 25 MB cap
 
-In the SQL editor, run these in order:
+Verified after applying: every table has RLS on with **zero** policies, both
+token indexes are unique-and-partial, and a round-trip insert confirmed the
+generated columns parse dates, UTC timestamps and empty-string-as-null
+correctly. The security linter reports only the six expected
+`rls_enabled_no_policy` notices, which is the design, not a finding.
 
-1. `supabase/migrations/0001_init.sql` — tables, indexes, row-level security
-2. `supabase/migrations/0002_artwork_bucket.sql` — the private artwork bucket
+**Re-applying, if you ever rebuild the project:** run all three in order in the
+SQL editor. 0000 must come first — 0001's generated columns call its functions.
 
 ### Get the keys
 
@@ -134,9 +139,13 @@ redeploy — everyone gets signed out, which is the point.
 
 Two things worth knowing:
 
-- **Free-tier Supabase pauses a project after a week of no activity.** An app
-  nobody opened for a week comes back slow on the first request. Not a problem
-  in season; worth remembering in July.
+- **On Pro, projects don't pause for inactivity.** That was a free-tier
+  behaviour and no longer applies.
+- **The project is in `us-east-2` (Ohio), not Canada.** Customer names, emails,
+  phones and shipping addresses therefore live on US infrastructure. Latency is
+  a non-issue; data residency may or may not matter to you. Changing it means
+  recreating the project, which is cheap right now while it's empty and painful
+  once real orders are in it.
 - **Signed artwork links last an hour.** A customer who leaves a share page
   open all afternoon and then reloads gets fresh links. One they forwarded last
   week is dead — deliberately.

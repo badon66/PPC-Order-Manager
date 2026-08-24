@@ -25,6 +25,11 @@
 -- shared access code for the admin side, unguessable per-order tokens for the
 -- two public pages. If the publishable key ever leaks it grants nothing.
 
+-- Requires 0000_immutable_json_casts.sql — the date/timestamp columns below
+-- are generated through public.date_iso() and public.ts_utc(), because a
+-- generated column must be immutable and a bare text cast to date/timestamptz
+-- is not.
+
 create extension if not exists "pgcrypto";
 
 /* ------------------------------------------------------------------ *
@@ -42,11 +47,11 @@ create table if not exists public.orders (
   roster_token text generated always as (data->>'rosterToken') stored,
   -- Calendar dates, not timestamps. Stored as 'YYYY-MM-DD' text in the JSON and
   -- surfaced as `date` here so ordering works; nothing ever converts a timezone.
-  date_paid date generated always as (nullif(data->>'datePaid', '')::date) stored,
-  estimated_finish_date date generated always as (nullif(data->>'estimatedFinishDate', '')::date) stored,
-  updated_at timestamptz generated always as (nullif(data->>'updatedAt', '')::timestamptz) stored,
-  created_at timestamptz generated always as (nullif(data->>'createdAt', '')::timestamptz) stored,
-  deleted_at timestamptz generated always as (nullif(data->>'deletedAt', '')::timestamptz) stored
+  date_paid date generated always as (public.date_iso(data->>'datePaid')) stored,
+  estimated_finish_date date generated always as (public.date_iso(data->>'estimatedFinishDate')) stored,
+  updated_at timestamptz generated always as (public.ts_utc(data->>'updatedAt')) stored,
+  created_at timestamptz generated always as (public.ts_utc(data->>'createdAt')) stored,
+  deleted_at timestamptz generated always as (public.ts_utc(data->>'deletedAt')) stored
 );
 
 -- Tokens address the public pages, so a collision would hand one customer
@@ -107,8 +112,8 @@ create table if not exists public.client_submissions (
   order_id uuid not null references public.orders (id) on delete cascade,
   data jsonb not null,
   revision int generated always as ((data->>'revision')::int) stored,
-  submitted_at timestamptz generated always as (nullif(data->>'submittedAt', '')::timestamptz) stored,
-  accepted_at timestamptz generated always as (nullif(data->>'acceptedAt', '')::timestamptz) stored
+  submitted_at timestamptz generated always as (public.ts_utc(data->>'submittedAt')) stored,
+  accepted_at timestamptz generated always as (public.ts_utc(data->>'acceptedAt')) stored
 );
 
 create index if not exists submissions_order_idx
@@ -131,7 +136,7 @@ create table if not exists public.change_log (
   order_id uuid not null references public.orders (id) on delete cascade,
   data jsonb not null,
   action text generated always as (data->>'action') stored,
-  at timestamptz generated always as (nullif(data->>'at', '')::timestamptz) stored
+  at timestamptz generated always as (public.ts_utc(data->>'at')) stored
 );
 
 create index if not exists change_log_order_idx on public.change_log (order_id, at desc);
