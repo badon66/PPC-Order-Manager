@@ -9,6 +9,7 @@ import {
 } from '@/lib/constants';
 import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
+import { baseUrl, isLocalUrl } from '@/lib/base-url';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
@@ -17,14 +18,17 @@ import type { Order } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
-
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const bundle = await repo.getOrder(id);
   if (!bundle) notFound();
 
   const { order, roster, submissions } = bundle;
+
+  // Request-scoped, so it can't be a module constant. See lib/base-url.ts.
+  const BASE_URL = await baseUrl();
+  const shareLink = `${BASE_URL}/share/${order.shareToken}`;
+  const rosterLink = `${BASE_URL}/roster/${order.rosterToken}`;
 
   /*
    * Artwork is a key in a private bucket, so every link on this page has to be
@@ -68,10 +72,23 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
       <div className="flex flex-wrap gap-2">
         <CopyButton label="Copy Address" value={formattedAddress(order)} />
-        <CopyButton label="Copy Share Link" value={`${BASE_URL}/share/${order.shareToken}`} />
-        <CopyButton label="Copy Client Form Link" value={`${BASE_URL}/roster/${order.rosterToken}`} />
+        <CopyButton label="Copy Share Link" value={shareLink} />
+        <CopyButton label="Copy Client Form Link" value={rosterLink} />
         <Button href={`/api/orders/${order.id}/roster.csv`}>Download CSV Roster</Button>
       </div>
+
+      {/*
+        * Only ever appears on a laptop. A localhost link works perfectly for
+        * the person who copied it and for nobody else, so the moment to say so
+        * is before it's pasted into an email — not after a customer replies
+        * that the link is broken.
+        */}
+      {isLocalUrl(BASE_URL) && (
+        <p className="text-xs text-amber-400">
+          These links point at <code>{BASE_URL}</code> and will only open on this computer. Set{' '}
+          <code>NEXT_PUBLIC_BASE_URL</code> to the live site before sending one to a customer.
+        </p>
+      )}
 
       {totals.mismatch && <Warning>{totals.mismatchDetail}</Warning>}
 
