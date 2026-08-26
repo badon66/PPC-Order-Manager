@@ -52,6 +52,17 @@ customer data.
   call `resolveFileUrl`/`resolveAll` (`src/lib/storage.ts`) to get a link that
   expires in an hour. Never persist a signed URL — it works in testing and is
   dead by the time a customer opens it. `ViewableAsset` is the display type.
+- **File bytes never travel through a route handler when Supabase is on.**
+  Vercel caps a serverless function's request body at ~4.5 MB and nothing
+  raises it, so a large crest failed before any app code ran. The browser gets
+  a signed upload URL (`createUploadUrl`) and PUTs straight to the bucket:
+  `/api/upload/sign` for staff, `PATCH /api/public-upload/[token]` for
+  customers. The old multipart POST survives only as the no-Supabase local
+  path, which those endpoints announce with a 409. Don't "simplify" this back
+  into a single upload route.
+- **MAX_BYTES in storage.ts and the bucket's `file_size_limit` must match**
+  (both 50 MB — migration `0003`). App limit higher than the bucket means the
+  browser sends the whole file and Supabase rejects it at the very end.
 - **Creating a record is never a GET.** New Order is a POST server action.
   It used to be a link to a route handler that created a draft, and Next
   prefetches links — so loading the list page spawned blank orders.
@@ -106,6 +117,13 @@ src/components/order-form/  the big form: index, fields, roster-table,
   `buildTallies` in `roster-tally.tsx` shows the live count vs set quantities.
 - Sizes are controlled lists (`JERSEY_SIZES` etc.). Goalie and sock-only are
   flags on the row, not strings in the size field.
+- **Totals come from the quantities Keenan entered, not from the roster**
+  (`computeTotals`). The roster only fills in where nothing was entered. This
+  reverses an earlier decision, on his instruction and for a good reason: the
+  entered quantities are the order — what the manufacturer makes and what the
+  team paid for — while a roster is routinely part-finished, and a half-filled
+  one used to silently drop the headline below what was ordered, on the
+  customer's page too. Disagreements still surface via `mismatchDetail`.
 - Artwork is `OrderAsset` rows with a `role` and `slot` — not numbered columns.
   Additional logos are grouped by `groupId` (label + notes + up to 2 files).
 - Web Crypto (`globalThis.crypto`), not `node:crypto`, in anything a client

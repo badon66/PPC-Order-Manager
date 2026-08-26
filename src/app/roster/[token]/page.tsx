@@ -41,12 +41,12 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">Powerplay Customs</p>
         <h1 className="mt-1 text-2xl font-bold text-ppc-gold">{link.teamName || 'Your order'}</h1>
-        {link.enabled && asked.length > 0 ? (
+        {link.enabled && asked.length > 0 && !link.locked ? (
           previous ? (
             <p className="mt-2 text-sm text-muted">
               You&apos;ve sent this to us once already — everything you entered is below. Change
-              anything that needs changing and send it again. We&apos;ll see exactly what you
-              updated.
+              anything that needs changing and send it again, right up until your order goes
+              into production. We&apos;ll see exactly what you updated.
             </p>
           ) : (
             <p className="mt-2 text-sm text-muted">
@@ -58,7 +58,29 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
         ) : null}
       </div>
 
-      {!link.enabled || asked.length === 0 ? (
+      {/*
+        * Three states, deliberately distinct.
+        *
+        * "In production" is not the same message as "this link is switched
+        * off" — one means you're too late, the other means it was never open —
+        * and a customer who gets the wrong one either waits for a reply that
+        * isn't coming or phones about a problem that doesn't exist.
+        */}
+      {link.locked ? (
+        <div className="rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-6 text-center">
+          <p className="font-semibold text-ppc-gold">Your order is being made.</p>
+          <p className="mt-2 text-sm text-muted">
+            Because it&apos;s already in production, this form is now closed and everything you
+            sent is locked in. If something needs changing, get in touch with us directly and
+            we&apos;ll tell you straight away what&apos;s still possible.
+          </p>
+          {previous && (
+            <p className="mt-3 text-xs text-muted">
+              We have revision {previous.revision} of your details on file.
+            </p>
+          )}
+        </div>
+      ) : !link.enabled || asked.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface p-6 text-center">
           <p className="font-semibold">This link isn&apos;t collecting anything right now.</p>
           <p className="mt-1 text-sm text-muted">
@@ -72,6 +94,8 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
           teamName={link.teamName}
           sections={link.sections}
           existingRosterCount={link.existingRosterCount}
+          includesSocks={link.includesSocks}
+          includesPantShells={link.includesPantShells}
           previousPreviews={previousPreviews}
           previous={
             previous

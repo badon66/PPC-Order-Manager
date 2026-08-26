@@ -126,3 +126,35 @@ export function monthLabel(key: string): string {
   const [y, m] = key.split('-').map(Number);
   return `${MONTHS[m - 1]} ${y}`;
 }
+
+/**
+ * A timestamp, shown to the second, in Keenan's timezone.
+ *
+ * Distinct from `formatLong`/`formatShort`, which take a CalendarDate — a
+ * `YYYY-MM-DD` string that must never touch a timezone, because the old app
+ * ran every one of those through `new Date()` and displayed every date a day
+ * early.
+ *
+ * This one is the opposite case and the distinction matters: a change-log `at`
+ * is a real instant, stored as ISO UTC, and the only correct way to show it is
+ * converted into local time. "When did the customer change this?" is a
+ * question about a moment, not a calendar square.
+ */
+export function formatTimestamp(iso: string, timeZone = 'America/Edmonton'): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  }).format(d);
+}
+
+/** Just the day part of an instant, for grouping a log into date headings. */
+export function timestampDay(iso: string, timeZone = 'America/Edmonton'): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+}

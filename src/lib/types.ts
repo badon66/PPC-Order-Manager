@@ -8,6 +8,7 @@ export const ORDER_STATUSES = [
   'incomplete',
   'draft',
   'waiting_for_payment',
+  'waiting_for_approval',
   'in_production',
   'shipped',
   'completed',
@@ -341,6 +342,8 @@ export interface SubmittedPlayer {
   sockOnly: boolean;
   jerseySize: string;
   sockSize: string;
+  /** Only asked for when the order actually includes pant shells. */
+  pantShellSize: string;
   notes: string;
 }
 

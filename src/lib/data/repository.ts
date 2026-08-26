@@ -59,6 +59,8 @@ export interface PublicOrderView {
   googleDriveLink: string;
   orderMode: Order['orderMode'];
   sets: Order['sets'];
+  /** The manually-entered player count, used when no roster exists yet. */
+  playersTotal: Order['playersTotal'];
   jerseyType: Order['jerseyType'];
   sockType: Order['sockType'];
   pantShellType: Order['pantShellType'];
@@ -118,8 +120,17 @@ export interface Repository {
     teamName: string;
     /** False = the link is switched off; the page tells the customer so. */
     enabled: boolean;
+    status: Order['status'];
+    /**
+     * True once the order reached production. The form renders read-only and
+     * the write is refused — a customer cannot change a jersey being sewn.
+     */
+    locked: boolean;
     sections: ClientLinkSections;
     orderMode: Order['orderMode'];
+    /** Whether the order actually includes socks / pant shells. */
+    includesSocks: boolean;
+    includesPantShells: boolean;
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;
   } | null>;

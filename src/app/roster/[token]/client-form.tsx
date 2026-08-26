@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { JERSEY_SIZES, SOCK_SIZES } from '@/lib/constants';
+import { PANT_SHELL_SIZES, SIZING_CHART_URL, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import type {
   ClientLinkSections, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
 } from '@/lib/types';
@@ -30,6 +30,8 @@ type Props = {
   teamName: string;
   sections: ClientLinkSections;
   existingRosterCount: number;
+  includesSocks: boolean;
+  includesPantShells: boolean;
   /** Their last submission, pre-filled so a revisit is an edit. */
   previous: PreviousSubmission | null;
   /** Signed links for the files in that previous submission, so a revisit
@@ -39,7 +41,7 @@ type Props = {
 
 const blankPlayer = (): SubmittedPlayer => ({
   playerNameAsPrinted: '', number: '', isGoalie: false, sockOnly: false,
-  jerseySize: '', sockSize: '', notes: '',
+  jerseySize: '', sockSize: '', pantShellSize: '', notes: '',
 });
 const blankLogo = (): SubmittedLogo => ({
   fileUrl: '', fileName: '', logoName: '', placementNotes: '', description: '',
@@ -50,17 +52,82 @@ const blankContact = (): SubmittedContact => ({
   street: '', secondary: '', city: '', province: '', postal: '',
 });
 
-async function upload(token: string, file: File) {
+type Uploaded = { fileUrl: string; fileName: string; previewUrl: string };
+
+/**
+ * Upload straight to storage, not through the app.
+ *
+ * A customer photographing a crest on a phone produces a file well past
+ * Vercel's ~4.5 MB request-body cap, which no setting raises — so posting it
+ * through this app failed before our code ran. The server signs a URL for one
+ * key, the browser PUTs to it, then asks for a preview link.
+ *
+ * 409 means local dev with no bucket to sign against; the old POST still works
+ * there and has no such limit.
+ */
+async function upload(token: string, file: File): Promise<Uploaded> {
+  const signed = await fetch(`/api/public-upload/${token}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+  });
+
+  if (signed.status === 409) return uploadThroughServer(token, file);
+
+  const info = await signed.json();
+  if (!signed.ok) throw new Error(info.error ?? 'Upload failed');
+
+  const put = await fetch(info.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!put.ok) throw new Error(`Upload failed (${put.status}). Check your connection and try again.`);
+
+  const preview = await fetch(`/api/public-upload/${token}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ fileUrl: info.fileUrl }),
+  });
+  const { previewUrl } = preview.ok ? await preview.json() : { previewUrl: '' };
+
+  return { fileUrl: info.fileUrl, fileName: info.fileName, previewUrl };
+}
+
+async function uploadThroughServer(token: string, file: File): Promise<Uploaded> {
   const body = new FormData();
   body.append('file', file);
   const res = await fetch(`/api/public-upload/${token}`, { method: 'POST', body });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? 'Upload failed');
-  return json as { fileUrl: string; fileName: string; previewUrl: string };
+  return json as Uploaded;
+}
+
+/**
+ * Options for a size dropdown, keeping a value the list doesn't contain.
+ *
+ * The size lists changed — the imported orders carry sizes like "YM" and
+ * "Goalie XL" from the old free-text column. A <select> whose value isn't
+ * among its options renders blank, and the next save writes that blank back:
+ * a customer opening their form to fix a phone number would silently wipe
+ * every size we already had. So an unrecognised value is offered as its own
+ * option, marked, and survives untouched unless they deliberately change it.
+ */
+function sizeOptions(options: readonly string[], current: string) {
+  const unknown = current !== '' && !options.includes(current);
+  return (
+    <>
+      {options.map((s) => (
+        <option key={s} value={s}>{s}</option>
+      ))}
+      {unknown && <option value={current}>{current} (as previously entered)</option>}
+    </>
+  );
 }
 
 export function ClientForm({
-  token, teamName, sections, existingRosterCount, previous, previousPreviews,
+  token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
+  previous, previousPreviews,
 }: Props) {
   const [players, setPlayers] = useState<SubmittedPlayer[]>(
     previous?.players.length ? previous.players : sections.roster ? [blankPlayer()] : [],
@@ -172,6 +239,18 @@ export function ClientForm({
               : "Names exactly as they should be printed on the jersey. Double-check spelling — it's what goes on the back."
           }
         >
+          <p className="mb-3 text-sm">
+            <span className="text-muted">Don&apos;t know what size you guys need? </span>
+            <a
+              href={SIZING_CHART_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-ppc-gold hover:underline"
+            >
+              Check out the sizing chart for the in-depth guide →
+            </a>
+          </p>
+
           <div className="space-y-3">
             {players.map((p, i) => (
               <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
@@ -200,15 +279,24 @@ export function ClientForm({
                   {!p.sockOnly && (
                     <select value={p.jerseySize}
                       onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, jerseySize: e.target.value } : x))}>
-                      <option value="">Jersey size</option>
-                      {JERSEY_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      <option value="">{p.isGoalie ? 'Goalie jersey size' : 'Jersey size'}</option>
+                      {sizeOptions(jerseySizesFor(p.isGoalie), p.jerseySize)}
                     </select>
                   )}
-                  <select value={p.sockSize} className={p.sockOnly ? '' : 'col-span-2'}
-                    onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, sockSize: e.target.value } : x))}>
-                    <option value="">Sock size</option>
-                    {SOCK_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  {includesSocks && (
+                    <select value={p.sockSize}
+                      onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, sockSize: e.target.value } : x))}>
+                      <option value="">Sock size</option>
+                      {sizeOptions(SOCK_SIZES, p.sockSize)}
+                    </select>
+                  )}
+                  {includesPantShells && !p.sockOnly && (
+                    <select value={p.pantShellSize}
+                      onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, pantShellSize: e.target.value } : x))}>
+                      <option value="">Pant shell size</option>
+                      {sizeOptions(PANT_SHELL_SIZES, p.pantShellSize)}
+                    </select>
+                  )}
                   <input className="col-span-2" placeholder="Notes (optional)"
                     value={p.notes}
                     onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, notes: e.target.value } : x))} />

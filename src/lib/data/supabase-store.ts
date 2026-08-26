@@ -7,8 +7,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  approvalLogEntry, buildSubmission, healOrder, healSubmission, logEntry, matchesSearch,
-  planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 
 /**
@@ -310,6 +309,11 @@ export const supabaseStore: Repository = {
   async submitClientRoster(token, submission) {
     const o = await orderByToken('roster_token', token);
     if (!o) throw new Error('Invalid link');
+
+    // The form is hidden once the order is in production, but hiding a form
+    // does not stop a POST from a tab that was open beforehand. Checked here,
+    // at the write, where it cannot be skipped.
+    if (clientEditingLocked(o.status)) throw new Error(CLIENT_LOCKED_MESSAGE);
 
     const previous = await this.getLatestSubmissionByRosterToken(token);
     const created = buildSubmission(o.id, previous, submission);

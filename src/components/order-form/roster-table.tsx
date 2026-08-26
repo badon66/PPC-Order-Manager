@@ -1,9 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { JERSEY_SIZES, PANT_SHELL_SIZES, SOCK_SIZES } from '@/lib/constants';
-import { blankRosterEntry, stripSpaces } from '@/lib/order-utils';
-import type { OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
+import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
+import { blankRosterEntry, orderIncludesPantShells, orderIncludesSocks, stripSpaces } from '@/lib/order-utils';
+import type { Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 import { SizeSelect } from './fields';
 import { RosterTally, buildTallies } from './roster-tally';
 
@@ -29,15 +29,26 @@ export function RosterTable({
   entries,
   orderMode,
   sets,
+  sockType,
+  pantShellType,
   onChange,
 }: {
   orderId: string;
   entries: RosterEntry[];
   orderMode: OrderMode;
   sets: SetQuantities[];
+  sockType: Order['sockType'];
+  pantShellType: Order['pantShellType'];
   onChange: (next: RosterEntry[]) => void;
 }) {
   const homeAway = orderMode === 'home_away_set';
+
+  // Columns for things this order doesn't include are hidden outright rather
+  // than left blank: an empty sock-size cell on a jerseys-only order looks
+  // like something that still needs filling in.
+  const includes = { sets, sockType, pantShellType };
+  const showSocks = orderIncludesSocks(includes);
+  const showPantShells = orderIncludesPantShells(includes);
   const [noSpaces, setNoSpaces] = useState(false);
   const [importReport, setImportReport] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -159,19 +170,19 @@ export function RosterTable({
                   <th className="py-2 pr-2">Name on back</th>
                   <th className="py-2 pr-2 w-20">#</th>
                   <th className="py-2 pr-2 w-28">Jersey</th>
-                  <th className="py-2 pr-2 w-32">Sock</th>
-                  <th className="py-2 pr-2 w-28">Pant</th>
+                  {showSocks && <th className="py-2 pr-2 w-32">Sock</th>}
+                  {showPantShells && <th className="py-2 pr-2 w-28">Pant</th>}
                   {homeAway ? (
                     <>
                       <th className="py-2 pr-2 w-24">Home Jersey</th>
                       <th className="py-2 pr-2 w-24">Away Jersey</th>
-                      <th className="py-2 pr-2 w-24">Home Socks</th>
-                      <th className="py-2 pr-2 w-24">Away Socks</th>
+                      {showSocks && <th className="py-2 pr-2 w-24">Home Socks</th>}
+                      {showSocks && <th className="py-2 pr-2 w-24">Away Socks</th>}
                     </>
                   ) : (
                     <>
                       <th className="py-2 pr-2 w-20">Jerseys</th>
-                      <th className="py-2 pr-2 w-20">Socks</th>
+                      {showSocks && <th className="py-2 pr-2 w-20">Socks</th>}
                     </>
                   )}
                   <th className="py-2 pr-2">Notes</th>
@@ -227,25 +238,29 @@ export function RosterTable({
                       ) : (
                         <SizeSelect
                           value={e.jerseySize}
-                          options={JERSEY_SIZES}
+                          options={jerseySizesFor(e.isGoalie)}
                           onChange={(v) => patch(i, { jerseySize: v })}
                         />
                       )}
                     </td>
-                    <td className="py-2 pr-2">
-                      <SizeSelect
-                        value={e.sockSize}
-                        options={SOCK_SIZES}
-                        onChange={(v) => patch(i, { sockSize: v })}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <SizeSelect
-                        value={e.pantShellSize}
-                        options={PANT_SHELL_SIZES}
-                        onChange={(v) => patch(i, { pantShellSize: v })}
-                      />
-                    </td>
+                    {showSocks && (
+                      <td className="py-2 pr-2">
+                        <SizeSelect
+                          value={e.sockSize}
+                          options={SOCK_SIZES}
+                          onChange={(v) => patch(i, { sockSize: v })}
+                        />
+                      </td>
+                    )}
+                    {showPantShells && (
+                      <td className="py-2 pr-2">
+                        <SizeSelect
+                          value={e.pantShellSize}
+                          options={PANT_SHELL_SIZES}
+                          onChange={(v) => patch(i, { pantShellSize: v })}
+                        />
+                      </td>
+                    )}
                     {homeAway ? (
                       <>
                         <td className="py-2 pr-2">
@@ -262,18 +277,22 @@ export function RosterTable({
                             onChange={(v) => patch(i, { awayJersey: v ? 1 : 0 })}
                           />
                         </td>
-                        <td className="py-2 pr-2">
-                          <TickBox
-                            checked={Boolean(e.homeSocks)}
-                            onChange={(v) => patch(i, { homeSocks: v ? 1 : 0 })}
-                          />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <TickBox
-                            checked={Boolean(e.awaySocks)}
-                            onChange={(v) => patch(i, { awaySocks: v ? 1 : 0 })}
-                          />
-                        </td>
+                        {showSocks && (
+                          <td className="py-2 pr-2">
+                            <TickBox
+                              checked={Boolean(e.homeSocks)}
+                              onChange={(v) => patch(i, { homeSocks: v ? 1 : 0 })}
+                            />
+                          </td>
+                        )}
+                        {showSocks && (
+                          <td className="py-2 pr-2">
+                            <TickBox
+                              checked={Boolean(e.awaySocks)}
+                              onChange={(v) => patch(i, { awaySocks: v ? 1 : 0 })}
+                            />
+                          </td>
+                        )}
                       </>
                     ) : (
                       <>
@@ -286,14 +305,16 @@ export function RosterTable({
                             onChange={(ev) => patch(i, { jerseysPerPlayer: Number(ev.target.value) || 0 })}
                           />
                         </td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={e.socksPerPlayer}
-                            onChange={(ev) => patch(i, { socksPerPlayer: Number(ev.target.value) || 0 })}
-                          />
-                        </td>
+                        {showSocks && (
+                          <td className="py-2 pr-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={e.socksPerPlayer}
+                              onChange={(ev) => patch(i, { socksPerPlayer: Number(ev.target.value) || 0 })}
+                            />
+                          </td>
+                        )}
                       </>
                     )}
                     <td className="py-2 pr-2">
@@ -369,15 +390,24 @@ export function RosterTable({
                   {!e.sockOnly && (
                     <SizeSelect
                       value={e.jerseySize}
-                      options={JERSEY_SIZES}
+                      options={jerseySizesFor(e.isGoalie)}
                       onChange={(v) => patch(i, { jerseySize: v })}
                     />
                   )}
-                  <SizeSelect
-                    value={e.sockSize}
-                    options={SOCK_SIZES}
-                    onChange={(v) => patch(i, { sockSize: v })}
-                  />
+                  {showSocks && (
+                    <SizeSelect
+                      value={e.sockSize}
+                      options={SOCK_SIZES}
+                      onChange={(v) => patch(i, { sockSize: v })}
+                    />
+                  )}
+                  {showPantShells && (
+                    <SizeSelect
+                      value={e.pantShellSize}
+                      options={PANT_SHELL_SIZES}
+                      onChange={(v) => patch(i, { pantShellSize: v })}
+                    />
+                  )}
                   {homeAway ? (
                     <div className="col-span-2 grid grid-cols-2 gap-2">
                       <LabelledTick
@@ -388,14 +418,18 @@ export function RosterTable({
                         label="Away Jersey" checked={Boolean(e.awayJersey)} disabled={e.sockOnly}
                         onChange={(v) => patch(i, { awayJersey: v ? 1 : 0 })}
                       />
-                      <LabelledTick
-                        label="Home Socks" checked={Boolean(e.homeSocks)}
-                        onChange={(v) => patch(i, { homeSocks: v ? 1 : 0 })}
-                      />
-                      <LabelledTick
-                        label="Away Socks" checked={Boolean(e.awaySocks)}
-                        onChange={(v) => patch(i, { awaySocks: v ? 1 : 0 })}
-                      />
+                      {showSocks && (
+                        <LabelledTick
+                          label="Home Socks" checked={Boolean(e.homeSocks)}
+                          onChange={(v) => patch(i, { homeSocks: v ? 1 : 0 })}
+                        />
+                      )}
+                      {showSocks && (
+                        <LabelledTick
+                          label="Away Socks" checked={Boolean(e.awaySocks)}
+                          onChange={(v) => patch(i, { awaySocks: v ? 1 : 0 })}
+                        />
+                      )}
                     </div>
                   ) : (
                     <div className="col-span-2 grid grid-cols-2 gap-2">
@@ -406,13 +440,15 @@ export function RosterTable({
                           onChange={(ev) => patch(i, { jerseysPerPlayer: Number(ev.target.value) || 0 })}
                         />
                       </label>
-                      <label className="text-xs text-muted">
-                        Socks
-                        <input
-                          type="number" min={0} value={e.socksPerPlayer}
-                          onChange={(ev) => patch(i, { socksPerPlayer: Number(ev.target.value) || 0 })}
-                        />
-                      </label>
+                      {showSocks && (
+                        <label className="text-xs text-muted">
+                          Socks
+                          <input
+                            type="number" min={0} value={e.socksPerPlayer}
+                            onChange={(ev) => patch(i, { socksPerPlayer: Number(ev.target.value) || 0 })}
+                          />
+                        </label>
+                      )}
                     </div>
                   )}
                   <input

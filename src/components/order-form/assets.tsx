@@ -28,8 +28,57 @@ export interface AssetGroupProps {
 /**
  * `fileUrl` is the key we store; `previewUrl` is a signed link that works right
  * now, for the thumbnail shown the instant the upload lands.
+ *
+ * TWO PATHS, AND WHY
+ *
+ * Hosted, the browser uploads straight to Supabase Storage: ask the server to
+ * sign a URL, PUT the bytes to it, then ask for a preview link. Three requests
+ * where one would do — but Vercel caps a serverless function's request body at
+ * about 4.5 MB, and no setting raises it. Sending the file through the app
+ * meant anything larger was rejected before our code ran, which is why a big
+ * crest failed with no error worth reading.
+ *
+ * On a laptop with no Supabase credentials there is no bucket to sign against
+ * and no function limit to dodge, so it posts to /api/upload as before. The
+ * 409 is that case announcing itself rather than an error.
  */
 async function uploadFile(
+  file: File,
+): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
+  const signed = await fetch('/api/upload/sign', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+  });
+
+  if (signed.status === 409) return uploadThroughServer(file);
+
+  const info = await signed.json();
+  if (!signed.ok) throw new Error(info.error ?? 'Upload failed');
+
+  const put = await fetch(info.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!put.ok) {
+    throw new Error(
+      `Upload failed (${put.status}). If the file is very large, check your connection and try again.`,
+    );
+  }
+
+  const preview = await fetch('/api/upload/sign', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ fileUrl: info.fileUrl }),
+  });
+  const { previewUrl } = preview.ok ? await preview.json() : { previewUrl: '' };
+
+  return { fileUrl: info.fileUrl, fileName: info.fileName, previewUrl };
+}
+
+/** Local dev, where the file lands in public/uploads. */
+async function uploadThroughServer(
   file: File,
 ): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const body = new FormData();

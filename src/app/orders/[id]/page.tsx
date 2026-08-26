@@ -353,7 +353,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <p className="text-sm text-muted">Nothing recorded yet.</p>
         ) : (
           <ol className="space-y-2 text-sm">
-            {history.slice(0, 40).map((h) => (
+            {history.slice(0, 20).map((h) => (
               <li key={h.id} className="flex flex-wrap items-baseline gap-x-3 border-b border-line/50 pb-2">
                 <span className="font-semibold">{h.summary}</span>
                 <span className="text-xs text-muted">
@@ -363,6 +363,19 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             ))}
           </ol>
         )}
+        {/*
+          * Always offered, not only when the list is truncated: this summary
+          * shows dates but not times, and "when exactly" is the question that
+          * matters once a customer disputes a change.
+          */}
+        <Link
+          href={`/orders/${order.id}/history`}
+          className="mt-3 inline-block text-sm font-semibold text-ppc-gold hover:underline"
+        >
+          View full history
+          {history.length > 20 && ` — all ${history.length} entries, with times`}
+          {history.length <= 20 && ' — with exact times and what changed'} →
+        </Link>
       </Section>
     </div>
   );

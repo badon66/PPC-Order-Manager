@@ -8,8 +8,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  approvalLogEntry, buildSubmission, healOrder, healSubmission, logEntry, matchesSearch,
-  planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 import { seedDatabase } from './seed';
 
@@ -271,6 +270,8 @@ export const jsonStore: Repository = {
     await withWrite((db) => {
       const o = db.orders.find((x) => x.rosterToken === token && !x.deletedAt);
       if (!o) throw new Error('Invalid link');
+      // Same rule as the Supabase store, enforced at the write. See logic.ts.
+      if (clientEditingLocked(o.status)) throw new Error(CLIENT_LOCKED_MESSAGE);
       const previous = db.submissions
         .filter((x) => x.orderId === o.id)
         .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt))

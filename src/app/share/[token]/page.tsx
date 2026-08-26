@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
 import { formatLong } from '@/lib/dates';
-import { describeSet } from '@/lib/order-utils';
+import { computeTotals, describeOrderTotals, describeSet } from '@/lib/order-utils';
 import {
   JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS, PANT_SHELL_TYPE_LABELS,
   PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
@@ -39,6 +39,15 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
    */
   const assets = (await resolveAll(view.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
 
+  /*
+   * The same calculation the admin page runs, not a second copy of it.
+   *
+   * This page used to count roster rows directly, which reads as zero on an
+   * order whose roster hasn't been filled in yet — even though the quantities
+   * were entered. computeTotals already falls back to those quantities; the
+   * bug was only that this page wasn't asking it.
+   */
+  const totals = computeTotals(view, view.roster);
   const playing = view.roster.filter((r) => !r.sockOnly);
   const hasPantShells =
     view.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
@@ -101,16 +110,14 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       </Section>
 
       <Section title="Order Totals">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Stat label="Total Players" value={playing.length} accent />
-          <Stat
-            label="Total Jerseys"
-            value={
-              playing.reduce((n, r) => n + (r.jerseysPerPlayer || 0), 0) +
-              view.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0)
-            }
-          />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Stat label="Total Players" value={totals.totalPlayers} accent />
+          <Stat label="Total Jerseys" value={totals.totalJerseys} />
+          <Stat label="Sock Pairs" value={totals.totalSockPairs} />
         </div>
+        {describeOrderTotals(totals) && (
+          <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>
+        )}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {view.sets.map((s, i) => (
             <Card key={i} className="p-3">

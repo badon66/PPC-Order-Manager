@@ -32,7 +32,21 @@ const ALLOWED = new Set([
   'application/octet-stream', // some browsers send this for .ttf/.otf
 ]);
 
-const MAX_BYTES = 25 * 1024 * 1024;
+/*
+ * 50 MB.
+ *
+ * The design reference is the single image the manufacturer works from, so it
+ * arrives as a full-resolution export rather than something sized for the web.
+ * 25 MB was turning those away.
+ *
+ * Raising this alone would not have been enough: on Vercel a request body over
+ * ~4.5 MB never reaches the app at all, so anything past that failed no matter
+ * what this constant said. See `createUploadUrl` below.
+ *
+ * Keep in step with the bucket's own file_size_limit — migration
+ * 0003_bigger_artwork_files.sql — or Supabase rejects what this accepts.
+ */
+const MAX_BYTES = 50 * 1024 * 1024;
 
 /** How long a signed artwork link lives. Long enough to load a page and
  *  look at it; short enough that a forwarded link goes stale. */
@@ -46,7 +60,9 @@ export interface StoredFile {
 
 function checkAllowed(file: { size: number; type: string; name: string }): void {
   if (file.size > MAX_BYTES) {
-    throw new Error(`"${file.name}" is ${(file.size / 1_048_576).toFixed(1)} MB — the limit is 25 MB.`);
+    throw new Error(
+      `"${file.name}" is ${(file.size / 1_048_576).toFixed(1)} MB — the limit is ${MAX_BYTES / 1_048_576} MB.`,
+    );
   }
   if (file.type && !ALLOWED.has(file.type)) {
     throw new Error(`"${file.name}" is a ${file.type} file. Upload an image, PDF, or font file.`);
@@ -57,6 +73,48 @@ function keyFor(name: string): string {
   const ext = path.extname(name).toLowerCase().slice(0, 10) || '';
   const safeExt = /^\.[a-z0-9]+$/.test(ext) ? ext : '';
   return `${randomUUID()}${safeExt}`;
+}
+
+/**
+ * A URL the browser can upload straight to, skipping this server entirely.
+ *
+ * WHY THIS EXISTS
+ *
+ * A file POSTed to a Next route handler on Vercel travels through the
+ * serverless function, and Vercel caps a function's request body at about
+ * 4.5 MB. That is a platform limit — no config raises it. A 12 MB crest was
+ * therefore rejected before a single line of this app ran, which is why the
+ * failure looked like nothing at all: no error from our code, because our code
+ * never executed.
+ *
+ * So the bytes stop coming through here. The server mints a short-lived signed
+ * upload URL for one specific key, the browser PUTs the file directly to
+ * Supabase Storage, and only the key comes back. Nothing large crosses the
+ * function, so the ceiling is the bucket's limit rather than Vercel's.
+ *
+ * The signed URL is scoped to a single path we generated and expires on its
+ * own, so handing it to the browser grants nothing beyond writing that one
+ * object. No storage credential reaches the client.
+ *
+ * Only available when Supabase is configured. On a laptop with no credentials
+ * the app writes to `public/uploads` and the old POST route is still the path
+ * — there is no function limit there, and no bucket to sign against.
+ */
+export async function createUploadUrl(
+  file: { name: string; size: number; type: string },
+): Promise<{ uploadUrl: string; fileUrl: string; fileName: string }> {
+  if (!isSupabaseConfigured()) throw new Error('Direct upload needs Supabase storage.');
+  checkAllowed(file);
+
+  const key = keyFor(file.name);
+  const { data, error } = await supabase()
+    .storage
+    .from(ARTWORK_BUCKET)
+    .createSignedUploadUrl(key);
+
+  if (error || !data) throw new Error(`Could not start upload: ${error?.message ?? 'unknown error'}`);
+
+  return { uploadUrl: data.signedUrl, fileUrl: `${ARTWORK_BUCKET}/${key}`, fileName: file.name };
 }
 
 export async function putFile(file: File): Promise<StoredFile> {

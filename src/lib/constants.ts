@@ -14,9 +14,10 @@ export const STATUS_META: Record<
   incomplete:          { label: 'Incomplete',          emoji: '⚠️', order: 0, className: 'border-red-500/60 text-red-300 bg-red-500/10' },
   draft:               { label: 'Draft',               emoji: '📝', order: 1, className: 'border-sky-500/60 text-sky-300 bg-sky-500/10' },
   waiting_for_payment: { label: 'Waiting for Payment', emoji: '💰', order: 2, className: 'border-amber-500/60 text-amber-200 bg-amber-500/10' },
-  in_production:       { label: 'In Production',       emoji: '🟡', order: 3, className: 'border-ppc-gold/60 text-ppc-gold bg-ppc-gold/10' },
-  shipped:             { label: 'Shipped',             emoji: '📦', order: 4, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
-  completed:           { label: 'Completed',           emoji: '🟢', order: 5, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
+  waiting_for_approval:{ label: 'Waiting for Approval', emoji: '✍️', order: 3, className: 'border-orange-400/60 text-orange-200 bg-orange-500/10' },
+  in_production:       { label: 'In Production',       emoji: '🟡', order: 4, className: 'border-ppc-gold/60 text-ppc-gold bg-ppc-gold/10' },
+  shipped:             { label: 'Shipped',             emoji: '📦', order: 5, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
+  completed:           { label: 'Completed',           emoji: '🟢', order: 6, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
 };
 
 export const STATUS_OPTIONS = (Object.keys(STATUS_META) as OrderStatus[]).sort(
@@ -249,12 +250,71 @@ export function tierPatch(tier: TierDef): Record<AddonKey, boolean> {
  * size string, and sock-only is its own flag too.
  * ------------------------------------------------------------------ */
 
-export const YOUTH_SIZES = ['YXS', 'YS', 'YM', 'YL', 'YXL'] as const;
-export const ADULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as const;
+/*
+ * The real size ranges, as ordered from the manufacturer.
+ *
+ * Jersey sizes split by position, because a goalie cut is a different garment
+ * and not a bigger version of the same one. The row's `isGoalie` flag picks
+ * the list — see jerseySizesFor(). Before this, both shared one generic
+ * S/M/L/XL list, which is how "Goalie XL" ended up typed into the size column
+ * of live orders as free text.
+ *
+ * Order matters: these render in dropdowns in exactly this sequence, smallest
+ * first, so don't sort them alphabetically.
+ */
 
-export const JERSEY_SIZES: readonly string[] = [...YOUTH_SIZES, ...ADULT_SIZES];
-export const SOCK_SIZES: readonly string[] = ['Youth', 'Junior', 'Intermediate', 'Senior'];
-export const PANT_SHELL_SIZES: readonly string[] = [...YOUTH_SIZES, ...ADULT_SIZES];
+export const PLAYER_JERSEY_SIZES: readonly string[] = [
+  'Youth S/M',
+  'Youth L/XL',
+  'Senior Small',
+  'Senior Medium',
+  'Senior Large',
+  'Senior XL',
+  'Senior XXL',
+  'Senior XXXL',
+];
+
+export const GOALIE_JERSEY_SIZES: readonly string[] = [
+  'Junior Goalie',
+  'Goalie S/M',
+  'Goalie L',
+  'Goalie XL',
+  'Goalie 2XL',
+  'Goalie 3XL',
+];
+
+/** Which jersey sizes a given roster row can choose from. */
+export function jerseySizesFor(isGoalie: boolean): readonly string[] {
+  return isGoalie ? GOALIE_JERSEY_SIZES : PLAYER_JERSEY_SIZES;
+}
+
+/**
+ * Both lists together.
+ *
+ * Only for code that has to recognise any valid size without knowing whose row
+ * it is — CSV import, validation. Never use it to populate a dropdown; that
+ * would offer a goalie cut to a forward.
+ */
+export const JERSEY_SIZES: readonly string[] = [...PLAYER_JERSEY_SIZES, ...GOALIE_JERSEY_SIZES];
+
+export const SOCK_SIZES: readonly string[] = ['XXS', 'XS', 'S', 'M', 'L', 'XL'];
+
+export const PANT_SHELL_SIZES: readonly string[] = [
+  'Senior Small',
+  'Senior Medium',
+  'Senior Large',
+  'Senior XL',
+  'Senior XXL',
+  'Senior Goalie',
+];
+
+/**
+ * Where "check the sizing chart" sends a customer.
+ *
+ * TODO: Keenan to confirm the real address. Everything else about the link is
+ * finished; only this line changes.
+ */
+export const SIZING_CHART_URL = 'https://powerplaycustoms.ca/pages/sizing-chart';
 
 /** Explicit escape hatch, so odd cases are visible rather than hidden in free text. */
 export const SIZE_OTHER = 'Other';
@@ -264,6 +324,19 @@ export const SIZE_OTHER = 'Other';
  * ------------------------------------------------------------------ */
 
 export const MAX_FILES_PER_REFERENCE_GROUP = 4;
+
+/**
+ * The design reference is one file, not four.
+ *
+ * It's the image the manufacturer actually builds from and the one everyone
+ * points at in a conversation. Four slots invited four half-versions with no
+ * indication which was current — the collar and crest groups are genuinely
+ * multi-file, this one isn't.
+ *
+ * Existing orders imported from Base44 sometimes carry several. Those still
+ * display; the limit only stops more being added.
+ */
+export const MAX_DESIGN_REFERENCE_FILES = 1;
 export const MAX_FILES_PER_ADDITIONAL_LOGO = 2;
 
 /* ------------------------------------------------------------------ *

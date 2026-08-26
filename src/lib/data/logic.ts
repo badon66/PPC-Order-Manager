@@ -1,9 +1,10 @@
 import type {
-  ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Order, OrderAsset, RosterEntry,
-  SubmissionChange, SubmittedContact,
+  ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Order, OrderAsset, OrderStatus,
+  RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from '@/lib/types';
-import { newId } from '@/lib/order-utils';
+import { STATUS_META } from '@/lib/constants';
+import { newId, orderIncludesPantShells, orderIncludesSocks } from '@/lib/order-utils';
 import type { Actor, PublicOrderView } from './repository';
 
 /**
@@ -183,6 +184,7 @@ export function diffSubmissions(
       ['number', was.number, p.number],
       ['jersey size', was.jerseySize, p.jerseySize],
       ['sock size', was.sockSize, p.sockSize],
+      ['pant shell size', was.pantShellSize ?? '', p.pantShellSize ?? ''],
       ['notes', was.notes, p.notes],
     ];
     for (const [what, from, to] of fields) {
@@ -360,7 +362,7 @@ export function planAcceptance(
       sockOnly: p.sockOnly,
       jerseySize: p.jerseySize,
       sockSize: p.sockSize,
-      pantShellSize: '',
+      pantShellSize: p.pantShellSize ?? '',
       jerseysPerPlayer: p.sockOnly ? 0 : 1,
       socksPerPlayer: 1,
       shellsPerPlayer: 0,
@@ -464,6 +466,9 @@ export function publicViewOf(
     googleDriveLink: o.googleDriveLink,
     orderMode: o.orderMode,
     sets: o.sets,
+    // Needed so the share page can call computeTotals: with no roster yet, the
+    // player count comes from what Keenan typed, not from counting zero rows.
+    playersTotal: o.playersTotal,
     jerseyType: o.jerseyType,
     sockType: o.sockType,
     pantShellType: o.pantShellType,
@@ -508,23 +513,67 @@ export function publicViewOf(
   };
 }
 
+/**
+ * Can the customer still change what they sent us?
+ *
+ * Yes right up until the jerseys are being made, and never after. Once a
+ * roster is at the manufacturer, a size changed on a form is not a correction
+ * — it's a discrepancy between what the customer believes they ordered and
+ * what is being sewn, and nobody finds out until the box arrives.
+ *
+ * Derived from the workflow position in STATUS_META rather than a hardcoded
+ * list of locked statuses, so it stays correct on its own: a status inserted
+ * before production is editable, one inserted after is locked, and neither
+ * requires remembering to edit this function. That `order` field already means
+ * "where in the process is this" — this is a second reading of the same fact,
+ * not a new one to keep in step.
+ */
+export function clientEditingLocked(status: OrderStatus): boolean {
+  return STATUS_META[status].order >= STATUS_META.in_production.order;
+}
+
 export function rosterLinkView(o: Order, existingRosterCount: number): {
   orderId: string;
   teamName: string;
   enabled: boolean;
+  status: OrderStatus;
+  /** True once the order is in production or beyond — the form goes read-only. */
+  locked: boolean;
   sections: ClientLinkSections;
   orderMode: Order['orderMode'];
+  /** Whether to ask for sock / pant shell sizes at all. */
+  includesSocks: boolean;
+  includesPantShells: boolean;
   existingRosterCount: number;
 } {
   return {
     orderId: o.id,
     teamName: o.teamName,
+    // `enabled` stays "has Keenan switched the link on", so the two reasons a
+    // form won't accept input remain distinguishable — the customer gets told
+    // which one applies rather than one vague dead end.
     enabled: o.requestClientDetails,
+    status: o.status,
+    locked: clientEditingLocked(o.status),
     sections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
     orderMode: o.orderMode,
+    includesSocks: orderIncludesSocks(o),
+    includesPantShells: orderIncludesPantShells(o),
     existingRosterCount,
   };
 }
+
+/**
+ * Thrown by both stores when a submission arrives for a locked order.
+ *
+ * Hiding the form is not enough on its own: the page is public, the token is
+ * the only credential, and a tab left open before production started will
+ * happily POST afterwards. The check has to be at the write, and it has to be
+ * in both backends — hence here, next to the rule it enforces.
+ */
+export const CLIENT_LOCKED_MESSAGE =
+  'This order is already in production, so it can no longer be changed here. ' +
+  'Get in touch with Powerplay Customs if something is wrong.';
 
 /* ------------------------------------------------------------------ *
  * Listing

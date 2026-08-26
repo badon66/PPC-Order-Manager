@@ -1,6 +1,7 @@
 'use server';
 
 import { repo } from '@/lib/data';
+import { CLIENT_LOCKED_MESSAGE } from '@/lib/data/logic';
 import type {
   ClientLinkSections, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
 } from '@/lib/types';
@@ -29,6 +30,9 @@ const clean = (s: unknown) => (typeof s === 'string' ? s.trim() : '');
 export async function submitClientForm(token: string, payload: SubmitPayload): Promise<SubmitResult> {
   const link = await repo.getByRosterToken(token);
   if (!link || !link.enabled) return { ok: false, error: 'This link is no longer active.' };
+  // Checked again in the store, at the write. Here so the customer gets the
+  // real reason rather than a generic failure.
+  if (link.locked) return { ok: false, error: CLIENT_LOCKED_MESSAGE };
   if (!payload.confirmed) return { ok: false, error: 'Please confirm the details are correct.' };
 
   const sec: ClientLinkSections = link.sections;
@@ -41,7 +45,10 @@ export async function submitClientForm(token: string, payload: SubmitPayload): P
           isGoalie: Boolean(p.isGoalie),
           sockOnly: Boolean(p.sockOnly),
           jerseySize: clean(p.jerseySize),
-          sockSize: clean(p.sockSize),
+          // Blanked rather than trusted when the order has no shells — the
+          // form doesn't show the field, so anything arriving here is stale.
+          sockSize: link.includesSocks ? clean(p.sockSize) : '',
+          pantShellSize: link.includesPantShells ? clean(p.pantShellSize) : '',
           notes: clean(p.notes),
         }))
         // A row with nothing typed in it is noise, not a player.

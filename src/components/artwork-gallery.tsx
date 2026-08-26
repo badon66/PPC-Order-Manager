@@ -118,10 +118,13 @@ function Tile({
   asset,
   index,
   groupSize,
+  hero = false,
 }: {
   asset: ViewableAsset;
   index: number;
   groupSize: number;
+  /** The design reference: shown at a size you can actually judge a jersey by. */
+  hero?: boolean;
 }) {
   const named = asset.displayName.trim();
   const title = named || derivedLabel(asset.role, index, groupSize);
@@ -144,7 +147,11 @@ function Tile({
        * whether its group has one file or nine, and `object-contain` centres
        * the artwork inside it at whatever shape it really is.
        */}
-      <div className="relative flex h-44 items-center justify-center overflow-hidden bg-[repeating-conic-gradient(#ffffff0d_0_25%,transparent_0_50%)] bg-[length:16px_16px] sm:h-52 xl:h-60">
+      <div
+        className={`relative flex items-center justify-center overflow-hidden bg-[repeating-conic-gradient(#ffffff0d_0_25%,transparent_0_50%)] bg-[length:16px_16px] ${
+          hero ? 'h-80 sm:h-[28rem] xl:h-[34rem]' : 'h-44 sm:h-52 xl:h-60'
+        }`}
+      >
         {/* Behind the image, so a file that never paints shows this instead. */}
         <span className="absolute text-sm font-bold tracking-wide text-muted">
           {extensionOf(asset.fileName, asset.viewUrl)}
@@ -188,14 +195,20 @@ function Tile({
  * `min(100%, 17rem)` rather than a bare `17rem`: on a narrow phone a 17rem
  * minimum would overflow the viewport instead of falling back to one column.
  */
-function Grid({ assets }: { assets: ViewableAsset[] }) {
+function Grid({ assets, hero = false }: { assets: ViewableAsset[]; hero?: boolean }) {
   return (
     <div
       className="grid gap-4"
-      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 17rem), 1fr))' }}
+      style={{
+        // A hero group is one image across the full width; everything else
+        // packs as many ~17rem tiles into the row as fit.
+        gridTemplateColumns: hero
+          ? '1fr'
+          : 'repeat(auto-fit, minmax(min(100%, 17rem), 1fr))',
+      }}
     >
       {assets.map((a, i) => (
-        <Tile key={a.id} asset={a} index={i} groupSize={assets.length} />
+        <Tile key={a.id} asset={a} index={i} groupSize={assets.length} hero={hero} />
       ))}
     </div>
   );
@@ -256,12 +269,17 @@ export function ArtworkGallery({ assets }: { assets: ViewableAsset[] }) {
           );
         }
 
+        // The design reference is what the jersey is actually judged against,
+        // so it gets the space rather than sharing a row with reference shots.
+        const hero = role === 'design_reference';
+
         return (
           <div key={role} className="space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wide text-muted">
-              {ROLE_LABELS[role] ?? role} ({group.length})
+              {ROLE_LABELS[role] ?? role}
+              {group.length > 1 && ` (${group.length})`}
             </h3>
-            <Grid assets={group} />
+            <Grid assets={group} hero={hero} />
           </div>
         );
       })}

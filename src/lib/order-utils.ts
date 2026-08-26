@@ -44,10 +44,11 @@ export function setsForMode(mode: OrderMode, numberOfSets = 1, existing: SetQuan
  * counts on the roster with nothing reconciling them. Live data had an order
  * with 21 roster rows rendering as "Total Players 18" on the customer's page.
  *
- * Rule: when a roster exists, it is the truth. The manually-entered set
- * quantities are still stored (they're how an order starts, before a roster
- * arrives), but any disagreement is surfaced instead of silently displayed
- * as two different numbers in two places.
+ * Rule: the entered quantities are the truth — they are the order. The roster
+ * fills in only where nothing was entered, since a part-finished roster is
+ * normal and must not quietly reduce the headline below what was ordered.
+ * Any disagreement between the two is surfaced rather than displayed as two
+ * different numbers in two places.
  * ------------------------------------------------------------------ */
 
 export interface OrderTotals {
@@ -88,7 +89,18 @@ export interface OrderTotals {
   mismatchDetail: string | null;
 }
 
-export function computeTotals(order: Order, roster: RosterEntry[]): OrderTotals {
+/**
+ * Everything computeTotals actually reads off an order.
+ *
+ * Narrowed from `Order` on purpose: the customer's share page has a
+ * `PublicOrderView`, not an Order, and before this it hand-rolled its own
+ * arithmetic instead — which is how it ended up showing "Total Players: 0" for
+ * an order with no roster yet, while the admin page showed the real number
+ * from the same data. Two implementations of one rule, disagreeing.
+ */
+export type TotalsInput = Pick<Order, 'sets' | 'orderMode' | 'playersTotal'>;
+
+export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderTotals {
   const declaredPlayerJerseys = order.sets.reduce((n, s) => n + (s.playerJerseys || 0), 0);
   const declaredGoalieJerseys = order.sets.reduce((n, s) => n + (s.goalieJerseys || 0), 0);
   const declaredSockPairs = order.sets.reduce((n, s) => n + (s.sockPairs || 0), 0);
@@ -124,17 +136,42 @@ export function computeTotals(order: Order, roster: RosterEntry[]): OrderTotals 
   const rosterPantShells = roster.reduce((n, r) => n + (r.shellsPerPlayer || 0), 0);
 
   const hasRoster = roster.length > 0;
+
+  /*
+   * WHAT KEENAN ENTERED WINS. The roster is only a fallback.
+   *
+   * This is the reverse of how it worked, and the reverse of the original rule
+   * at the top of this section — changed deliberately on Keenan's instruction,
+   * for a good reason: the quantities he types ARE the order. That's what goes
+   * to the manufacturer and what the team paid for. The roster is the team
+   * filling in who gets which jersey, and it is routinely part-finished — 12
+   * names submitted against an 18-jersey order is a normal Tuesday, not a
+   * correction to the order.
+   *
+   * Under the old rule that half-finished roster silently rewrote the headline
+   * to 12, on the customer's page as well as ours. Showing a number lower than
+   * what someone ordered is the worse failure of the two.
+   *
+   * The roster still fills in when nothing was entered — an order with a
+   * roster and no quantities should show the roster rather than zero.
+   *
+   * Nothing is hidden by this: when the two disagree, `mismatchDetail` still
+   * says so, and it now says which is which.
+   */
+  const pick = (declared: number, fromRoster: number) =>
+    declared > 0 ? declared : fromRoster;
+
   // Extras are additive in every case — no roster row accounts for them.
-  const totalJerseys = (hasRoster ? rosterJerseys : declaredJerseys) + extraJerseys;
-  const totalSockPairs = (hasRoster ? rosterSockPairs : declaredSockPairs) + extraSockPairs;
-  const totalPantShells = (hasRoster ? rosterPantShells : declaredPantShells) + extraPantShells;
-  const totalPlayers = hasRoster ? playing.length : order.playersTotal || 0;
+  const totalJerseys = pick(declaredJerseys, rosterJerseys) + extraJerseys;
+  const totalSockPairs = pick(declaredSockPairs, rosterSockPairs) + extraSockPairs;
+  const totalPantShells = pick(declaredPantShells, rosterPantShells) + extraPantShells;
+  const totalPlayers = pick(order.playersTotal || 0, playing.length);
 
   let mismatchDetail: string | null = null;
   if (hasRoster && declaredJerseys > 0 && declaredJerseys !== rosterJerseys) {
     mismatchDetail =
-      `Set quantities add up to ${declaredJerseys} jerseys, but the roster works out to ${rosterJerseys}. ` +
-      `Check before this goes to production.`;
+      `This order is for ${declaredJerseys} jerseys, but the roster accounts for ${rosterJerseys}. ` +
+      `The order quantity is what's shown and what gets made — check the roster before production.`;
   }
 
   return {
@@ -147,6 +184,35 @@ export function computeTotals(order: Order, roster: RosterEntry[]): OrderTotals 
     mismatch: mismatchDetail !== null,
     mismatchDetail,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * What's in the order
+ *
+ * Asking a customer for a sock size on a jerseys-only order is a question with
+ * no right answer: they either guess, or they write something and wonder why.
+ * Both the admin roster table and the client form hide those columns entirely,
+ * and both decide it here so they can't drift apart.
+ *
+ * A type being set counts as well as a quantity, because an order is often
+ * specced before the numbers are filled in — "embroidered pant shells, count
+ * TBC" should still ask for pant shell sizes.
+ * ------------------------------------------------------------------ */
+
+type IncludesInput = Pick<Order, 'sets' | 'sockType' | 'pantShellType'>;
+
+export function orderIncludesSocks(order: IncludesInput): boolean {
+  return (
+    order.sockType !== null ||
+    order.sets.some((s) => (s.sockPairs || 0) + (s.extraSockPairs || 0) > 0)
+  );
+}
+
+export function orderIncludesPantShells(order: IncludesInput): boolean {
+  return (
+    order.pantShellType !== null ||
+    order.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0)
+  );
 }
 
 /* ------------------------------------------------------------------ *

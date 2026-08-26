@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, NAME_STYLE_LABELS, ORDER_MODE_META,
-  PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
-  STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey,
+  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey,
 } from '@/lib/constants';
 import { describeSet, setsForMode } from '@/lib/order-utils';
 import type {
@@ -451,6 +449,8 @@ export function OrderForm({
       <>
         <AssetGroup
           orderId={draft.id} role="design_reference" title="Design Reference"
+          hint="The one image the manufacturer builds from. Upload it at full resolution — it's shown large on the order and on the customer's link."
+          max={MAX_DESIGN_REFERENCE_FILES}
           assets={assets} notes={draft.designReferenceNotes}
           onNotesChange={(v) => set('designReferenceNotes', v)}
           onAdd={addAsset} onRemove={removeAsset}
@@ -532,6 +532,8 @@ export function OrderForm({
         entries={roster}
         orderMode={draft.orderMode}
         sets={draft.sets}
+        sockType={draft.sockType}
+        pantShellType={draft.pantShellType}
         onChange={(next) => {
           rosterDirty.current = true;
           setRoster(next);
