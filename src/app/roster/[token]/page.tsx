@@ -96,6 +96,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
           existingRosterCount={link.existingRosterCount}
           includesSocks={link.includesSocks}
           includesPantShells={link.includesPantShells}
+          jerseyCount={link.jerseyCount}
           previousPreviews={previousPreviews}
           previous={
             previous

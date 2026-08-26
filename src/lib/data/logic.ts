@@ -546,6 +546,12 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   /** Whether to ask for sock / pant shell sizes at all. */
   includesSocks: boolean;
   includesPantShells: boolean;
+  /**
+   * How many jerseys the order is for. The form opens with this many slots, so
+   * a team filling in 15 jerseys sees 15 rows rather than one row and a plus
+   * button — the shape of the form tells them how many names we're expecting.
+   */
+  jerseyCount: number;
   existingRosterCount: number;
 } {
   return {
@@ -561,6 +567,8 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     orderMode: o.orderMode,
     includesSocks: orderIncludesSocks(o),
     includesPantShells: orderIncludesPantShells(o),
+    // Roster jerseys only — extras are spares nobody's name goes on.
+    jerseyCount: o.sets.reduce((n, s) => n + (s.playerJerseys || 0) + (s.goalieJerseys || 0), 0),
     existingRosterCount,
   };
 }

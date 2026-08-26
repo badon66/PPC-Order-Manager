@@ -509,6 +509,11 @@ export function OrderForm({
             <Toggle key={key} label={label} checked={Boolean(draft[key as keyof Order])} onChange={(v) => set(key as keyof Order, v as never)} />
           ))}
         </div>
+        <AssetGroup
+          orderId={draft.id} role="pant_design" title="Pant Design" max={2}
+          hint="How the shells should look. Upload a new one to replace what's here."
+          assets={assets} onAdd={addAsset} onRemove={removeAsset}
+        />
         {draft.pantLogo && (
           <AssetGroup
             orderId={draft.id} role="pant_logo" title="Pant Logo Artwork" max={2}

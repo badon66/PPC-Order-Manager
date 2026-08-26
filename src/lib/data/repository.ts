@@ -131,6 +131,8 @@ export interface Repository {
     /** Whether the order actually includes socks / pant shells. */
     includesSocks: boolean;
     includesPantShells: boolean;
+    /** Jerseys on the order — how many roster slots the form opens with. */
+    jerseyCount: number;
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;
   } | null>;

@@ -58,6 +58,7 @@ export const ASSET_ROLES = [
   'captain_a',
   'captain_extra',
   'additional_logo',
+  'pant_design',
   'pant_logo',
   'pant_number',
   'font',
@@ -181,6 +182,22 @@ export interface OrderAsset {
   notes: string;
   /** Groups the entries of an "Additional Logos" block together. */
   groupId?: string;
+
+  /*
+   * Logos carry two files, not one.
+   *
+   * `fileUrl` above is the print-ready artwork — the vector the manufacturer
+   * works from, often a .ai or .eps that no browser can render. These two hold
+   * a close-up photo showing where on the jersey the logo actually sits, which
+   * is the thing a person needs to see and the thing a flat file can't tell
+   * them.
+   *
+   * Optional, and only meaningful for the logo roles (see LOGO_ROLES in
+   * constants.ts). Design and collar references are single images and don't
+   * use them.
+   */
+  placementFileUrl?: string;
+  placementFileName?: string;
 }
 
 /**
@@ -194,7 +211,17 @@ export interface OrderAsset {
  * in testing and is dead by the time a customer opens it. Everything written
  * back to the store is a plain OrderAsset.
  */
-export type ViewableAsset = OrderAsset & { viewUrl: string };
+/**
+ * An asset plus links a browser can load.
+ *
+ * `viewUrl` signs `fileUrl` (the print-ready artwork). `placementViewUrl`
+ * signs `placementFileUrl` when there is one — empty string otherwise, so a
+ * caller can test it without optional chaining.
+ *
+ * Neither is ever persisted: a signed URL works in testing and is dead by the
+ * time a customer opens it.
+ */
+export type ViewableAsset = OrderAsset & { viewUrl: string; placementViewUrl?: string };
 
 export interface RosterEntry {
   id: string;

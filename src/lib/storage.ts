@@ -173,28 +173,49 @@ export async function resolveFileUrl(fileUrl: string): Promise<string> {
  * so this batches them. Order is preserved; anything unsignable comes back
  * with an empty url.
  */
-export async function resolveAll<T extends { fileUrl: string }>(
+/**
+ * Sign a batch of stored files in one round trip.
+ *
+ * Signs `placementFileUrl` alongside `fileUrl` when an item has one, in the
+ * same request rather than a second pass — a logo now carries two files (the
+ * print-ready artwork and a close-up of where it sits), and signing them
+ * separately would double the calls on a page showing a dozen logos.
+ */
+export async function resolveAll<T extends { fileUrl: string; placementFileUrl?: string }>(
   items: T[],
-): Promise<Array<T & { resolvedUrl: string }>> {
-  const keys = items.filter((i) => isBucketKey(i.fileUrl))
-    .map((i) => i.fileUrl.slice(ARTWORK_BUCKET.length + 1));
+): Promise<Array<T & { resolvedUrl: string; placementResolvedUrl: string }>> {
+  const toKey = (v: string | undefined) =>
+    v && isBucketKey(v) ? v.slice(ARTWORK_BUCKET.length + 1) : null;
+
+  const keys = [
+    ...items.map((i) => toKey(i.fileUrl)),
+    ...items.map((i) => toKey(i.placementFileUrl)),
+  ].filter((k): k is string => k !== null);
 
   const signed = new Map<string, string>();
   if (keys.length) {
     const { data } = await supabase()
       .storage
       .from(ARTWORK_BUCKET)
-      .createSignedUrls(keys, SIGNED_URL_SECONDS);
+      // Duplicates are harmless — the same path signs to the same entry.
+      .createSignedUrls([...new Set(keys)], SIGNED_URL_SECONDS);
     for (const row of data ?? []) {
       if (row.path && row.signedUrl) signed.set(row.path, row.signedUrl);
     }
   }
 
+  // A value that isn't a bucket key passes through untouched: local dev paths
+  // and not-yet-rescued Base44 URLs are already loadable as they stand.
+  const resolve = (v: string | undefined): string => {
+    if (!v) return '';
+    const key = toKey(v);
+    return key ? signed.get(key) ?? '' : v;
+  };
+
   return items.map((i) => ({
     ...i,
-    resolvedUrl: isBucketKey(i.fileUrl)
-      ? signed.get(i.fileUrl.slice(ARTWORK_BUCKET.length + 1)) ?? ''
-      : i.fileUrl,
+    resolvedUrl: resolve(i.fileUrl),
+    placementResolvedUrl: resolve(i.placementFileUrl),
   }));
 }
 

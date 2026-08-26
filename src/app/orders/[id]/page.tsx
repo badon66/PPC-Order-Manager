@@ -36,7 +36,11 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
    * went through the same upload path — and handed down as a lookup so the
    * review panel doesn't need to know where files live.
    */
-  const assets = (await resolveAll(bundle.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
+  const assets = (await resolveAll(bundle.assets)).map((a) => ({
+    ...a,
+    viewUrl: a.resolvedUrl,
+    placementViewUrl: a.placementResolvedUrl,
+  }));
   const submittedFiles = submissions.flatMap((s) => [
     ...s.logos.map((l) => ({ fileUrl: l.fileUrl })),
     ...(s.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
@@ -186,10 +190,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Order Totals">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label="Total Jerseys" value={totals.totalJerseys} accent />
-          <Stat label="Players" value={totals.totalPlayers} />
-          <Stat label="Sock Pairs" value={totals.totalSockPairs} />
+        {/* Zeros are dropped, not printed — see Stat. */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
+          <Stat label="Players" value={totals.totalPlayers} hideWhenZero />
+          <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
+          <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
         </div>
         {describeOrderTotals(totals) && (
           <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>

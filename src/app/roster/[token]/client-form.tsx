@@ -32,6 +32,7 @@ type Props = {
   existingRosterCount: number;
   includesSocks: boolean;
   includesPantShells: boolean;
+  jerseyCount: number;
   /** Their last submission, pre-filled so a revisit is an edit. */
   previous: PreviousSubmission | null;
   /** Signed links for the files in that previous submission, so a revisit
@@ -127,11 +128,31 @@ function sizeOptions(options: readonly string[], current: string) {
 
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
-  previous, previousPreviews,
+  jerseyCount, previous, previousPreviews,
 }: Props) {
-  const [players, setPlayers] = useState<SubmittedPlayer[]>(
-    previous?.players.length ? previous.players : sections.roster ? [blankPlayer()] : [],
-  );
+  /*
+   * Open with one slot per jersey on the order.
+   *
+   * A single blank row and a plus button tells a team nothing about how many
+   * names we need; fifteen rows tells them immediately, and the count of
+   * empties left is then a visible to-do rather than something they have to
+   * remember. Extras aren't counted — nobody's name goes on a spare.
+   *
+   * A returning customer keeps exactly what they sent. Padding their nine
+   * submitted players back up to fifteen would look like we lost some.
+   */
+  const [players, setPlayers] = useState<SubmittedPlayer[]>(() => {
+    if (previous?.players.length) return previous.players;
+    if (!sections.roster) return [];
+    return Array.from({ length: Math.max(1, jerseyCount) }, blankPlayer);
+  });
+
+  /** Which row is awaiting a "yes, remove it" — null when nothing is. */
+  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+
+  const filled = players.filter(
+    (p) => p.playerNameAsPrinted.trim() !== '' || p.number.trim() !== '',
+  ).length;
   const [logos, setLogos] = useState<SubmittedLogo[]>(previous?.logos ?? []);
   const [inspiration, setInspiration] = useState<SubmittedInspiration[]>(previous?.inspiration ?? []);
   const [contact, setContact] = useState<SubmittedContact>(previous?.contact ?? blankContact());
@@ -262,10 +283,44 @@ export function ClientForm({
                     <Chip active={p.sockOnly} label="Socks only"
                       onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '' } : x))} />
                     {players.length > 1 && (
-                      <button type="button" className="text-xs text-muted hover:text-red-300"
-                        onClick={() => setPlayers(players.filter((_, j) => j !== i))}>
-                        Remove
-                      </button>
+                      /*
+                       * Two taps to remove, never one.
+                       *
+                       * These rows are hand-typed on a phone by someone who
+                       * may have collected the names off a group chat, and an
+                       * accidental tap on the wrong row silently loses a
+                       * player's name, number and sizes with no undo.
+                       */
+                      confirmRemove === i ? (
+                        <span className="flex items-center gap-2 text-xs">
+                          <span className="text-muted">Remove?</span>
+                          <button
+                            type="button"
+                            className="font-bold text-red-300 hover:underline"
+                            onClick={() => {
+                              setPlayers(players.filter((_, j) => j !== i));
+                              setConfirmRemove(null);
+                            }}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            className="font-bold text-muted hover:underline"
+                            onClick={() => setConfirmRemove(null)}
+                          >
+                            No
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-muted hover:text-red-300"
+                          onClick={() => setConfirmRemove(i)}
+                        >
+                          Remove
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -307,6 +362,31 @@ export function ClientForm({
               className="w-full rounded-lg border border-dashed border-line py-3 text-sm font-semibold text-muted hover:border-ppc-gold/60 hover:text-ppc-gold">
               + Add another player
             </button>
+
+            {/*
+              * Says where they're up to, and never blocks sending.
+              *
+              * A team missing one player's size on a Sunday night should be
+              * able to send us the other fourteen and finish later — the form
+              * stays open until the order goes into production. Going over is
+              * allowed too and simply flagged: it's a conversation about an
+              * extra jersey, not an error, and refusing it would just move
+              * that conversation to a text message.
+              */}
+            {jerseyCount > 0 && (
+              <p className="text-xs text-muted">
+                {filled < jerseyCount &&
+                  `${filled} of ${jerseyCount} filled in — send what you have and finish the rest later if you need to.`}
+                {filled === jerseyCount && `All ${jerseyCount} filled in.`}
+                {filled > jerseyCount && (
+                  <span className="text-amber-400">
+                    That&apos;s {filled} players against {jerseyCount} jerseys on your order. Send
+                    it anyway and we&apos;ll be in touch about the extra
+                    {filled - jerseyCount === 1 ? ' one' : ` ${filled - jerseyCount}`}.
+                  </span>
+                )}
+              </p>
+            )}
           </div>
         </Step>
       )}

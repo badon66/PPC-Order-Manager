@@ -37,7 +37,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
    * afternoon and reloads gets fresh ones; a link forwarded around next week is
    * dead, which is the point.
    */
-  const assets = (await resolveAll(view.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
+  const assets = (await resolveAll(view.assets)).map((a) => ({
+    ...a,
+    viewUrl: a.resolvedUrl,
+    placementViewUrl: a.placementResolvedUrl,
+  }));
 
   /*
    * The same calculation the admin page runs, not a second copy of it.
@@ -110,10 +114,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       </Section>
 
       <Section title="Order Totals">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label="Total Players" value={totals.totalPlayers} accent />
-          <Stat label="Total Jerseys" value={totals.totalJerseys} />
-          <Stat label="Sock Pairs" value={totals.totalSockPairs} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Total Players" value={totals.totalPlayers} accent hideWhenZero />
+          <Stat label="Total Jerseys" value={totals.totalJerseys} hideWhenZero />
+          <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
+          <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
         </div>
         {describeOrderTotals(totals) && (
           <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>

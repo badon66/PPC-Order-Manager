@@ -1,7 +1,4 @@
-import type {
-  CaptainPatchStyle, JerseyTier, JerseyType, LacesStyle, NameStyle, Order, OrderMode,
-  OrderStatus, PantShellType, ShoulderCut, SockType,
-} from './types';
+import type { AssetRole, CaptainPatchStyle, JerseyTier, JerseyType, LacesStyle, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
 
 /* ------------------------------------------------------------------ *
  * Status
@@ -342,6 +339,29 @@ export const LEAD_TIME_DAYS: Record<JerseyType, { min: number; max: number }> = 
 /* ------------------------------------------------------------------ *
  * Artwork slot limits
  * ------------------------------------------------------------------ */
+
+/**
+ * The roles that are a logo going somewhere specific on the jersey.
+ *
+ * These get the two-file treatment: a placement close-up plus the print-ready
+ * artwork. Design and collar references are reference images — you look at
+ * them, nobody prints them — so they stay a single file.
+ */
+export const LOGO_ROLES: readonly AssetRole[] = [
+  'main_crest',
+  'shoulder_logo_both',
+  'shoulder_logo_left',
+  'shoulder_logo_right',
+  'additional_logo',
+  'captain_c',
+  'captain_a',
+  'captain_extra',
+  'pant_logo',
+];
+
+export function isLogoRole(role: AssetRole): boolean {
+  return LOGO_ROLES.includes(role);
+}
 
 export const MAX_FILES_PER_REFERENCE_GROUP = 4;
 

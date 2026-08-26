@@ -40,6 +40,7 @@ const ROLE_LABELS: Record<AssetRole, string> = {
   captain_a: "Captain's A",
   captain_extra: 'Captain Patch — Extra',
   additional_logo: 'Additional Logos',
+  pant_design: 'Pant Design',
   pant_logo: 'Pant Logo',
   pant_number: 'Pant Number',
   font: 'Font',
@@ -62,6 +63,7 @@ const ROLE_ORDER: AssetRole[] = [
   'captain_a',
   'captain_extra',
   'additional_logo',
+  'pant_design',
   'pant_logo',
   'pant_number',
   'design_svg',
@@ -128,16 +130,32 @@ function Tile({
 }) {
   const named = asset.displayName.trim();
   const title = named || derivedLabel(asset.role, index, groupSize);
-  const image = looksLikeImage(asset.viewUrl, asset.fileName);
+
+  /*
+   * Show the placement photo, not the artwork file.
+   *
+   * A logo's stored file is the print-ready vector — frequently a .ai or .eps
+   * that renders as nothing at all. The close-up of where it sits on the
+   * jersey is both viewable and the more useful picture: it answers "is this
+   * in the right spot", which the flat artwork can't.
+   *
+   * Falls back to the artwork when no placement photo was uploaded, so
+   * everything imported before this existed still looks the same.
+   */
+  const shownUrl = asset.placementViewUrl || asset.viewUrl;
+  const shownName = asset.placementViewUrl ? asset.placementFileName ?? '' : asset.fileName;
+  const image = looksLikeImage(shownUrl, shownName);
+  const hasPrintFile = Boolean(asset.placementViewUrl) && Boolean(asset.viewUrl);
 
   return (
-    <a
-      href={asset.viewUrl}
-      target="_blank"
-      rel="noreferrer"
-      title={`${title}${asset.fileName ? ` (${asset.fileName})` : ''} — open full size`}
-      className="group block overflow-hidden rounded-lg border border-line bg-black/20 transition hover:border-ppc-gold"
-    >
+    <div className="group overflow-hidden rounded-lg border border-line bg-black/20 transition hover:border-ppc-gold">
+      <a
+        href={shownUrl}
+        target="_blank"
+        rel="noreferrer"
+        title={`${title}${shownName ? ` (${shownName})` : ''} — open full size`}
+        className="block"
+      >
       {/*
        * Fixed height, not an aspect ratio.
        *
@@ -159,13 +177,14 @@ function Tile({
         {image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={asset.viewUrl}
+            src={shownUrl}
             alt={title}
             loading="lazy"
             className="relative max-h-full max-w-full object-contain p-2 transition group-hover:scale-[1.03]"
           />
         )}
-      </div>
+        </div>
+      </a>
 
       <div className="border-t border-line/60 px-3 py-2">
         <p
@@ -179,8 +198,32 @@ function Tile({
             {asset.notes}
           </p>
         )}
+
+        {/*
+          * Only where there are genuinely two files. One upload doesn't need
+          * two buttons pointing at it — that reads as a choice when it isn't.
+          */}
+        {hasPrintFile && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <a
+              href={asset.viewUrl}
+              download={asset.fileName || undefined}
+              className="font-semibold text-ppc-gold hover:underline"
+            >
+              ↓ Print-ready file
+            </a>
+            <a
+              href={asset.viewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-muted hover:text-ppc-gold hover:underline"
+            >
+              Preview
+            </a>
+          </div>
+        )}
       </div>
-    </a>
+    </div>
   );
 }
 

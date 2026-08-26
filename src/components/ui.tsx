@@ -52,7 +52,29 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-export function Stat({ label, value, accent = false }: { label: string; value: ReactNode; accent?: boolean }) {
+/**
+ * A number that isn't there is not zero.
+ *
+ * An order with no pant shells showing "Pant Shells 0" reads as a fact about
+ * the order rather than the absence of one, and puts three tiles on screen
+ * where one belongs. `hideWhenZero` drops the tile entirely.
+ */
+export function Stat({
+  label,
+  value,
+  accent = false,
+  hideWhenZero = false,
+}: {
+  label: string;
+  value: ReactNode;
+  accent?: boolean;
+  hideWhenZero?: boolean;
+}) {
+  if (hideWhenZero && (value === 0 || value === '0')) return null;
+  return StatBody({ label, value, accent });
+}
+
+function StatBody({ label, value, accent }: { label: string; value: ReactNode; accent?: boolean }) {
   return (
     <div className="rounded-lg border border-line bg-surface-2 px-3 py-3 text-center">
       <div className="text-xs text-muted">{label}</div>
