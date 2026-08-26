@@ -236,6 +236,10 @@ export interface Order {
   googleDriveLink: string;
   status: OrderStatus;
   estimatedFinishDate: CalendarDate | null;
+  /** When the jerseys actually went into production. Starts the lead-time clock. */
+  productionStartDate: CalendarDate | null;
+  /** When production actually finished — the real date, against the estimate. */
+  productionFinishDate: CalendarDate | null;
   trackingCode: string;
   isSample: boolean;
 

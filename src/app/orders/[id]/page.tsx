@@ -4,7 +4,7 @@ import { repo } from '@/lib/data';
 import { formatLong, formatShort } from '@/lib/dates';
 import {
   CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
-  PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
+  PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META,
   addonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
 import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
@@ -44,9 +44,23 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const signedUrls = Object.fromEntries(
     (await resolveAll(submittedFiles)).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
+  /*
+   * The font is pulled out of the artwork gallery and shown up top.
+   *
+   * It isn't reference material you look at — it's a file someone needs to
+   * download before they can do anything, and burying it under the crest and
+   * the shoulder logos meant scrolling past everything to reach the one thing
+   * that's actually a download.
+   */
+  const fonts = assets.filter((a) => a.role === 'font');
+
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
   const pendingSubs = submissions.filter((s) => !s.acceptedAt);
+  // Tracking only exists once there's a parcel. Same threshold the editable
+  // control uses — see OperationalControls.
+  const showTracking = STATUS_META[order.status].order >= STATUS_META.in_production.order;
+
   const hasPantShells =
     order.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
     order.pantShellType !== null;
@@ -104,6 +118,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           orderId={order.id}
           status={order.status}
           estimatedFinishDate={order.estimatedFinishDate}
+          productionStartDate={order.productionStartDate}
+          productionFinishDate={order.productionFinishDate}
+          jerseyType={order.jerseyType}
           trackingCode={order.trackingCode}
         />
       </Section>
@@ -113,8 +130,11 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <Field label="Team Name">{order.teamName}</Field>
           <Field label="Invoice Number">{order.invoiceNumber}</Field>
           <Field label="Date Paid">{formatLong(order.datePaid)}</Field>
+          <Field label="Production Start">{formatLong(order.productionStartDate)}</Field>
           <Field label="Estimated Finish">{formatLong(order.estimatedFinishDate)}</Field>
-          <Field label="Tracking Code">{order.trackingCode}</Field>
+          <Field label="Production Finished">{formatLong(order.productionFinishDate)}</Field>
+          {/* Same rule as the editable field: no parcel, no tracking. */}
+          {showTracking && <Field label="Tracking Code">{order.trackingCode}</Field>}
           <Field label="Google Drive">
             {order.googleDriveLink ? (
               <a
@@ -128,6 +148,26 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             ) : null}
           </Field>
         </div>
+
+        {fonts.length > 0 && (
+          <div className="mt-4 border-t border-line/60 pt-4">
+            <p className="text-xs font-medium text-muted">
+              {fonts.length === 1 ? 'Font' : 'Fonts'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {fonts.map((f) => (
+                <a
+                  key={f.id}
+                  href={f.viewUrl}
+                  download={f.fileName || undefined}
+                  className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-sm font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
+                >
+                  ↓ {f.displayName?.trim() || f.fileName || 'Download font'}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section title="Contact & Shipping">
@@ -324,7 +364,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        <ArtworkGallery assets={assets} />
+        <ArtworkGallery assets={assets} hideRoles={['font']} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

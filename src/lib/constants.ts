@@ -311,13 +311,33 @@ export const PANT_SHELL_SIZES: readonly string[] = [
 /**
  * Where "check the sizing chart" sends a customer.
  *
- * TODO: Keenan to confirm the real address. Everything else about the link is
- * finished; only this line changes.
+ * The real page on the Shopify store. An earlier version of this line was a
+ * guessed path that 404'd — if this ever needs changing, open it in a browser
+ * first and paste what the address bar says.
  */
-export const SIZING_CHART_URL = 'https://powerplaycustoms.ca/pages/sizing-chart';
+export const SIZING_CHART_URL = 'https://www.powerplaycustoms.ca/pages/hockey-size-chart';
 
 /** Explicit escape hatch, so odd cases are visible rather than hidden in free text. */
 export const SIZE_OTHER = 'Other';
+
+/* ------------------------------------------------------------------ *
+ * Production lead times
+ *
+ * Working days from the moment jerseys go into production, not from the order
+ * being placed — design and sign-off sit in between and take however long the
+ * team takes to reply.
+ *
+ * Ranges, because that's the honest shape of it. The estimated finish date
+ * auto-fills with the LATE end: a customer told the early date and given the
+ * late one is disappointed, while the reverse is a nice surprise. The full
+ * range is shown next to the field so the early date isn't lost.
+ * ------------------------------------------------------------------ */
+
+export const LEAD_TIME_DAYS: Record<JerseyType, { min: number; max: number }> = {
+  sublimated: { min: 12, max: 18 },
+  reversible_sublimated: { min: 17, max: 23 },
+  embroidered: { min: 22, max: 28 },
+};
 
 /* ------------------------------------------------------------------ *
  * Artwork slot limits

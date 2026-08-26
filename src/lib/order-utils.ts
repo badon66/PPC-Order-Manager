@@ -1,5 +1,7 @@
-import type { Order, OrderMode, RosterEntry, SetQuantities } from './types';
+import type { JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from './types';
+import { LEAD_TIME_DAYS } from './constants';
+import { addDays, type CalendarDate } from './dates';
 
 /**
  * Web Crypto, not node:crypto.
@@ -186,6 +188,26 @@ export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderT
   };
 }
 
+/**
+ * The estimated finish date, from when production starts.
+ *
+ * Returns null rather than guessing when either half is missing: no start
+ * date, or no jersey type chosen yet. A date invented from an assumed build
+ * type is worse than an empty field, because the empty field is obviously
+ * unanswered and the invented one looks like a promise.
+ */
+export function estimateFinish(
+  productionStartDate: CalendarDate | null,
+  jerseyType: JerseyType | null,
+): { min: CalendarDate; max: CalendarDate } | null {
+  if (!productionStartDate || !jerseyType) return null;
+  const { min, max } = LEAD_TIME_DAYS[jerseyType];
+  return {
+    min: addDays(productionStartDate, min),
+    max: addDays(productionStartDate, max),
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * What's in the order
  *
@@ -243,6 +265,8 @@ export function blankOrder(): Order {
     googleDriveLink: '',
     status: 'draft',
     estimatedFinishDate: null,
+    productionStartDate: null,
+    productionFinishDate: null,
     trackingCode: '',
     isSample: false,
 

@@ -214,7 +214,15 @@ function Grid({ assets, hero = false }: { assets: ViewableAsset[]; hero?: boolea
   );
 }
 
-export function ArtworkGallery({ assets }: { assets: ViewableAsset[] }) {
+export function ArtworkGallery({
+  assets,
+  hideRoles = [],
+}: {
+  assets: ViewableAsset[];
+  /** Roles shown elsewhere on the page — the font moved up to Order Information. */
+  hideRoles?: AssetRole[];
+}) {
+  assets = hideRoles.length ? assets.filter((a) => !hideRoles.includes(a.role)) : assets;
   if (assets.length === 0) {
     return <p className="text-sm text-muted">No artwork uploaded yet.</p>;
   }

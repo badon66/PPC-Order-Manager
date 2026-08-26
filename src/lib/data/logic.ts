@@ -44,6 +44,8 @@ export function healOrder(o: Order): Order {
   o.twillBorderNumbers ??= false;
   o.jerseyTier ??= null;
   o.requestClientDetails ??= false;
+  o.productionStartDate ??= null;
+  o.productionFinishDate ??= null;
   o.deletedAt ??= null;
   for (const set of (o.sets ??= [])) {
     set.extraJerseys ??= 0;

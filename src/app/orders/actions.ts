@@ -23,7 +23,13 @@ export type SaveResult = { ok: true } | { ok: false; error: string };
 
 export async function updateOperationalFields(
   orderId: string,
-  patch: { status?: string; estimatedFinishDate?: string; trackingCode?: string },
+  patch: {
+    status?: string;
+    estimatedFinishDate?: string;
+    productionStartDate?: string;
+    productionFinishDate?: string;
+    trackingCode?: string;
+  },
 ): Promise<{ ok: boolean; error?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
@@ -37,10 +43,12 @@ export async function updateOperationalFields(
     clean.status = patch.status as OrderStatus;
   }
 
-  if (patch.estimatedFinishDate !== undefined) {
-    const v = patch.estimatedFinishDate.trim();
+  for (const field of ['estimatedFinishDate', 'productionStartDate', 'productionFinishDate'] as const) {
+    const raw = patch[field];
+    if (raw === undefined) continue;
+    const v = raw.trim();
     if (v && !isCalendarDate(v)) return { ok: false, error: 'Date must be YYYY-MM-DD' };
-    clean.estimatedFinishDate = v || null;
+    clean[field] = v || null;
   }
 
   if (patch.trackingCode !== undefined) clean.trackingCode = patch.trackingCode.trim();
