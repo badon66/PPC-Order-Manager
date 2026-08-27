@@ -58,7 +58,12 @@ export function RosterTable({
   }
 
   function addPlayer() {
-    onChange([...entries, blankRosterEntry(orderId, entries.length)]);
+    // Rows must not claim socks or shells the order doesn't include — that's
+    // half of the phantom-socks bug. See blankRosterEntry.
+    onChange([
+      ...entries,
+      blankRosterEntry(orderId, entries.length, { socks: showSocks, pantShells: showPantShells }),
+    ]);
   }
 
   function removePlayer(i: number) {

@@ -197,6 +197,19 @@ export interface ApprovalRecord {
   userAgent: string;
 }
 
+/**
+ * A spare jersey, with the number and size it should be made in.
+ *
+ * Extras aren't on the roster — no player's name goes on them — but they still
+ * have to be manufactured as something, and "3 extra jerseys" with no numbers
+ * is an order the factory can't fill. One entry per extra.
+ */
+export interface ExtraJersey {
+  number: string;
+  size: string;
+  notes: string;
+}
+
 export interface OrderAsset {
   id: string;
   orderId: string;
@@ -377,6 +390,17 @@ export interface Order {
   specialNotes: string;
 
   /**
+   * Numbers and sizes for the spare jerseys.
+   *
+   * Kept on the order rather than per set: they're one list of spares, and
+   * splitting them by set would ask which set a spare belongs to, a question
+   * nobody actually asks. Length is kept in step with the extraJerseys total
+   * across sets — a gap is flagged rather than silently padded, because an
+   * invented number gets printed on a jersey.
+   */
+  extraJerseyDetails: ExtraJersey[];
+
+  /**
    * Whether the customer's share page shows a sign-off block at all.
    *
    * Off by default. Sign-off is a commitment the customer makes, so it only
@@ -477,6 +501,8 @@ export interface ClientRosterSubmission {
   /** Snapshot of which sections were asked for at the time — so a review reads right later. */
   sections: ClientLinkSections;
   players: SubmittedPlayer[];
+  /** Numbers and sizes for the spare jerseys — no names, so not roster rows. */
+  extras: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
   /** Only present when personalDetails was requested. */

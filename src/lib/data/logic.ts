@@ -1,10 +1,9 @@
 import type {
-  ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Order, OrderAsset, OrderStatus,
-  RosterEntry, SubmissionChange, SubmittedContact,
+  ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from '@/lib/types';
 import { STATUS_META } from '@/lib/constants';
-import { newId, orderIncludesPantShells, orderIncludesSocks } from '@/lib/order-utils';
+import { newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount } from '@/lib/order-utils';
 import type { Actor, PublicOrderView } from './repository';
 
 /**
@@ -47,6 +46,7 @@ export function healOrder(o: Order): Order {
   o.productionStartDate ??= null;
   o.productionFinishDate ??= null;
   o.requestApproval ??= false;
+  o.extraJerseyDetails ??= [];
   o.approvalRecord ??= null;
   o.deletedAt ??= null;
   for (const set of (o.sets ??= [])) {
@@ -60,6 +60,7 @@ export function healOrder(o: Order): Order {
 
 export function healSubmission(s: ClientRosterSubmission): ClientRosterSubmission {
   s.inspiration ??= [];
+  s.extras ??= [];
   s.sections ??= { ...DEFAULT_CLIENT_LINK_SECTIONS };
   s.revision ??= 1;
   s.changes ??= [];
@@ -501,6 +502,9 @@ export function publicViewOf(
     // The font file is a licensed asset, not something the customer ordered.
     assets: assets.filter((a) => a.role !== 'font'),
     roster: [...roster].sort((a, b) => a.sortOrder - b.sortOrder),
+    // Customers see the spares too — they're part of what's being made, and a
+    // team checking an order should see the numbers going on them.
+    extraJerseyDetails: o.extraJerseyDetails ?? [],
     requestApproval: o.requestApproval,
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
@@ -552,11 +556,14 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   includesSocks: boolean;
   includesPantShells: boolean;
   /**
-   * How many jerseys the order is for. The form opens with this many slots, so
-   * a team filling in 15 jerseys sees 15 rows rather than one row and a plus
-   * button — the shape of the form tells them how many names we're expecting.
+   * How many PEOPLE are on the team — the number of roster slots the form
+   * opens with. Not the jersey total: home/away doubles the jerseys and not
+   * the squad. See rosterSlotCount.
    */
   jerseyCount: number;
+  /** How many spares, and whatever numbers Keenan has already put on them. */
+  extraJerseys: number;
+  extraJerseyDetails: ExtraJersey[];
   existingRosterCount: number;
 } {
   return {
@@ -573,7 +580,11 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     includesSocks: orderIncludesSocks(o),
     includesPantShells: orderIncludesPantShells(o),
     // Roster jerseys only — extras are spares nobody's name goes on.
-    jerseyCount: o.sets.reduce((n, s) => n + (s.playerJerseys || 0) + (s.goalieJerseys || 0), 0),
+    jerseyCount: rosterSlotCount(o),
+    // Spares are asked for separately: no name goes on them, but they still
+    // need a number and a size before anyone can make them.
+    extraJerseys: o.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0),
+    extraJerseyDetails: o.extraJerseyDetails ?? [],
     existingRosterCount,
   };
 }

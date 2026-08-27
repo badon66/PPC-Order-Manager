@@ -16,6 +16,7 @@ import type {
  */
 
 export interface SubmitPayload {
+  extras?: Array<{ number?: string; size?: string; notes?: string }>;
   players: SubmittedPlayer[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
@@ -97,6 +98,15 @@ export async function submitClientForm(token: string, payload: SubmitPayload): P
   await repo.submitClientRoster(token, {
     sections: sec,
     players,
+    // Trimmed to what the order actually has spares for, so a stale tab can't
+    // submit numbers for jerseys that no longer exist.
+    extras: sec.roster
+      ? (payload.extras ?? []).slice(0, link.extraJerseys).map((x) => ({
+          number: clean(x.number ?? ''),
+          size: clean(x.size ?? ''),
+          notes: clean(x.notes ?? ''),
+        }))
+      : [],
     logos,
     inspiration,
     contact: contactHasAnything ? contact : undefined,

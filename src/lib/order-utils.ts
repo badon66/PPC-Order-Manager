@@ -1,4 +1,4 @@
-import type { JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
+import type { ExtraJersey, JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from './types';
 import { LEAD_TIME_DAYS } from './constants';
 import { addDays, type CalendarDate } from './dates';
@@ -46,11 +46,10 @@ export function setsForMode(mode: OrderMode, numberOfSets = 1, existing: SetQuan
  * counts on the roster with nothing reconciling them. Live data had an order
  * with 21 roster rows rendering as "Total Players 18" on the customer's page.
  *
- * Rule: the entered quantities are the truth — they are the order. The roster
- * fills in only where nothing was entered, since a part-finished roster is
- * normal and must not quietly reduce the headline below what was ordered.
- * Any disagreement between the two is surfaced rather than displayed as two
- * different numbers in two places.
+ * Rule: the entered quantities ARE the order, and nothing else feeds the
+ * totals. The roster is compared against them and any disagreement is
+ * surfaced, but it never supplies a number — see the long note in
+ * computeTotals for the bug that settled this.
  * ------------------------------------------------------------------ */
 
 export interface OrderTotals {
@@ -76,9 +75,8 @@ export interface OrderTotals {
   rosterPantShells: number;
 
   /**
-   * What the UI should show — the number that actually gets produced.
-   * Roster wins over declared counts when a roster exists, and extras are
-   * always added on top.
+   * What the UI shows, and what gets made: the declared quantities plus
+   * extras. The roster never contributes — see computeTotals.
    */
   totalJerseys: number;
   totalSockPairs: number;
@@ -140,35 +138,42 @@ export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderT
   const hasRoster = roster.length > 0;
 
   /*
-   * WHAT KEENAN ENTERED WINS. The roster is only a fallback.
+   * TOTALS ARE WHAT KEENAN ENTERED. THE ROSTER IS NEVER A SOURCE.
    *
-   * This is the reverse of how it worked, and the reverse of the original rule
-   * at the top of this section — changed deliberately on Keenan's instruction,
-   * for a good reason: the quantities he types ARE the order. That's what goes
-   * to the manufacturer and what the team paid for. The roster is the team
-   * filling in who gets which jersey, and it is routinely part-finished — 12
-   * names submitted against an 18-jersey order is a normal Tuesday, not a
-   * correction to the order.
+   * This is the third version of this rule and the reason it kept breaking is
+   * that the earlier two both let the roster supply a number under some
+   * condition. Every condition is a way to be wrong, so there is no longer a
+   * condition: the quantities on the order are the order, and the roster is
+   * only ever cross-checked against them.
    *
-   * Under the old rule that half-finished roster silently rewrote the headline
-   * to 12, on the customer's page as well as ours. Showing a number lower than
-   * what someone ordered is the worse failure of the two.
+   * The bug that forced the rewrite: an order for 16 jerseys and NO socks
+   * reported 16 pairs of socks. Two things met in the middle —
    *
-   * The roster still fills in when nothing was entered — an order with a
-   * roster and no quantities should show the roster rather than zero.
+   *   1. the previous rule read a declared 0 as "not filled in yet" and fell
+   *      back to the roster, when 0 is a real answer meaning none; and
+   *   2. every blank roster row defaulted to socksPerPlayer: 1, so 16 rows
+   *      silently claimed 16 pairs of socks nobody had ordered.
    *
-   * Nothing is hidden by this: when the two disagree, `mismatchDetail` still
-   * says so, and it now says which is which.
+   * Either alone was survivable. Together they invented an entire line item on
+   * a customer-facing page. Both are fixed — see blankRosterEntry for the
+   * other half.
+   *
+   * A total of zero is now genuinely zero, and the UI drops zeros rather than
+   * printing them (see Stat), so an order with no socks simply has no socks
+   * anywhere on it.
    */
-  const pick = (declared: number, fromRoster: number) =>
-    declared > 0 ? declared : fromRoster;
+  const totalJerseys = declaredJerseys + extraJerseys;
+  const totalSockPairs = declaredSockPairs + extraSockPairs;
+  const totalPantShells = declaredPantShells + extraPantShells;
+  const totalPlayers = order.playersTotal || 0;
 
-  // Extras are additive in every case — no roster row accounts for them.
-  const totalJerseys = pick(declaredJerseys, rosterJerseys) + extraJerseys;
-  const totalSockPairs = pick(declaredSockPairs, rosterSockPairs) + extraSockPairs;
-  const totalPantShells = pick(declaredPantShells, rosterPantShells) + extraPantShells;
-  const totalPlayers = pick(order.playersTotal || 0, playing.length);
-
+  /*
+   * The roster's only job here: say so when it disagrees.
+   *
+   * Not an error — a roster is normally part-finished, and the order is what
+   * gets made either way. It's a prompt to look before production, and it
+   * names both numbers so it's obvious which is which.
+   */
   let mismatchDetail: string | null = null;
   if (hasRoster && declaredJerseys > 0 && declaredJerseys !== rosterJerseys) {
     mismatchDetail =
@@ -237,6 +242,47 @@ export function orderIncludesPantShells(order: IncludesInput): boolean {
   );
 }
 
+/**
+ * How many people are on this team — which is how many roster slots to show.
+ *
+ * NOT the jersey total. In home/away mode there are two sets of 20, and the
+ * jerseys add up to 40, but there are still only 20 players: each one gets a
+ * home shirt and an away shirt. Summing across sets asked a 20-player team to
+ * fill in 40 names.
+ *
+ * Every set dresses the same squad, so the squad is the largest single set —
+ * never the sum. That holds for one set, home/away, and any number of sets.
+ *
+ * `playersTotal` wins when Keenan has entered it, matching the rule everywhere
+ * else: what he typed is the answer, and the sets are the fallback.
+ */
+export function rosterSlotCount(order: Pick<Order, 'sets' | 'playersTotal'>): number {
+  if (order.playersTotal > 0) return order.playersTotal;
+  return order.sets.reduce(
+    (most, s) => Math.max(most, (s.playerJerseys || 0) + (s.goalieJerseys || 0)),
+    0,
+  );
+}
+
+/**
+ * Keep the spare-jersey list the same length as the number of spares ordered.
+ *
+ * Grows by appending blanks and shrinks by dropping from the end, so numbers
+ * already typed stay attached to the same row. Rebuilding the list from
+ * scratch on every change would renumber everything under the person's cursor.
+ */
+export function syncExtraJerseyDetails(
+  details: ExtraJersey[],
+  wanted: number,
+): ExtraJersey[] {
+  if (details.length === wanted) return details;
+  if (details.length > wanted) return details.slice(0, wanted);
+  return [
+    ...details,
+    ...Array.from({ length: wanted - details.length }, () => ({ number: '', size: '', notes: '' })),
+  ];
+}
+
 /* ------------------------------------------------------------------ *
  * Tokens — long, random, per-order, revocable. Never the row id.
  * The old app used the raw database id as the share link, so a leaked link
@@ -267,6 +313,7 @@ export function blankOrder(): Order {
     estimatedFinishDate: null,
     productionStartDate: null,
     productionFinishDate: null,
+    extraJerseyDetails: [],
     requestApproval: false,
     approvalRecord: null,
     trackingCode: '',
@@ -340,7 +387,23 @@ export function blankOrder(): Order {
   };
 }
 
-export function blankRosterEntry(orderId: string, sortOrder: number): RosterEntry {
+/**
+ * A new roster row.
+ *
+ * `includes` says what the order actually covers. Without it every row used to
+ * default to one pair of socks, so adding sixteen players to a jerseys-only
+ * order conjured sixteen pairs of socks — half of the phantom-socks bug
+ * described in computeTotals.
+ *
+ * Defaulting to false rather than true is deliberate: a caller that forgets to
+ * pass it produces rows that claim nothing, which is visibly incomplete. The
+ * old default produced rows that claimed something, which looked correct.
+ */
+export function blankRosterEntry(
+  orderId: string,
+  sortOrder: number,
+  includes: { socks?: boolean; pantShells?: boolean } = {},
+): RosterEntry {
   return {
     id: newId(),
     orderId,
@@ -352,8 +415,8 @@ export function blankRosterEntry(orderId: string, sortOrder: number): RosterEntr
     sockSize: '',
     pantShellSize: '',
     jerseysPerPlayer: 1,
-    socksPerPlayer: 1,
-    shellsPerPlayer: 0,
+    socksPerPlayer: includes.socks ? 1 : 0,
+    shellsPerPlayer: includes.pantShells ? 1 : 0,
     homeJersey: 0,
     awayJersey: 0,
     homeSocks: 0,

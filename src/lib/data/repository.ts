@@ -87,6 +87,8 @@ export interface PublicOrderView {
   >;
   assets: OrderAsset[];
   roster: RosterEntry[];
+  /** Numbers and sizes for the spare jerseys. */
+  extraJerseyDetails: Order['extraJerseyDetails'];
   /** Whether to render the sign-off block on the customer's page. */
   requestApproval: boolean;
   approvedBy: string;
@@ -142,8 +144,14 @@ export interface Repository {
     /** Whether the order actually includes socks / pant shells. */
     includesSocks: boolean;
     includesPantShells: boolean;
-    /** Jerseys on the order — how many roster slots the form opens with. */
+    /**
+     * Players on the team — how many roster slots the form opens with.
+     * Not the jersey count: home/away doubles jerseys, not people.
+     */
     jerseyCount: number;
+    /** Spares, which are numbered separately from the roster. */
+    extraJerseys: number;
+    extraJerseyDetails: Order['extraJerseyDetails'];
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;
   } | null>;

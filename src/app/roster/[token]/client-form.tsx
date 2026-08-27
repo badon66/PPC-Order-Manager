@@ -1,9 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { PANT_SHELL_SIZES, SIZING_CHART_URL, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
+import { PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import type {
-  ClientLinkSections, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
+  ClientLinkSections, ExtraJersey, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
 } from '@/lib/types';
 import { submitClientForm } from './actions';
 
@@ -19,6 +19,7 @@ import { submitClientForm } from './actions';
 export interface PreviousSubmission {
   revision: number;
   players: SubmittedPlayer[];
+  extras?: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
   contact?: SubmittedContact;
@@ -33,6 +34,8 @@ type Props = {
   includesSocks: boolean;
   includesPantShells: boolean;
   jerseyCount: number;
+  extraJerseys: number;
+  extraJerseyDetails: ExtraJersey[];
   /** Their last submission, pre-filled so a revisit is an edit. */
   previous: PreviousSubmission | null;
   /** Signed links for the files in that previous submission, so a revisit
@@ -128,15 +131,34 @@ function sizeOptions(options: readonly string[], current: string) {
 
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
-  jerseyCount, previous, previousPreviews,
+  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews,
 }: Props) {
   /*
-   * Open with one slot per jersey on the order.
+   * Spares are their own list, not extra roster rows.
+   *
+   * Nobody's name goes on a spare, so putting them in the roster would mean
+   * fifteen rows with names and three without and no way to tell which is
+   * which. They still need a number and a size, and the team is better placed
+   * than we are to say what those should be.
+   *
+   * Seeded from whatever Keenan already filled in, so the customer is
+   * correcting rather than starting blank.
+   */
+  const [extras, setExtras] = useState<ExtraJersey[]>(() => {
+    const seed = previous?.extras?.length ? previous.extras : extraJerseyDetails;
+    return Array.from({ length: extraJerseys }, (_, i) => seed[i] ?? { number: '', size: '', notes: '' });
+  });
+  /*
+   * Open with one slot per PLAYER on the order.
    *
    * A single blank row and a plus button tells a team nothing about how many
    * names we need; fifteen rows tells them immediately, and the count of
    * empties left is then a visible to-do rather than something they have to
-   * remember. Extras aren't counted — nobody's name goes on a spare.
+   * remember.
+   *
+   * Players, not jerseys — home/away means two shirts each, and summing the
+   * sets asked a 20-player team for 40 names. Spares aren't counted either;
+   * they're numbered in their own section, since nobody's name goes on one.
    *
    * A returning customer keeps exactly what they sent. Padding their nine
    * submitted players back up to fifteen would look like we lost some.
@@ -178,7 +200,7 @@ export function ClientForm({
     setError(null);
     setBusy(true);
     const res = await submitClientForm(token, {
-      players, logos, inspiration,
+      players, extras, logos, inspiration,
       contact: sections.personalDetails ? contact : undefined,
       confirmed,
     });
@@ -373,14 +395,57 @@ export function ClientForm({
               * extra jersey, not an error, and refusing it would just move
               * that conversation to a text message.
               */}
+            {extraJerseys > 0 && (
+              <div className="mt-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+                  Extra Jersey Numbers
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Your order includes {extraJerseys} spare jersey
+                  {extraJerseys === 1 ? '' : 's'} with no name on the back. Tell us what number and
+                  size each one should be.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {extras.map((x, i) => (
+                    <div key={i} className="grid grid-cols-3 gap-2">
+                      <input
+                        placeholder={`Spare ${i + 1} number`}
+                        inputMode="numeric"
+                        value={x.number}
+                        onChange={(e) =>
+                          setExtras(extras.map((y, j) => (j === i ? { ...y, number: e.target.value } : y)))
+                        }
+                      />
+                      <select
+                        value={x.size}
+                        onChange={(e) =>
+                          setExtras(extras.map((y, j) => (j === i ? { ...y, size: e.target.value } : y)))
+                        }
+                      >
+                        <option value="">Size</option>
+                        {sizeOptions(PLAYER_JERSEY_SIZES, x.size)}
+                      </select>
+                      <input
+                        placeholder="Notes"
+                        value={x.notes}
+                        onChange={(e) =>
+                          setExtras(extras.map((y, j) => (j === i ? { ...y, notes: e.target.value } : y)))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {jerseyCount > 0 && (
               <p className="text-xs text-muted">
                 {filled < jerseyCount &&
-                  `${filled} of ${jerseyCount} filled in — send what you have and finish the rest later if you need to.`}
-                {filled === jerseyCount && `All ${jerseyCount} filled in.`}
+                  `${filled} of ${jerseyCount} players filled in — send what you have and finish the rest later if you need to.`}
+                {filled === jerseyCount && `All ${jerseyCount} players filled in.`}
                 {filled > jerseyCount && (
                   <span className="text-amber-400">
-                    That&apos;s {filled} players against {jerseyCount} jerseys on your order. Send
+                    That&apos;s {filled} players against the {jerseyCount} we have on your order. Send
                     it anyway and we&apos;ll be in touch about the extra
                     {filled - jerseyCount === 1 ? ' one' : ` ${filled - jerseyCount}`}.
                   </span>

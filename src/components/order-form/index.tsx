@@ -4,15 +4,15 @@ import { formatLong } from '@/lib/dates';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL,
+  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES,
 } from '@/lib/constants';
-import { describeSet, setsForMode } from '@/lib/order-utils';
+import { describeSet, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import type {
   CaptainPatchStyle, JerseyTier, JerseyType, NameStyle, Order, OrderAsset,
   OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
 import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
-import { ChoiceGroup, NumberField, TextArea, TextField, Toggle } from './fields';
+import { ChoiceGroup, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
 import { RosterTable } from './roster-table';
 import { AssetGroup } from './assets';
 import { AdditionalLogos } from './additional-logos';
@@ -158,6 +158,19 @@ export function OrderForm({
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
+
+  /*
+   * The spares list follows the spares count.
+   *
+   * Typing "3" into Extra Jerseys should produce three rows to number, not a
+   * separate step to remember. Grows and shrinks from the end so a number
+   * already typed stays on its own row.
+   */
+  const extraJerseyTotal = draft.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0);
+  useEffect(() => {
+    const next = syncExtraJerseyDetails(draft.extraJerseyDetails ?? [], extraJerseyTotal);
+    if (next !== (draft.extraJerseyDetails ?? [])) set('extraJerseyDetails', next);
+  }, [extraJerseyTotal, draft.extraJerseyDetails, set]);
 
   const totalAcrossSets = useMemo(
     () =>
@@ -613,7 +626,61 @@ export function OrderForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Approved By" value={draft.approvedBy} onChange={(v) => set('approvedBy', v)} placeholder="Name" />
           <TextField label="Approval Date" type="date" value={draft.approvedDate ?? ''} onChange={(v) => set('approvedDate', v || null)} error={errors.approvedDate} />
-        </div>
+        
+        {/*
+          * Spares get numbers here, next to the count that created them.
+          * A jersey has to be made as some number and some size — "3 extra"
+          * with nothing else is an order the factory can't fill.
+          */}
+        {extraJerseyTotal > 0 && (
+          <div className="mt-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+              Extra Jersey Numbers
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {extraJerseyTotal} spare{extraJerseyTotal === 1 ? '' : 's'} on this order. Give each
+              one a number and size, or leave them for the customer to fill in on their link.
+            </p>
+            <div className="mt-3 space-y-2">
+              {(draft.extraJerseyDetails ?? []).map((x, i) => (
+                <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <span className="self-center text-xs font-semibold text-muted">
+                    Spare {i + 1}
+                  </span>
+                  <input
+                    placeholder="Number"
+                    inputMode="numeric"
+                    value={x.number}
+                    onChange={(e) => {
+                      const next = [...(draft.extraJerseyDetails ?? [])];
+                      next[i] = { ...next[i], number: e.target.value };
+                      set('extraJerseyDetails', next);
+                    }}
+                  />
+                  <SizeSelect
+                    value={x.size}
+                    options={PLAYER_JERSEY_SIZES}
+                    onChange={(v) => {
+                      const next = [...(draft.extraJerseyDetails ?? [])];
+                      next[i] = { ...next[i], size: v };
+                      set('extraJerseyDetails', next);
+                    }}
+                  />
+                  <input
+                    placeholder="Notes"
+                    value={x.notes}
+                    onChange={(e) => {
+                      const next = [...(draft.extraJerseyDetails ?? [])];
+                      next[i] = { ...next[i], notes: e.target.value };
+                      set('extraJerseyDetails', next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+</div>
       </>
     ),
   };

@@ -117,13 +117,18 @@ src/components/order-form/  the big form: index, fields, roster-table,
   `buildTallies` in `roster-tally.tsx` shows the live count vs set quantities.
 - Sizes are controlled lists (`JERSEY_SIZES` etc.). Goalie and sock-only are
   flags on the row, not strings in the size field.
-- **Totals come from the quantities Keenan entered, not from the roster**
-  (`computeTotals`). The roster only fills in where nothing was entered. This
-  reverses an earlier decision, on his instruction and for a good reason: the
-  entered quantities are the order — what the manufacturer makes and what the
-  team paid for — while a roster is routinely part-finished, and a half-filled
-  one used to silently drop the headline below what was ordered, on the
-  customer's page too. Disagreements still surface via `mismatchDetail`.
+- **Totals are the entered quantities plus extras. The roster NEVER supplies a
+  number** (`computeTotals`). No conditions, no fallbacks — two earlier
+  versions each allowed one and each was wrong. The roster is only compared,
+  and disagreements surface via `mismatchDetail`.
+
+  The bug that settled it: an order for 16 jerseys and no socks reported 16
+  pairs of socks, because a declared `0` was read as "not filled in yet" and
+  fell back to the roster, where every blank row defaulted to
+  `socksPerPlayer: 1`. **Zero is an answer, not an absence** — and
+  `blankRosterEntry` now takes what the order includes so a row can't claim a
+  garment that isn't on it. Zeros are dropped from the UI rather than printed
+  (`Stat hideWhenZero`).
 - Artwork is `OrderAsset` rows with a `role` and `slot` — not numbered columns.
   Additional logos are grouped by `groupId` (label + notes + up to 2 files).
 - Web Crypto (`globalThis.crypto`), not `node:crypto`, in anything a client

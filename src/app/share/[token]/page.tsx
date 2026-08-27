@@ -223,6 +223,34 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </Section>
       )}
 
+      {view.extraJerseyDetails.length > 0 && (
+        <Section title={`Extra Jerseys (${view.extraJerseyDetails.length})`}>
+          <p className="text-sm text-muted">
+            Spares with no name on the back. Check the numbers and sizes are right.
+          </p>
+          <div className="-mx-4 mt-3 overflow-x-auto px-4">
+            <table className="w-full min-w-[20rem] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="py-2 pr-3">#</th>
+                  <th className="py-2 pr-3">Size</th>
+                  <th className="py-2">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.extraJerseyDetails.map((x, i) => (
+                  <tr key={i} className="border-b border-line/50">
+                    <td className="py-2 pr-3 font-semibold tabular-nums">{x.number || '—'}</td>
+                    <td className="py-2 pr-3">{x.size || '—'}</td>
+                    <td className="py-2 text-muted">{x.notes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
       {assets.length > 0 && (
         <Section title="Logos & Artwork">
           <ArtworkGallery assets={assets} />
