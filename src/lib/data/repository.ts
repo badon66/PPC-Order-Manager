@@ -50,6 +50,14 @@ export interface OrderBundle {
  * file, and anything else that isn't the customer's own information.
  */
 export interface PublicOrderView {
+  /**
+   * The row id.
+   *
+   * Only ever read on the server — the approval action needs something to
+   * write against. It must not be rendered: the whole point of the share token
+   * is that a leaked link isn't also a database key.
+   */
+  orderId: string;
   teamName: string;
   invoiceNumber: string;
   status: Order['status'];
@@ -79,8 +87,11 @@ export interface PublicOrderView {
   >;
   assets: OrderAsset[];
   roster: RosterEntry[];
+  /** Whether to render the sign-off block on the customer's page. */
+  requestApproval: boolean;
   approvedBy: string;
   approvedDate: Order['approvedDate'];
+  approvalRecord: Order['approvalRecord'];
   specialNotes: string;
 
   /** Shown so the customer can confirm it's correct before anything ships. */

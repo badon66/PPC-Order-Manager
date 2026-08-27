@@ -267,6 +267,8 @@ export function blankOrder(): Order {
     estimatedFinishDate: null,
     productionStartDate: null,
     productionFinishDate: null,
+    requestApproval: false,
+    approvalRecord: null,
     trackingCode: '',
     isSample: false,
 

@@ -1,9 +1,10 @@
 'use client';
 
+import { formatLong } from '@/lib/dates';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey,
+  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL,
 } from '@/lib/constants';
 import { describeSet, setsForMode } from '@/lib/order-utils';
 import type {
@@ -81,10 +82,41 @@ export function OrderForm({
   const rosterDirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /*
+   * An approved order is locked until you say otherwise.
+   *
+   * Approval is the moment a customer signed off on exactly what was on the
+   * page, and this form autosaves about a second after a keystroke — so
+   * without a gate, brushing a field while looking something up silently
+   * changes what they agreed to, with no prompt and nothing to undo.
+   *
+   * The gate is per-session and asked once: the first edit to a signed order
+   * opens a confirmation, and after that the form behaves normally. Asking on
+   * every field would be unusable, and being unusable is how a prompt gets
+   * clicked through without being read.
+   *
+   * It doesn't prevent anything — Keenan can always proceed. It just makes
+   * changing a signed order a decision rather than an accident. The change log
+   * records it either way.
+   */
+  const isApproved = Boolean(draft.approvedDate || draft.approvalRecord);
+  const [editUnlocked, setEditUnlocked] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<null | (() => void)>(null);
+
   const set = useCallback(<K extends keyof Draft>(key: K, value: Draft[K]) => {
-    dirty.current = true;
-    setDraft((d) => ({ ...d, [key]: value }));
-  }, []);
+    const apply = () => {
+      dirty.current = true;
+      setDraft((d) => ({ ...d, [key]: value }));
+    };
+
+    if (isApproved && !editUnlocked) {
+      // Hold the edit rather than dropping it — confirming applies exactly
+      // what was typed, so nothing has to be retyped.
+      setPendingEdit(() => apply);
+      return;
+    }
+    apply();
+  }, [isApproved, editUnlocked]);
 
   const flush = useCallback(async () => {
     if (!dirty.current && !rosterDirty.current) return;
@@ -553,6 +585,31 @@ export function OrderForm({
           onChange={(v) => set('specialNotes', v)}
           placeholder="Any special instructions or notes for this order..."
         />
+        <Toggle
+          label="Ask the customer to approve on their share link"
+          checked={draft.requestApproval}
+          onChange={(v) => set('requestApproval', v)}
+        />
+        <p className="-mt-1 text-xs text-muted">
+          Adds a sign-off block to the bottom of the customer&apos;s page: they accept the{' '}
+          <a
+            href={TERMS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-ppc-gold hover:underline"
+          >
+            terms and conditions
+          </a>
+          , type their name, and the order is locked. Leave it off until the proof is ready to be
+          signed.
+        </p>
+
+        {/*
+          * These two stay editable for approvals taken off-app — a team that
+          * replies "yep, go ahead" by email still needs recording. A signature
+          * captured through the share page fills them in itself and also
+          * leaves an approvalRecord, which typing here does not.
+          */}
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Approved By" value={draft.approvedBy} onChange={(v) => set('approvedBy', v)} placeholder="Name" />
           <TextField label="Approval Date" type="date" value={draft.approvedDate ?? ''} onChange={(v) => set('approvedDate', v || null)} error={errors.approvedDate} />
@@ -560,6 +617,49 @@ export function OrderForm({
       </>
     ),
   };
+
+  const modificationGate = pendingEdit && (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-xl border border-line bg-surface p-5">
+        <h2 className="text-lg font-bold">Are you sure you want to make a modification?</h2>
+        <p className="mt-2 text-sm text-muted">
+          {draft.approvedBy
+            ? `${draft.approvedBy} approved this order`
+            : 'This order was approved'}
+          {draft.approvedDate ? ` on ${formatLong(draft.approvedDate)}` : ''}. Changing it now means
+          what they signed off no longer matches what gets made.
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          If you go ahead, tell them what changed — and remember the order can&apos;t be changed at
+          all once it&apos;s in production.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setPendingEdit(null)}
+            className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-muted hover:text-fg"
+          >
+            Leave it as approved
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditUnlocked(true);
+              pendingEdit();
+              setPendingEdit(null);
+            }}
+            className="rounded-lg bg-ppc-gold px-4 py-2 text-sm font-bold text-black hover:brightness-110"
+          >
+            Yes, modify it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   /* ---------------- layout ---------------- */
 
@@ -580,6 +680,8 @@ export function OrderForm({
 
   return (
     <div className="space-y-4 pb-24">
+      {modificationGate}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">
           {initialOrder.teamName ? `Edit — ${initialOrder.teamName}` : draft.teamName ? `New — ${draft.teamName}` : 'New Order'}
@@ -594,7 +696,7 @@ export function OrderForm({
 
       {approved && (
         <div className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          <strong>This order was signed off on {draft.approvedDate}.</strong> Your policy is that
+          <strong>This order was signed off on {formatLong(draft.approvedDate)}.</strong> Your policy is that
           approval locks the order. Anything you change now is recorded in the order history as a
           post-approval change.
         </div>

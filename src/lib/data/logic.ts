@@ -46,6 +46,8 @@ export function healOrder(o: Order): Order {
   o.requestClientDetails ??= false;
   o.productionStartDate ??= null;
   o.productionFinishDate ??= null;
+  o.requestApproval ??= false;
+  o.approvalRecord ??= null;
   o.deletedAt ??= null;
   for (const set of (o.sets ??= [])) {
     set.extraJerseys ??= 0;
@@ -459,6 +461,7 @@ export function publicViewOf(
   assets: OrderAsset[],
 ): PublicOrderView {
   return {
+    orderId: o.id,
     teamName: o.teamName,
     invoiceNumber: o.invoiceNumber,
     status: o.status,
@@ -498,8 +501,10 @@ export function publicViewOf(
     // The font file is a licensed asset, not something the customer ordered.
     assets: assets.filter((a) => a.role !== 'font'),
     roster: [...roster].sort((a, b) => a.sortOrder - b.sortOrder),
+    requestApproval: o.requestApproval,
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
+    approvalRecord: o.approvalRecord,
     specialNotes: o.specialNotes,
     contact: {
       firstName: o.contactFirstName,

@@ -8,6 +8,8 @@ import {
 } from '@/lib/constants';
 import { Card, Field, Section, Stat, StatusBadge, YesNo } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
+import { ApproveBlock } from './approve';
+import { formatTimestamp } from '@/lib/dates';
 import { resolveAll } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -227,18 +229,35 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </Section>
       )}
 
-      {(view.approvedBy || view.approvedDate) && (
+      {/*
+        * Three states: already signed, open for signing, or neither.
+        *
+        * "Neither" renders nothing at all — an order that isn't ready to be
+        * approved shouldn't show an approval section explaining that it can't
+        * be approved yet. Keenan turns it on when the proof is ready.
+        */}
+      {view.approvedBy || view.approvedDate ? (
         <Section title="Approval">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Approved By">{view.approvedBy}</Field>
             <Field label="Approval Date">{formatLong(view.approvedDate)}</Field>
           </div>
+          {view.approvalRecord && (
+            <p className="mt-3 text-xs text-muted">
+              Signed {formatTimestamp(view.approvalRecord.signedAt)}, with the terms and conditions
+              accepted.
+            </p>
+          )}
           <p className="mt-4 text-xs text-muted">
             Once a proof is approved the order is locked and final — no changes or cancellations
             after this point.
           </p>
         </Section>
-      )}
+      ) : view.requestApproval ? (
+        <Section title="Approval">
+          <ApproveBlock token={token} teamName={view.teamName} />
+        </Section>
+      ) : null}
     </div>
   );
 }

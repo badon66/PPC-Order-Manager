@@ -170,6 +170,33 @@ export interface SetQuantities {
   notes?: string;
 }
 
+/**
+ * What was actually agreed to, captured at the moment of signing.
+ *
+ * A name and a date alone don't answer the question that matters if a team
+ * later says they never agreed: what wording was on screen, did they tick the
+ * box, when exactly, and from where. Written once and never edited — changing
+ * it after the fact would defeat the point of having it.
+ */
+export interface ApprovalRecord {
+  /** Exactly what they typed into the signature box. */
+  signedName: string;
+  /** ISO instant, not a calendar date — this is a moment, not a day. */
+  signedAt: string;
+  /** They ticked the terms box. Sign-off is refused without it. */
+  termsAccepted: boolean;
+  /** The terms page they were linked to, as it stood that day. */
+  termsUrl: string;
+  /**
+   * The exact sentence they agreed to, copied in rather than referenced. If
+   * the wording is ever changed, old approvals still say what they said.
+   */
+  statement: string;
+  /** Rough origin, for a "was this really them" conversation. Not identity. */
+  ipAddress: string;
+  userAgent: string;
+}
+
 export interface OrderAsset {
   id: string;
   orderId: string;
@@ -348,8 +375,29 @@ export interface Order {
 
   /* Notes & approval */
   specialNotes: string;
+
+  /**
+   * Whether the customer's share page shows a sign-off block at all.
+   *
+   * Off by default. Sign-off is a commitment the customer makes, so it only
+   * appears when Keenan has decided the proof is ready to be signed — not on
+   * every share link the moment it's created.
+   */
+  requestApproval: boolean;
+
+  /** Typed name. What they signed as, not who they are — see approvalRecord. */
   approvedBy: string;
   approvedDate: CalendarDate | null;
+
+  /**
+   * What was actually agreed to, captured at the moment of signing.
+   *
+   * A name and a date alone don't answer the question that matters if a team
+   * later says they never agreed: what wording was on screen, did they tick
+   * the box, when exactly, and from where. Written once and never edited —
+   * changing it after the fact would defeat the point of having it.
+   */
+  approvalRecord: ApprovalRecord | null;
   deliveryConcern: string;
 
   /* Public link tokens — long, random, per-order, revocable. NOT the row id. */

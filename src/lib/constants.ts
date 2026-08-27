@@ -312,6 +312,34 @@ export const PANT_SHELL_SIZES: readonly string[] = [
  * guessed path that 404'd — if this ever needs changing, open it in a browser
  * first and paste what the address bar says.
  */
+/**
+ * The terms a customer agrees to when they sign off a proof.
+ *
+ * Verified live before shipping. Both this and SIZING_CHART_URL point at real
+ * pages on the Shopify store — an earlier guessed path 404'd, which is worse
+ * than a missing link because it looks finished.
+ */
+export const TERMS_URL = 'https://www.powerplaycustoms.ca/policies/terms-of-service';
+
+/**
+ * The sentence the customer is agreeing to, stored verbatim on every approval.
+ *
+ * Written to match the actual policy rather than to sound reassuring: sign-off
+ * locks the order, and once it is in production nothing can be changed at all.
+ * Between those two points a change may be possible and is not promised —
+ * saying "we'll try" would be a commitment nobody made.
+ *
+ * NOT LEGAL ADVICE. This is plain-language wording that matches what Keenan
+ * told me the policy is; a lawyer should look at it before it carries weight.
+ * If it changes, old approvals keep the sentence they were signed against —
+ * see ApprovalRecord.statement.
+ */
+export const APPROVAL_STATEMENT =
+  'I have checked this order and confirm the design, names, numbers, sizes and ' +
+  'shipping details are correct. I understand that approving it finalises the ' +
+  'order: any change after this point may not be possible, is not guaranteed, ' +
+  'and once the order goes into production nothing can be changed at all.';
+
 export const SIZING_CHART_URL = 'https://www.powerplaycustoms.ca/pages/hockey-size-chart';
 
 /** Explicit escape hatch, so odd cases are visible rather than hidden in free text. */
