@@ -193,8 +193,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </div>
       </Section>
 
-      {view.roster.length > 0 && (
-        <Section title={`Player Roster (${view.roster.length})`}>
+      {(view.roster.length > 0 || view.extraJerseyDetails.length > 0) && (
+        <Section
+          title={`Player Roster (${view.roster.length}${
+            view.extraJerseyDetails.length ? ` + ${view.extraJerseyDetails.length} spare` : ''
+          }${view.extraJerseyDetails.length > 1 ? 's' : ''})`}
+        >
           <div className="-mx-4 overflow-x-auto px-4">
             <table className="w-full min-w-[28rem] text-sm">
               <thead>
@@ -217,32 +221,26 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                     <td className="py-2">{r.sockSize || '—'}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
 
-      {view.extraJerseyDetails.length > 0 && (
-        <Section title={`Extra Jerseys (${view.extraJerseyDetails.length})`}>
-          <p className="text-sm text-muted">
-            Spares with no name on the back. Check the numbers and sizes are right.
-          </p>
-          <div className="-mx-4 mt-3 overflow-x-auto px-4">
-            <table className="w-full min-w-[20rem] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="py-2 pr-3">#</th>
-                  <th className="py-2 pr-3">Size</th>
-                  <th className="py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
+                {/*
+                  * Spares sit in the same table as the players, highlighted.
+                  *
+                  * They were a separate section below, which is where the
+                  * question "is #99 on this order?" goes unanswered — you look
+                  * at the roster, don't see it, and stop. Same table, marked
+                  * SPARE, so one read covers everything being made.
+                  */}
                 {view.extraJerseyDetails.map((x, i) => (
-                  <tr key={i} className="border-b border-line/50">
-                    <td className="py-2 pr-3 font-semibold tabular-nums">{x.number || '—'}</td>
-                    <td className="py-2 pr-3">{x.size || '—'}</td>
-                    <td className="py-2 text-muted">{x.notes}</td>
+                  <tr key={`extra-${i}`} className="border-b border-line/50 bg-ppc-gold/5">
+                    <td className="py-2 pr-3">
+                      <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ppc-gold">
+                        Spare
+                      </span>
+                      {x.notes && <span className="ml-2 text-xs text-muted">{x.notes}</span>}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
+                    <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : x.size || '—'}</td>
+                    <td className="py-2">{x.sockSize || '—'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -16,7 +16,13 @@ import type {
  */
 
 export interface SubmitPayload {
-  extras?: Array<{ number?: string; size?: string; notes?: string }>;
+  extras?: Array<{
+    number?: string;
+    size?: string;
+    sockSize?: string;
+    sockOnly?: boolean;
+    notes?: string;
+  }>;
   players: SubmittedPlayer[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
@@ -103,7 +109,10 @@ export async function submitClientForm(token: string, payload: SubmitPayload): P
     extras: sec.roster
       ? (payload.extras ?? []).slice(0, link.extraJerseys).map((x) => ({
           number: clean(x.number ?? ''),
-          size: clean(x.size ?? ''),
+          // A socks-only spare has no jersey, so it can't carry a jersey size.
+          size: x.sockOnly ? '' : clean(x.size ?? ''),
+          sockSize: clean(x.sockSize ?? ''),
+          sockOnly: Boolean(x.sockOnly),
           notes: clean(x.notes ?? ''),
         }))
       : [],

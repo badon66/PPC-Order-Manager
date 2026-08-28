@@ -4,12 +4,11 @@ import { formatLong } from '@/lib/dates';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES,
+  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { describeSet, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { describeSet, extraRowCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import type {
-  CaptainPatchStyle, JerseyTier, JerseyType, NameStyle, Order, OrderAsset,
-  OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
+  CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
 import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
 import { ChoiceGroup, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
@@ -166,11 +165,20 @@ export function OrderForm({
    * separate step to remember. Grows and shrinks from the end so a number
    * already typed stays on its own row.
    */
-  const extraJerseyTotal = draft.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0);
+  const extraRows = extraRowCount(draft);
   useEffect(() => {
-    const next = syncExtraJerseyDetails(draft.extraJerseyDetails ?? [], extraJerseyTotal);
+    const next = syncExtraJerseyDetails(draft.extraJerseyDetails ?? [], extraRows);
     if (next !== (draft.extraJerseyDetails ?? [])) set('extraJerseyDetails', next);
-  }, [extraJerseyTotal, draft.extraJerseyDetails, set]);
+  }, [extraRows, draft.extraJerseyDetails, set]);
+
+  const patchExtra = (i: number, patch: Partial<ExtraJersey>) => {
+    const next = [...(draft.extraJerseyDetails ?? [])];
+    next[i] = { ...next[i], ...patch };
+    set('extraJerseyDetails', next);
+  };
+
+  /** Spares that actually get a jersey — the rest are socks only. */
+  const extraJerseyRows = (draft.extraJerseyDetails ?? []).filter((x) => !x.sockOnly).length;
 
   const totalAcrossSets = useMemo(
     () =>
@@ -394,6 +402,91 @@ export function OrderForm({
                   totalAcrossSets.extraShells && `${totalAcrossSets.extraShells} pant shells`,
                 ].filter(Boolean).join(' · ')}
               </>
+            )}
+          </div>
+        )}
+
+        {/*
+          * Spares live here, in Order Totals, beside the counts that create
+          * them — not down in Notes & Approval where they'd be found only by
+          * someone already looking for them.
+          *
+          * One row per spare GARMENT SET, which is max(extra jerseys, extra
+          * sock pairs) rather than either on its own. Two spare jerseys and
+          * three spare socks is three rows: two get a jersey and socks, one is
+          * socks only. Sizing the list to the jerseys alone would leave the
+          * third pair of socks with nowhere to be described.
+          */}
+        {extraRows > 0 && (
+          <div className="mt-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+              Extra Jersey Numbers
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {totalAcrossSets.extraJerseys > 0 &&
+                `${totalAcrossSets.extraJerseys} spare jersey${totalAcrossSets.extraJerseys === 1 ? '' : 's'}`}
+              {totalAcrossSets.extraJerseys > 0 && totalAcrossSets.extraSocks > 0 && ' and '}
+              {totalAcrossSets.extraSocks > 0 &&
+                `${totalAcrossSets.extraSocks} spare sock pair${totalAcrossSets.extraSocks === 1 ? '' : 's'}`}
+              . Give each a number and size, or leave them for the customer to fill in.
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {(draft.extraJerseyDetails ?? []).map((x, i) => (
+                <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <span className="self-center text-xs font-semibold text-muted">
+                    Spare {i + 1}
+                  </span>
+                  <input
+                    placeholder="Number"
+                    inputMode="numeric"
+                    value={x.number}
+                    onChange={(e) => patchExtra(i, { number: e.target.value })}
+                  />
+                  {x.sockOnly ? (
+                    <span className="self-center text-xs text-muted">No jersey</span>
+                  ) : (
+                    <SizeSelect
+                      value={x.size}
+                      options={PLAYER_JERSEY_SIZES}
+                      onChange={(v) => patchExtra(i, { size: v })}
+                    />
+                  )}
+                  {totalAcrossSets.extraSocks > 0 ? (
+                    <SizeSelect
+                      value={x.sockSize}
+                      options={SOCK_SIZES}
+                      onChange={(v) => patchExtra(i, { sockSize: v })}
+                    />
+                  ) : (
+                    <span />
+                  )}
+                  <label className="flex items-center gap-2 self-center text-xs text-muted">
+                    <input
+                      type="checkbox"
+                      checked={x.sockOnly}
+                      onChange={(e) =>
+                        patchExtra(i, { sockOnly: e.target.checked, size: e.target.checked ? '' : x.size })
+                      }
+                    />
+                    Socks only
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/*
+              * Says so when the rows and the counts disagree, rather than
+              * forcing them to agree. Ticking "socks only" is how you resolve
+              * it, and being told which way it's out is more use than a
+              * blocked field.
+              */}
+            {extraJerseyRows !== totalAcrossSets.extraJerseys && (
+              <p className="mt-2 text-xs text-amber-400">
+                {extraJerseyRows} of these have a jersey, but the order has{' '}
+                {totalAcrossSets.extraJerseys}. Tick &quot;socks only&quot; on the ones that
+                don&apos;t get a jersey.
+              </p>
             )}
           </div>
         )}
@@ -626,61 +719,7 @@ export function OrderForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Approved By" value={draft.approvedBy} onChange={(v) => set('approvedBy', v)} placeholder="Name" />
           <TextField label="Approval Date" type="date" value={draft.approvedDate ?? ''} onChange={(v) => set('approvedDate', v || null)} error={errors.approvedDate} />
-        
-        {/*
-          * Spares get numbers here, next to the count that created them.
-          * A jersey has to be made as some number and some size — "3 extra"
-          * with nothing else is an order the factory can't fill.
-          */}
-        {extraJerseyTotal > 0 && (
-          <div className="mt-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
-              Extra Jersey Numbers
-            </div>
-            <p className="mt-1 text-xs text-muted">
-              {extraJerseyTotal} spare{extraJerseyTotal === 1 ? '' : 's'} on this order. Give each
-              one a number and size, or leave them for the customer to fill in on their link.
-            </p>
-            <div className="mt-3 space-y-2">
-              {(draft.extraJerseyDetails ?? []).map((x, i) => (
-                <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <span className="self-center text-xs font-semibold text-muted">
-                    Spare {i + 1}
-                  </span>
-                  <input
-                    placeholder="Number"
-                    inputMode="numeric"
-                    value={x.number}
-                    onChange={(e) => {
-                      const next = [...(draft.extraJerseyDetails ?? [])];
-                      next[i] = { ...next[i], number: e.target.value };
-                      set('extraJerseyDetails', next);
-                    }}
-                  />
-                  <SizeSelect
-                    value={x.size}
-                    options={PLAYER_JERSEY_SIZES}
-                    onChange={(v) => {
-                      const next = [...(draft.extraJerseyDetails ?? [])];
-                      next[i] = { ...next[i], size: v };
-                      set('extraJerseyDetails', next);
-                    }}
-                  />
-                  <input
-                    placeholder="Notes"
-                    value={x.notes}
-                    onChange={(e) => {
-                      const next = [...(draft.extraJerseyDetails ?? [])];
-                      next[i] = { ...next[i], notes: e.target.value };
-                      set('extraJerseyDetails', next);
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-</div>
+        </div>
       </>
     ),
   };

@@ -206,7 +206,18 @@ export interface ApprovalRecord {
  */
 export interface ExtraJersey {
   number: string;
+  /** Jersey size. Empty when this spare is socks only. */
   size: string;
+  /** Sock size. Empty when the order has no spare socks. */
+  sockSize: string;
+  /**
+   * A spare pair of socks with no jersey.
+   *
+   * Two spare jerseys and three spare sock pairs is three spares, one of which
+   * is socks only — the counts don't have to match, and this is how the odd
+   * one out is described rather than left unexplained.
+   */
+  sockOnly: boolean;
   notes: string;
 }
 

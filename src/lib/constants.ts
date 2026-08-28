@@ -315,11 +315,12 @@ export const PANT_SHELL_SIZES: readonly string[] = [
 /**
  * The terms a customer agrees to when they sign off a proof.
  *
- * Verified live before shipping. Both this and SIZING_CHART_URL point at real
- * pages on the Shopify store — an earlier guessed path 404'd, which is worse
- * than a missing link because it looks finished.
+ * The "Policy and Information Page" — returns, terms of service and shipping
+ * in one place. Verified live, and it's the page Keenan actually points
+ * customers at; /policies/terms-of-service also exists but is the Shopify
+ * default holding only part of it.
  */
-export const TERMS_URL = 'https://www.powerplaycustoms.ca/policies/terms-of-service';
+export const TERMS_URL = 'https://www.powerplaycustoms.ca/pages/policy-page';
 
 /**
  * The sentence the customer is agreeing to, stored verbatim on every approval.

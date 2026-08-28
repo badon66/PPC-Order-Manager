@@ -265,7 +265,20 @@ export function rosterSlotCount(order: Pick<Order, 'sets' | 'playersTotal'>): nu
 }
 
 /**
- * Keep the spare-jersey list the same length as the number of spares ordered.
+ * How many spare rows an order needs.
+ *
+ * max(spare jerseys, spare sock pairs), not either alone: two spare jerseys
+ * and three spare sock pairs is three spares, one of them socks only. Sizing
+ * to the jerseys would leave the third pair of socks with nowhere to live.
+ */
+export function extraRowCount(order: Pick<Order, 'sets'>): number {
+  const jerseys = order.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0);
+  const socks = order.sets.reduce((n, s) => n + (s.extraSockPairs || 0), 0);
+  return Math.max(jerseys, socks);
+}
+
+/**
+ * Keep the spare list the same length as the number of spares ordered.
  *
  * Grows by appending blanks and shrinks by dropping from the end, so numbers
  * already typed stay attached to the same row. Rebuilding the list from
@@ -279,7 +292,9 @@ export function syncExtraJerseyDetails(
   if (details.length > wanted) return details.slice(0, wanted);
   return [
     ...details,
-    ...Array.from({ length: wanted - details.length }, () => ({ number: '', size: '', notes: '' })),
+    ...Array.from({ length: wanted - details.length }, () => ({
+      number: '', size: '', sockSize: '', sockOnly: false, notes: '',
+    })),
   ];
 }
 

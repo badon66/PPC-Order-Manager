@@ -152,6 +152,11 @@ export interface Repository {
     /** Spares, which are numbered separately from the roster. */
     extraJerseys: number;
     extraJerseyDetails: Order['extraJerseyDetails'];
+    /** Sign-off state — the form carries the same approval block. */
+    requestApproval: boolean;
+    approvedBy: string;
+    approvedDate: Order['approvedDate'];
+    shareToken: string;
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;
   } | null>;

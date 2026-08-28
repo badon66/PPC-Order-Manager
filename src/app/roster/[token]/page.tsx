@@ -3,6 +3,8 @@ import { repo } from '@/lib/data';
 import { resolveAll } from '@/lib/storage';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { ClientForm } from './client-form';
+import { ApproveBlock } from '@/app/share/[token]/approve';
+import { formatLong } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +115,41 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
               : null
           }
         />
+      )}
+
+      {/*
+        * The same sign-off as the share page, on the form link too.
+        *
+        * Teams often only ever get sent one of the two links, and which one is
+        * not something anybody tracks. Without this, a team sent the roster
+        * form had no way to approve at all.
+        */}
+      {link.requestApproval && !link.locked && (
+        link.approvedBy || link.approvedDate ? (
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
+            <p className="font-semibold text-emerald-200">This order is approved.</p>
+            <p className="mt-1 text-sm text-muted">
+              Signed off by {link.approvedBy || 'your team'}
+              {link.approvedDate ? ` on ${formatLong(link.approvedDate)}` : ''}.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted">
+              Before you approve, have a look over the full order —{' '}
+              <a
+                href={`/share/${link.shareToken}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-ppc-gold hover:underline"
+              >
+                open your order summary
+              </a>{' '}
+              to check the design, sizes and shipping address.
+            </p>
+            <ApproveBlock token={token} teamName={link.teamName} />
+          </div>
+        )
       )}
     </div>
   );

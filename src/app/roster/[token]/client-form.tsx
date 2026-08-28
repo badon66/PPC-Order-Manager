@@ -146,7 +146,10 @@ export function ClientForm({
    */
   const [extras, setExtras] = useState<ExtraJersey[]>(() => {
     const seed = previous?.extras?.length ? previous.extras : extraJerseyDetails;
-    return Array.from({ length: extraJerseys }, (_, i) => seed[i] ?? { number: '', size: '', notes: '' });
+    return Array.from(
+      { length: extraJerseys },
+      (_, i) => seed[i] ?? { number: '', size: '', sockSize: '', sockOnly: false, notes: '' },
+    );
   });
   /*
    * Open with one slot per PLAYER on the order.
@@ -171,6 +174,9 @@ export function ClientForm({
 
   /** Which row is awaiting a "yes, remove it" — null when nothing is. */
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+
+  const patchExtra = (i: number, patch: Partial<ExtraJersey>) =>
+    setExtras((xs) => xs.map((y, j) => (j === i ? { ...y, ...patch } : y)));
 
   const filled = players.filter(
     (p) => p.playerNameAsPrinted.trim() !== '' || p.number.trim() !== '',
@@ -401,37 +407,53 @@ export function ClientForm({
                   Extra Jersey Numbers
                 </p>
                 <p className="mt-1 text-xs text-muted">
-                  Your order includes {extraJerseys} spare jersey
-                  {extraJerseys === 1 ? '' : 's'} with no name on the back. Tell us what number and
-                  size each one should be.
+                  Your order includes {extraJerseys} spare{extraJerseys === 1 ? '' : 's'} with no
+                  name on the back. Tell us what number and size each one should be. Tick
+                  &quot;socks only&quot; for any that are a spare pair of socks rather than a
+                  jersey.
                 </p>
                 <div className="mt-3 space-y-2">
                   {extras.map((x, i) => (
-                    <div key={i} className="grid grid-cols-3 gap-2">
+                    <div key={i} className="grid grid-cols-2 gap-2">
                       <input
                         placeholder={`Spare ${i + 1} number`}
                         inputMode="numeric"
                         value={x.number}
-                        onChange={(e) =>
-                          setExtras(extras.map((y, j) => (j === i ? { ...y, number: e.target.value } : y)))
-                        }
+                        onChange={(e) => patchExtra(i, { number: e.target.value })}
                       />
-                      <select
-                        value={x.size}
-                        onChange={(e) =>
-                          setExtras(extras.map((y, j) => (j === i ? { ...y, size: e.target.value } : y)))
-                        }
-                      >
-                        <option value="">Size</option>
-                        {sizeOptions(PLAYER_JERSEY_SIZES, x.size)}
-                      </select>
-                      <input
-                        placeholder="Notes"
-                        value={x.notes}
-                        onChange={(e) =>
-                          setExtras(extras.map((y, j) => (j === i ? { ...y, notes: e.target.value } : y)))
-                        }
-                      />
+                      {x.sockOnly ? (
+                        <span className="self-center text-xs text-muted">No jersey</span>
+                      ) : (
+                        <select
+                          value={x.size}
+                          onChange={(e) => patchExtra(i, { size: e.target.value })}
+                        >
+                          <option value="">Jersey size</option>
+                          {sizeOptions(PLAYER_JERSEY_SIZES, x.size)}
+                        </select>
+                      )}
+                      {includesSocks && (
+                        <select
+                          value={x.sockSize}
+                          onChange={(e) => patchExtra(i, { sockSize: e.target.value })}
+                        >
+                          <option value="">Sock size</option>
+                          {sizeOptions(SOCK_SIZES, x.sockSize)}
+                        </select>
+                      )}
+                      <label className="flex items-center gap-2 self-center text-xs text-muted">
+                        <input
+                          type="checkbox"
+                          checked={x.sockOnly}
+                          onChange={(e) =>
+                            patchExtra(i, {
+                              sockOnly: e.target.checked,
+                              size: e.target.checked ? '' : x.size,
+                            })
+                          }
+                        />
+                        Socks only
+                      </label>
                     </div>
                   ))}
                 </div>

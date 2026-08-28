@@ -92,7 +92,12 @@ export async function startNewOrder(): Promise<never> {
   redirect(`/orders/${id}/edit?start=1`);
 }
 
-const DATE_FIELDS = ['datePaid', 'approvedDate', 'estimatedFinishDate'] as const;
+// Blank date inputs arrive as '' and must be stored as null, or a generated
+// date column rejects the row. Keep new date fields on this list too.
+const DATE_FIELDS = [
+  'datePaid', 'approvedDate', 'estimatedFinishDate',
+  'productionStartDate', 'productionFinishDate',
+] as const;
 
 /** Fields the form is allowed to write. Anything else is ignored. */
 const EDITABLE: ReadonlyArray<keyof Order> = [
@@ -112,6 +117,22 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'captainPatchNotes', 'hasShoulderLogos', 'shoulderLogosSame',
   'designReferenceNotes', 'collarReferenceNotes', 'mainCrestNotes',
   'specialNotes', 'approvedBy', 'approvedDate', 'deliveryConcern',
+  /*
+   * Added later, and every one of them was silently unsaveable until it was
+   * listed here.
+   *
+   * That's the failure mode of an allowlist: a new field on Order type-checks
+   * everywhere, renders in the form, updates on screen, and is dropped on the
+   * way to the database. The approval toggle looked like it did nothing for
+   * exactly this reason. If you add a field to Order that the form edits, add
+   * it here in the same commit.
+   *
+   * approvalRecord is deliberately NOT here — it's written only by the
+   * customer's sign-off action, never by this form, so that a signature can't
+   * be edited after the fact.
+   */
+  'productionStartDate', 'productionFinishDate',
+  'extraJerseyDetails', 'requestApproval',
 ];
 
 /**

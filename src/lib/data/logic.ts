@@ -1,9 +1,12 @@
+import type { CalendarDate } from '@/lib/dates';
 import type {
   ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from '@/lib/types';
 import { STATUS_META } from '@/lib/constants';
-import { newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount } from '@/lib/order-utils';
+import {
+  extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
+} from '@/lib/order-utils';
 import type { Actor, PublicOrderView } from './repository';
 
 /**
@@ -564,6 +567,12 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   /** How many spares, and whatever numbers Keenan has already put on them. */
   extraJerseys: number;
   extraJerseyDetails: ExtraJersey[];
+  /** Sign-off state, so the form can carry the same approval block. */
+  requestApproval: boolean;
+  approvedBy: string;
+  approvedDate: CalendarDate | null;
+  /** So the form can point at the full order for review before signing. */
+  shareToken: string;
   existingRosterCount: number;
 } {
   return {
@@ -583,8 +592,14 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     jerseyCount: rosterSlotCount(o),
     // Spares are asked for separately: no name goes on them, but they still
     // need a number and a size before anyone can make them.
-    extraJerseys: o.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0),
+    extraJerseys: extraRowCount(o),
     extraJerseyDetails: o.extraJerseyDetails ?? [],
+    // The same sign-off appears here as on the share page. A team that only
+    // ever opens the form link would otherwise never be asked to approve.
+    requestApproval: o.requestApproval,
+    approvedBy: o.approvedBy,
+    approvedDate: o.approvedDate,
+    shareToken: o.shareToken,
     existingRosterCount,
   };
 }

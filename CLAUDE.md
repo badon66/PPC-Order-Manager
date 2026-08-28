@@ -110,6 +110,14 @@ src/components/order-form/  the big form: index, fields, roster-table,
 
 - Every mutation is a server action in `actions.ts`, calls `requireRole` first,
   goes through `repo`, then `revalidatePath`. Don't call the store from pages.
+- **`EDITABLE` in `orders/actions.ts` is an allowlist — add every new form
+  field to it in the same commit.** A field missing from it type-checks, renders,
+  updates on screen and is dropped on the way to the database, so the control
+  looks like it does nothing. That's how the approval toggle, the production
+  dates and the spare-jersey list all shipped unsaveable. New date fields go in
+  `DATE_FIELDS` too, or a blank input stores `''` and the generated column
+  rejects the row. `approvalRecord` is deliberately excluded: only the
+  customer's sign-off writes it, so a signature can't be edited afterwards.
 - The order form autosaves ~1s after typing. New Order creates a draft row
   first (`/orders/new` route handler) so the form always has a URL.
 - Roster columns are **mode-aware**: home/away → four tick boxes per player
@@ -172,10 +180,15 @@ than missing data. Read the comments there before reordering anything.
 
 ## Not built yet
 
-Customer approval flow (amendments agreed: record IP/UA/timestamp, on-behalf
-approvals labelled as such, post-approval edits flagged, surfaced on list +
-queue, `approvalRequestedAt` timestamp) · real per-person auth · PDF spec
-sheet · Gmail thread panel.
+Real per-person auth · PDF spec sheet · Gmail thread panel · post-approval
+edits surfaced on the list and queue (the order form warns, the change log
+records, but neither list flags it yet).
+
+**Customer approval is built.** `requestApproval` per order shows a sign-off
+block on BOTH public links; `ApprovalRecord` stores the statement as it read,
+the terms URL, the instant, and the request origin. Approving twice is refused.
+`APPROVAL_STATEMENT` and `TERMS_URL` are in `constants.ts` — the statement is
+copied onto each record, so rewording it never changes what someone signed.
 
 ## Known dead weight from Base44 (don't port)
 

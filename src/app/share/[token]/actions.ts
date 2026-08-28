@@ -23,7 +23,21 @@ export async function approveOrder(
   token: string,
   input: { signedName: string; termsAccepted: boolean },
 ): Promise<{ ok: boolean; error?: string }> {
-  const view = await repo.getByShareToken(token);
+  /*
+   * Either public token can sign.
+   *
+   * A team that was only ever sent the roster form link would otherwise have
+   * no way to approve — and "which link did I send them" is not a thing worth
+   * remembering. Both tokens are equally unguessable and equally per-order, so
+   * accepting both costs nothing and removes a dead end.
+   */
+  const view =
+    (await repo.getByShareToken(token)) ??
+    (await (async () => {
+      const link = await repo.getByRosterToken(token);
+      return link ? await repo.getByShareToken(link.shareToken) : null;
+    })());
+
   if (!view) return { ok: false, error: 'This link is no longer active.' };
 
   if (!view.requestApproval) {
@@ -76,6 +90,7 @@ export async function approveOrder(
   );
 
   revalidatePath(`/share/${token}`);
+  revalidatePath(`/roster/${token}`);
   revalidatePath(`/orders/${view.orderId}`);
   return { ok: true };
 }
