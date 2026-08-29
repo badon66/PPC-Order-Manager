@@ -518,7 +518,7 @@ export function OrderForm({
         {/* Name style sits here, not in Add-Ons: it's the same decision as the
             numbers — how the lettering on the back is built. */}
         <ChoiceGroup<NameStyle>
-          label="Name Style" value={draft.nameStyle} columns={2}
+          label="Name Style" value={draft.nameStyle} columns={3}
           onChange={(v) => v && set('nameStyle', v)}
           choices={(Object.keys(NAME_STYLE_LABELS) as NameStyle[]).map((v) => ({ value: v, label: NAME_STYLE_LABELS[v] }))}
         />
@@ -585,10 +585,31 @@ export function OrderForm({
 
     artwork: (
       <>
+        {/*
+          * One design reference per set, not one per order.
+          *
+          * A home/away order is two different jerseys, so capping this at a
+          * single image left the away design with nowhere to go. The limit
+          * follows the sets: one for a single set, two for home/away, N for
+          * multiple sets — and each upload is named after the set it belongs
+          * to, so nobody has to remember which of two images is the away one.
+          */}
         <AssetGroup
-          orderId={draft.id} role="design_reference" title="Design Reference"
-          hint="The one image the manufacturer builds from. Upload it at full resolution — it's shown large on the order and on the customer's link."
-          max={MAX_DESIGN_REFERENCE_FILES}
+          orderId={draft.id} role="design_reference"
+          title={
+            draft.sets.length > 1
+              ? `Design References (${draft.sets.length} — one per set)`
+              : 'Design Reference'
+          }
+          hint={
+            draft.sets.length > 1
+              ? `The images the manufacturer builds from — one for each set (${draft.sets
+                  .map((s) => s.label)
+                  .join(', ')}). Upload at full resolution; they're shown large on the order and on the customer's link.`
+              : "The one image the manufacturer builds from. Upload it at full resolution — it's shown large on the order and on the customer's link."
+          }
+          max={Math.max(MAX_DESIGN_REFERENCE_FILES, draft.sets.length)}
+          slotLabels={draft.sets.map((s) => s.label)}
           assets={assets} notes={draft.designReferenceNotes}
           onNotesChange={(v) => set('designReferenceNotes', v)}
           onAdd={addAsset} onRemove={removeAsset}

@@ -18,6 +18,12 @@ export interface AssetGroupProps {
   title: string;
   hint?: string;
   max?: number;
+  /**
+   * A name per slot, used when a group has one file per something — the design
+   * reference on a home/away order is two images, and "Home Set" / "Away Set"
+   * says which is which without anyone typing it.
+   */
+  slotLabels?: readonly string[];
   assets: ViewableAsset[];
   notes?: string;
   onNotesChange?: (v: string) => void;
@@ -95,6 +101,7 @@ export function AssetGroup({
   title,
   hint,
   max = MAX_FILES_PER_REFERENCE_GROUP,
+  slotLabels,
   assets,
   notes,
   onNotesChange,
@@ -123,7 +130,7 @@ export function AssetGroup({
           slot,
           fileUrl: stored.fileUrl,
           fileName: stored.fileName,
-          displayName: '',
+          displayName: slotLabels?.[slot] ?? '',
           notes: '',
         });
         slot++;

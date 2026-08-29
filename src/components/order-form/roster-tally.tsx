@@ -25,6 +25,7 @@ export function buildTallies(
   mode: OrderMode,
   sets: SetQuantities[],
   roster: RosterEntry[],
+  includes: { socks: boolean; pantShells: boolean } = { socks: true, pantShells: true },
 ): Tally[] {
   const playing = roster.filter((r) => !r.sockOnly);
   const declaredJerseys = (s?: SetQuantities) =>
@@ -44,21 +45,37 @@ export function buildTallies(
         declared: declaredJerseys(sets[1]),
         extra: sets[1]?.extraJerseys ?? 0,
       },
-      {
-        label: 'Home Socks',
-        assigned: roster.reduce((n, r) => n + (r.homeSocks || 0), 0),
-        declared: sets[0]?.sockPairs ?? 0,
-        extra: sets[0]?.extraSockPairs ?? 0,
-      },
-      {
-        label: 'Away Socks',
-        assigned: roster.reduce((n, r) => n + (r.awaySocks || 0), 0),
-        declared: sets[1]?.sockPairs ?? 0,
-        extra: sets[1]?.extraSockPairs ?? 0,
-      },
+      ...(includes.socks
+        ? [
+            {
+              label: 'Home Socks',
+              assigned: roster.reduce((n, r) => n + (r.homeSocks || 0), 0),
+              declared: sets[0]?.sockPairs ?? 0,
+              extra: sets[0]?.extraSockPairs ?? 0,
+            },
+            {
+              label: 'Away Socks',
+              assigned: roster.reduce((n, r) => n + (r.awaySocks || 0), 0),
+              declared: sets[1]?.sockPairs ?? 0,
+              extra: sets[1]?.extraSockPairs ?? 0,
+            },
+          ]
+        : []),
     ];
   }
 
+  /*
+   * A garment the order doesn't include gets no tally at all.
+   *
+   * The tally used to appear whenever a roster row claimed one, and rows
+   * created before the sock fix default to socksPerPlayer: 1 — so a
+   * jerseys-only order with sixteen players showed "Socks 0 / 16", demanding
+   * sixteen pairs of socks nobody ordered.
+   *
+   * Filtering on what the ORDER includes rather than on what rows happen to
+   * say means stale rows can't resurrect it. Same rule as the roster columns
+   * and the totals: the order decides what exists.
+   */
   return [
     {
       label: 'Jerseys',
@@ -66,18 +83,22 @@ export function buildTallies(
       declared: sets.reduce((n, s) => n + declaredJerseys(s), 0),
       extra: sets.reduce((n, s) => n + (s.extraJerseys || 0), 0),
     },
-    {
-      label: 'Socks',
-      assigned: roster.reduce((n, r) => n + (r.socksPerPlayer || 0), 0),
-      declared: sets.reduce((n, s) => n + (s.sockPairs || 0), 0),
-      extra: sets.reduce((n, s) => n + (s.extraSockPairs || 0), 0),
-    },
-    {
-      label: 'Pant Shells',
-      assigned: roster.reduce((n, r) => n + (r.shellsPerPlayer || 0), 0),
-      declared: sets.reduce((n, s) => n + (s.pantShells || 0), 0),
-      extra: sets.reduce((n, s) => n + (s.extraPantShells || 0), 0),
-    },
+    ...(includes.socks
+      ? [{
+          label: 'Socks',
+          assigned: roster.reduce((n, r) => n + (r.socksPerPlayer || 0), 0),
+          declared: sets.reduce((n, s) => n + (s.sockPairs || 0), 0),
+          extra: sets.reduce((n, s) => n + (s.extraSockPairs || 0), 0),
+        }]
+      : []),
+    ...(includes.pantShells
+      ? [{
+          label: 'Pant Shells',
+          assigned: roster.reduce((n, r) => n + (r.shellsPerPlayer || 0), 0),
+          declared: sets.reduce((n, s) => n + (s.pantShells || 0), 0),
+          extra: sets.reduce((n, s) => n + (s.extraPantShells || 0), 0),
+        }]
+      : []),
   ];
 }
 

@@ -159,7 +159,12 @@ export function RosterTable({
         </p>
       )}
 
-      <RosterTally tallies={buildTallies(orderMode, sets, entries)} />
+      <RosterTally
+        tallies={buildTallies(orderMode, sets, entries, {
+          socks: showSocks,
+          pantShells: showPantShells,
+        })}
+      />
 
       {entries.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-8 text-center text-sm text-muted">

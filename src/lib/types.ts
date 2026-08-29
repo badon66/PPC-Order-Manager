@@ -33,7 +33,14 @@ export type LacesStyle = (typeof LACES_STYLES)[number];
 export const SHOULDER_CUTS = ['rounded', 'straight'] as const;
 export type ShoulderCut = (typeof SHOULDER_CUTS)[number];
 
-export const NAME_STYLES = ['free_standing_letters', 'name_bars'] as const;
+/**
+ * How the player's name goes on the back — including not at all.
+ *
+ * "none" is a real choice, not a missing answer: plenty of teams order jerseys
+ * with numbers only. Without it, those orders sat on whatever the default was
+ * and the manufacturer had to be told separately.
+ */
+export const NAME_STYLES = ['free_standing_letters', 'name_bars', 'none'] as const;
 export type NameStyle = (typeof NAME_STYLES)[number];
 
 export const CAPTAIN_PATCH_STYLES = ['standard_matching', 'custom_design'] as const;

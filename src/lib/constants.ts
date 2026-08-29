@@ -67,6 +67,7 @@ export const SHOULDER_CUT_LABELS: Record<ShoulderCut, string> = {
 export const NAME_STYLE_LABELS: Record<NameStyle, string> = {
   free_standing_letters: 'Free Standing Letters',
   name_bars: 'Name Bars',
+  none: 'No Letters',
 };
 
 export const CAPTAIN_PATCH_STYLE_META: Record<CaptainPatchStyle, { label: string; blurb: string }> = {
