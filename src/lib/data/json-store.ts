@@ -293,7 +293,7 @@ export const jsonStore: Repository = {
       const plan = planAcceptance(
         s,
         order,
-        db.roster.filter((r) => r.orderId === s.orderId).length,
+        db.roster.filter((r) => r.orderId === s.orderId),
         db.assets.filter((a) => a.orderId === s.orderId),
       );
 

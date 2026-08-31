@@ -349,7 +349,7 @@ export const supabaseStore: Repository = {
     if (!order) return;
 
     const [roster, assets] = await Promise.all([rosterOf(s.orderId), assetsOf(s.orderId)]);
-    const plan = planAcceptance(s, order, roster.length, assets);
+    const plan = planAcceptance(s, order, roster, assets);
 
     /*
      * Ordered so a failure part-way is recoverable: the new rows go in first,

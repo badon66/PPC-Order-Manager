@@ -349,7 +349,15 @@ export interface AcceptancePlan {
 export function planAcceptance(
   submission: ClientRosterSubmission,
   order: Order,
-  existingRosterCount: number,
+  /**
+   * The rows already on the order — not just how many.
+   *
+   * The count was enough when every accepted player claimed one of
+   * everything. Now that a row only claims what the order still has left, the
+   * quantities already assigned have to be known, or accepting a second
+   * submission would start its budget over.
+   */
+  existingRoster: RosterEntry[],
   existingAssets: OrderAsset[],
 ): AcceptancePlan {
   const parts: string[] = [];
@@ -358,7 +366,31 @@ export function planAcceptance(
   const orderPatch: Partial<Order> = {};
 
   const homeAway = order.orderMode === 'home_away_set';
-  let sortOrder = existingRosterCount;
+  let sortOrder = existingRoster.length;
+
+  /*
+   * Budgets, so accepting a submission can't over-assign.
+   *
+   * Counted down across the whole batch: twelve pairs of socks against fifteen
+   * accepted players gives the first twelve a pair and the rest none. Started
+   * from what the order declares minus what the existing roster already holds,
+   * so accepting a second submission doesn't reset the count.
+   */
+  const declared = (pick: (s: Order['sets'][number]) => number) =>
+    order.sets.reduce((n, x) => n + (pick(x) || 0), 0);
+
+  const assigned = (pick: (r: RosterEntry) => number) =>
+    existingRoster.reduce((n, r) => n + (pick(r) || 0), 0);
+
+  let jerseyBudget =
+    declared((x) => (x.playerJerseys || 0) + (x.goalieJerseys || 0)) -
+    assigned((r) => r.jerseysPerPlayer);
+  let sockBudget = declared((x) => x.sockPairs || 0) - assigned((r) => r.socksPerPlayer);
+  let shellBudget = declared((x) => x.pantShells || 0) - assigned((r) => r.shellsPerPlayer);
+
+  const takeJersey = () => jerseyBudget-- > 0;
+  const takeSocks = () => sockBudget-- > 0;
+  const takeShells = () => shellBudget-- > 0;
 
   for (const p of submission.players) {
     roster.push({
@@ -371,14 +403,24 @@ export function planAcceptance(
       jerseySize: p.jerseySize,
       sockSize: p.sockSize,
       pantShellSize: p.pantShellSize ?? '',
-      jerseysPerPlayer: p.sockOnly ? 0 : 1,
-      socksPerPlayer: 1,
-      shellsPerPlayer: 0,
+      /*
+       * Accepting a submission must respect what was ordered, same as adding a
+       * row by hand does.
+       *
+       * `socksPerPlayer: 1` used to be unconditional, so accepting fifteen
+       * players onto an order with twelve pairs of socks assigned fifteen —
+       * and an order with no socks at all assigned a pair to everyone. The
+       * running claim is tracked across the batch so the first twelve take a
+       * pair and the rest take none.
+       */
+      jerseysPerPlayer: p.sockOnly ? 0 : takeJersey() ? 1 : 0,
+      socksPerPlayer: takeSocks() ? 1 : 0,
+      shellsPerPlayer: takeShells() ? 1 : 0,
       // In home/away mode a submitted player is assumed to get one of each;
       // Keenan can un-tick in the roster table.
       homeJersey: homeAway && !p.sockOnly ? 1 : 0,
       awayJersey: homeAway && !p.sockOnly ? 1 : 0,
-      homeSocks: homeAway ? 1 : 0,
+      homeSocks: homeAway && orderIncludesSocks(order) ? 1 : 0,
       awaySocks: 0,
       armNumbers: '', shoulderLogo: '', pantLogo: '', pantNumber: '',
       notes: p.notes,

@@ -2,7 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
-import { blankRosterEntry, orderIncludesPantShells, orderIncludesSocks, stripSpaces } from '@/lib/order-utils';
+import {
+  blankRosterEntry, nextRowClaims, orderIncludesPantShells, orderIncludesSocks, stripSpaces,
+} from '@/lib/order-utils';
 import type { Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 import { SizeSelect } from './fields';
 import { RosterTally, buildTallies } from './roster-tally';
@@ -50,6 +52,19 @@ export function RosterTable({
   const showSocks = orderIncludesSocks(includes);
   const showPantShells = orderIncludesPantShells(includes);
   const [noSpaces, setNoSpaces] = useState(false);
+  const [allCaps, setAllCaps] = useState(false);
+
+  /*
+   * Both name toggles run through one function, in a fixed order.
+   *
+   * Applied separately they'd fight over the same field — typing with both on
+   * would strip spaces, then uppercase, then on the next keystroke strip
+   * again, and the result would depend on which handler ran last.
+   */
+  const formatName = (v: string) => {
+    const stripped = noSpaces ? stripSpaces(v) : v;
+    return allCaps ? stripped.toUpperCase() : stripped;
+  };
   const [importReport, setImportReport] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -58,11 +73,15 @@ export function RosterTable({
   }
 
   function addPlayer() {
-    // Rows must not claim socks or shells the order doesn't include — that's
-    // half of the phantom-socks bug. See blankRosterEntry.
+    /*
+     * A new row takes one of each only while the order still has some left.
+     * Fifteen players against twelve pairs of socks means rows 13–15 start
+     * with none, rather than over-assigning and leaving the tally demanding
+     * socks nobody ordered.
+     */
     onChange([
       ...entries,
-      blankRosterEntry(orderId, entries.length, { socks: showSocks, pantShells: showPantShells }),
+      blankRosterEntry(orderId, entries.length, nextRowClaims({ sets }, entries)),
     ]);
   }
 
@@ -113,6 +132,8 @@ export function RosterTable({
           onClick={() => {
             const next = !noSpaces;
             setNoSpaces(next);
+            // Switching on applies to what's already typed, not just to what
+            // comes next — otherwise the toggle looks broken on a full roster.
             if (next) {
               onChange(
                 entries.map((e) => ({ ...e, playerNameAsPrinted: stripSpaces(e.playerNameAsPrinted) })),
@@ -124,6 +145,28 @@ export function RosterTable({
           }`}
         >
           No Spaces
+        </button>
+
+        <button
+          type="button"
+          title="Print every name on the back in capitals"
+          onClick={() => {
+            const next = !allCaps;
+            setAllCaps(next);
+            if (next) {
+              onChange(
+                entries.map((e) => ({
+                  ...e,
+                  playerNameAsPrinted: e.playerNameAsPrinted.toUpperCase(),
+                })),
+              );
+            }
+          }}
+          className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+            allCaps ? 'border-ppc-gold bg-ppc-gold/10 text-ppc-gold' : 'border-line bg-surface-2'
+          }`}
+        >
+          ALL CAPS
         </button>
 
         <input
@@ -209,9 +252,7 @@ export function RosterTable({
                         disabled={e.sockOnly}
                         onChange={(ev) =>
                           patch(i, {
-                            playerNameAsPrinted: noSpaces
-                              ? stripSpaces(ev.target.value)
-                              : ev.target.value,
+                            playerNameAsPrinted: formatName(ev.target.value),
                           })
                         }
                       />
@@ -387,7 +428,7 @@ export function RosterTable({
                     disabled={e.sockOnly}
                     onChange={(ev) =>
                       patch(i, {
-                        playerNameAsPrinted: noSpaces ? stripSpaces(ev.target.value) : ev.target.value,
+                        playerNameAsPrinted: formatName(ev.target.value),
                       })
                     }
                   />

@@ -265,6 +265,32 @@ export function rosterSlotCount(order: Pick<Order, 'sets' | 'playersTotal'>): nu
 }
 
 /**
+ * What the next roster row should claim.
+ *
+ * One of each, but only while the ordered quantity hasn't run out. Twelve
+ * pairs of socks across fifteen players means the first twelve rows take a
+ * pair and the last three take none — which is the real answer, and leaves the
+ * tally balanced instead of demanding three pairs that were never bought.
+ *
+ * Anyone can still override a row by hand; this is only what it starts as.
+ */
+export function nextRowClaims(
+  order: Pick<Order, 'sets'>,
+  roster: RosterEntry[],
+): { jerseys: boolean; socks: boolean; pantShells: boolean } {
+  const declared = (pick: (s: SetQuantities) => number) => order.sets.reduce((n, s) => n + pick(s), 0);
+  const assigned = (pick: (r: RosterEntry) => number) => roster.reduce((n, r) => n + (pick(r) || 0), 0);
+
+  return {
+    jerseys:
+      assigned((r) => r.jerseysPerPlayer) <
+      declared((s) => (s.playerJerseys || 0) + (s.goalieJerseys || 0)),
+    socks: assigned((r) => r.socksPerPlayer) < declared((s) => s.sockPairs || 0),
+    pantShells: assigned((r) => r.shellsPerPlayer) < declared((s) => s.pantShells || 0),
+  };
+}
+
+/**
  * How many spare rows an order needs.
  *
  * max(spare jerseys, spare sock pairs), not either alone: two spare jerseys
@@ -405,19 +431,25 @@ export function blankOrder(): Order {
 /**
  * A new roster row.
  *
- * `includes` says what the order actually covers. Without it every row used to
- * default to one pair of socks, so adding sixteen players to a jerseys-only
- * order conjured sixteen pairs of socks — half of the phantom-socks bug
- * described in computeTotals.
+ * `claims` says what this particular row should start out taking, which is not
+ * simply "one of each". Two separate mistakes lived here:
  *
- * Defaulting to false rather than true is deliberate: a caller that forgets to
- * pass it produces rows that claim nothing, which is visibly incomplete. The
- * old default produced rows that claimed something, which looked correct.
+ *   1. Every row defaulted to a pair of socks, so sixteen players on a
+ *      jerseys-only order conjured sixteen pairs — half of the phantom-socks
+ *      bug in computeTotals.
+ *   2. Rows kept claiming a pair even once the ordered quantity was used up.
+ *      Fifteen players against twelve pairs of socks assigned fifteen, and the
+ *      tally then demanded three pairs nobody bought.
+ *
+ * So the caller decides per row, from what's already assigned against what was
+ * ordered — see `nextRowClaims`. Everything defaults to false: a caller that
+ * forgets produces a row claiming nothing, which is visibly incomplete. The
+ * old default produced a row claiming something, which looked correct.
  */
 export function blankRosterEntry(
   orderId: string,
   sortOrder: number,
-  includes: { socks?: boolean; pantShells?: boolean } = {},
+  claims: { jerseys?: boolean; socks?: boolean; pantShells?: boolean } = {},
 ): RosterEntry {
   return {
     id: newId(),
@@ -429,9 +461,9 @@ export function blankRosterEntry(
     jerseySize: '',
     sockSize: '',
     pantShellSize: '',
-    jerseysPerPlayer: 1,
-    socksPerPlayer: includes.socks ? 1 : 0,
-    shellsPerPlayer: includes.pantShells ? 1 : 0,
+    jerseysPerPlayer: claims.jerseys ? 1 : 0,
+    socksPerPlayer: claims.socks ? 1 : 0,
+    shellsPerPlayer: claims.pantShells ? 1 : 0,
     homeJersey: 0,
     awayJersey: 0,
     homeSocks: 0,
