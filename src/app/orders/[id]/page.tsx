@@ -193,7 +193,6 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         {/* Zeros are dropped, not printed — see Stat. */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
-          <Stat label="Players" value={totals.totalPlayers} hideWhenZero />
           <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
           <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
         </div>
@@ -322,8 +321,18 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           signedUrls={signedUrls} orderId={order.id} submissions={submissions} currentRoster={roster} />
       </Section>
 
-      <Section title={`Player Roster (${roster.length})`}>
-        {roster.length === 0 ? (
+      {/*
+        * Spares belong in this table, same as on the customer's page.
+        *
+        * "Is #99 on this order?" gets answered by scanning the roster. A spare
+        * listed somewhere else reads as absent, and the answer is wrong.
+        */}
+      <Section
+        title={`Player Roster (${roster.length}${
+          order.extraJerseyDetails.length ? ` + ${order.extraJerseyDetails.length} spare` : ''
+        }${order.extraJerseyDetails.length > 1 ? 's' : ''})`}
+      >
+        {roster.length === 0 && order.extraJerseyDetails.length === 0 ? (
           <p className="text-sm text-muted">No players added yet.</p>
         ) : (
           <div className="-mx-4 overflow-x-auto px-4">
@@ -361,6 +370,27 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                     <td className="py-2 pr-3 tabular-nums">{r.jerseysPerPlayer}</td>
                     <td className="py-2 pr-3 tabular-nums">{r.socksPerPlayer}</td>
                     <td className="py-2 text-muted">{r.notes || '—'}</td>
+                  </tr>
+                ))}
+
+                {order.extraJerseyDetails.map((x, i) => (
+                  <tr key={`spare-${i}`} className="border-b border-line/50 bg-ppc-gold/5">
+                    <td className="py-2 pr-3">
+                      <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-ppc-gold">
+                        Spare
+                      </span>
+                      {x.sockOnly && (
+                        <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[0.65rem] text-muted">
+                          SOCK ONLY
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
+                    <td className="py-2 pr-3">{x.sockOnly ? '—' : x.size || '—'}</td>
+                    <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                    <td className="py-2 pr-3 tabular-nums">{x.sockOnly ? 0 : 1}</td>
+                    <td className="py-2 pr-3 tabular-nums">{x.sockSize ? 1 : 0}</td>
+                    <td className="py-2 text-muted">{x.notes || '—'}</td>
                   </tr>
                 ))}
               </tbody>

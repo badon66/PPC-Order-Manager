@@ -73,7 +73,6 @@ export function seedDatabase(): Database {
       set('Home Set', 16, 1, 17, 0, { extraJerseys: 2, extrasNotes: '2 spare home jerseys — XL' }),
       set('Away Set', 16, 1, 0, 0),
     ],
-    playersTotal: 17,
     jerseyType: 'embroidered',
     sockType: 'embroidered',
     numberDetails: 'Purple embroidery outline matching the shoulder stripes.',
@@ -113,7 +112,6 @@ export function seedDatabase(): Database {
     sets: setsForMode('single_set').map((s) => ({
       ...s, playerJerseys: 17, goalieJerseys: 1, sockPairs: 18, pantShells: 0,
     })),
-    playersTotal: 18,
     jerseyType: 'sublimated',
     sockType: 'sublimated',
     frontCrest: true,
@@ -139,7 +137,6 @@ export function seedDatabase(): Database {
     sets: setsForMode('single_set').map((s) => ({
       ...s, playerJerseys: 20, goalieJerseys: 2, sockPairs: 22, pantShells: 0,
     })),
-    playersTotal: 22,
     jerseyType: 'sublimated',
     hasCaptainPatches: true,
     captainPatchStyle: 'standard_matching',
@@ -178,7 +175,6 @@ export function seedDatabase(): Database {
       set('Set 2', 12, 1, 13, 0, { notes: 'U13 group' }),
       set('Set 3', 14, 1, 15, 0, { notes: 'U15 group', extraSockPairs: 3, extrasNotes: '3 spare pairs for camp staff' }),
     ],
-    playersTotal: 41,
     jerseyType: 'reversible_sublimated',
     sockType: 'sublimated',
     contactFirstName: 'Priya',

@@ -81,7 +81,6 @@ export interface OrderTotals {
   totalJerseys: number;
   totalSockPairs: number;
   totalPantShells: number;
-  totalPlayers: number;
 
   hasRoster: boolean;
   /** True when the declared quantities and the roster disagree. */
@@ -98,7 +97,7 @@ export interface OrderTotals {
  * an order with no roster yet, while the admin page showed the real number
  * from the same data. Two implementations of one rule, disagreeing.
  */
-export type TotalsInput = Pick<Order, 'sets' | 'orderMode' | 'playersTotal'>;
+export type TotalsInput = Pick<Order, 'sets' | 'orderMode'>;
 
 export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderTotals {
   const declaredPlayerJerseys = order.sets.reduce((n, s) => n + (s.playerJerseys || 0), 0);
@@ -165,7 +164,6 @@ export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderT
   const totalJerseys = declaredJerseys + extraJerseys;
   const totalSockPairs = declaredSockPairs + extraSockPairs;
   const totalPantShells = declaredPantShells + extraPantShells;
-  const totalPlayers = order.playersTotal || 0;
 
   /*
    * The roster's only job here: say so when it disagrees.
@@ -186,7 +184,7 @@ export function computeTotals(order: TotalsInput, roster: RosterEntry[]): OrderT
     extraJerseys, extraSockPairs, extraPantShells,
     rosterPlayerCount, rosterGoalieCount, rosterSockOnlyCount,
     rosterJerseys, rosterSockPairs, rosterPantShells,
-    totalJerseys, totalSockPairs, totalPantShells, totalPlayers,
+    totalJerseys, totalSockPairs, totalPantShells,
     hasRoster,
     mismatch: mismatchDetail !== null,
     mismatchDetail,
@@ -253,11 +251,12 @@ export function orderIncludesPantShells(order: IncludesInput): boolean {
  * Every set dresses the same squad, so the squad is the largest single set —
  * never the sum. That holds for one set, home/away, and any number of sets.
  *
- * `playersTotal` wins when Keenan has entered it, matching the rule everywhere
- * else: what he typed is the answer, and the sets are the fallback.
+ * There is no separate "number of players" field any more. It was a second
+ * number meaning the same thing as the jersey count, kept in step by hand, and
+ * it drifted — an order for 16 jerseys with the field left at 0 reported no
+ * players at all. One number, derived, can't disagree with itself.
  */
-export function rosterSlotCount(order: Pick<Order, 'sets' | 'playersTotal'>): number {
-  if (order.playersTotal > 0) return order.playersTotal;
+export function rosterSlotCount(order: Pick<Order, 'sets'>): number {
   return order.sets.reduce(
     (most, s) => Math.max(most, (s.playerJerseys || 0) + (s.goalieJerseys || 0)),
     0,
@@ -375,7 +374,6 @@ export function blankOrder(): Order {
     orderMode: 'single_set',
     numberOfSets: 1,
     sets: setsForMode('single_set'),
-    playersTotal: 0,
 
     jerseyType: null,
     sockType: null,

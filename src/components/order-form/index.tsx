@@ -236,7 +236,6 @@ export function OrderForm({
      'shoulder_logo_left', 'shoulder_logo_right', 'additional_logo', 'font'].includes(a.role),
   );
   const anyQty =
-    draft.playersTotal > 0 ||
     draft.sets.some((s) => s.playerJerseys + s.goalieJerseys + s.sockPairs + s.pantShells > 0);
   /** The Pants section only exists when the order actually has shells in it. */
   const hasPantShells =
@@ -340,7 +339,6 @@ export function OrderForm({
     totals: (
       <>
         <div className="max-w-[14rem]">
-          <NumberField label="Total Number of Players" value={draft.playersTotal} onChange={(v) => set('playersTotal', v)} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {draft.sets.map((s, i) => {

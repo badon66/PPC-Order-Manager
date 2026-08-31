@@ -106,7 +106,7 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone',
   'shippingStreet', 'shippingSecondary', 'shippingCity', 'shippingProvince',
   'shippingPostal', 'requestClientDetails', 'clientLinkSections',
-  'orderMode', 'numberOfSets', 'sets', 'playersTotal',
+  'orderMode', 'numberOfSets', 'sets',
   'jerseyType', 'sockType', 'pantShellType', 'numberDetails',
   'dimpledShoulders', 'reinforcedElbows', 'underarmVents', 'frontCrest',
   'armNumbers', 'printedSizingTag', 'ppcBackBranding', 'stopSignPatch',

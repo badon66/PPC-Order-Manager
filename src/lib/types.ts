@@ -351,7 +351,6 @@ export interface Order {
   orderMode: OrderMode;
   numberOfSets: number;
   sets: SetQuantities[];
-  playersTotal: number;
 
   /* Build types */
   jerseyType: JerseyType | null;

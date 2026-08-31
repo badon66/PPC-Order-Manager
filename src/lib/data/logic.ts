@@ -517,9 +517,6 @@ export function publicViewOf(
     googleDriveLink: o.googleDriveLink,
     orderMode: o.orderMode,
     sets: o.sets,
-    // Needed so the share page can call computeTotals: with no roster yet, the
-    // player count comes from what Keenan typed, not from counting zero rows.
-    playersTotal: o.playersTotal,
     jerseyType: o.jerseyType,
     sockType: o.sockType,
     pantShellType: o.pantShellType,

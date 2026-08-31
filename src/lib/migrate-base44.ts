@@ -332,7 +332,6 @@ export function mapOrder(o: B44Order): MappedOrder {
     orderMode: mode,
     numberOfSets: Math.max(1, num(o.number_of_sets) || 1),
     sets: buildSets(o, mode, warn),
-    playersTotal: num(o.players_total),
 
     jerseyType: mapJerseyType(o.jersey_type),
     sockType: mapSockType(o.sock_type),

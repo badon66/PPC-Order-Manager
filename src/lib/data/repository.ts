@@ -67,8 +67,6 @@ export interface PublicOrderView {
   googleDriveLink: string;
   orderMode: Order['orderMode'];
   sets: Order['sets'];
-  /** The manually-entered player count, used when no roster exists yet. */
-  playersTotal: Order['playersTotal'];
   jerseyType: Order['jerseyType'];
   sockType: Order['sockType'];
   pantShellType: Order['pantShellType'];

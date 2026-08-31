@@ -130,7 +130,13 @@ src/components/order-form/  the big form: index, fields, roster-table,
   versions each allowed one and each was wrong. The roster is only compared,
   and disagreements surface via `mismatchDetail`.
 
-  The bug that settled it: an order for 16 jerseys and no socks reported 16
+  **There is no separate "number of players" field.** `playersTotal` was
+  removed: a second number meaning the same thing as the jersey count, kept in
+  step by hand, which drifted. Roster slots derive from the largest single set
+  (`rosterSlotCount`) — every set dresses the same squad, so home/away is 20
+  players and 40 jerseys, never 40 slots.
+
+  The bug that settled the totals rule: an order for 16 jerseys and no socks reported 16
   pairs of socks, because a declared `0` was read as "not filled in yet" and
   fell back to the roster, where every blank row defaulted to
   `socksPerPlayer: 1`. **Zero is an answer, not an absence** — and
