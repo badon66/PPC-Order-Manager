@@ -125,6 +125,15 @@ src/components/order-form/  the big form: index, fields, roster-table,
   `buildTallies` in `roster-tally.tsx` shows the live count vs set quantities.
 - Sizes are controlled lists (`JERSEY_SIZES` etc.). Goalie and sock-only are
   flags on the row, not strings in the size field.
+- **Roster markers are spelled out, never abbreviated.** `GoalieBadge` and
+  `CaptaincyBadge` (`components/captaincy.tsx`) print "Goalie", "Captain" and
+  "Alternate" — a bare G or A means nothing to the parent checking their kid's
+  row. `RosterEntry.captaincy` / `SubmittedPlayer.captaincy` is `'' | 'C' | 'A'`,
+  set by `CaptaincyPicker` on both the client form and the admin roster table,
+  hidden on a sock-only row (no jersey, no letter), carried through
+  `acceptSubmission`, diffed into the change log, and round-tripped in the CSV
+  as the `Letter` column. Old rows have no such field, so `healRosterEntry`
+  fills it in on load in both stores.
 - **Totals are the entered quantities plus extras. The roster NEVER supplies a
   number** (`computeTotals`). No conditions, no fallbacks — two earlier
   versions each allowed one and each was wrong. The roster is only compared,
@@ -191,10 +200,24 @@ edits surfaced on the list and queue (the order form warns, the change log
 records, but neither list flags it yet).
 
 **Customer approval is built.** `requestApproval` per order shows a sign-off
-block on BOTH public links; `ApprovalRecord` stores the statement as it read,
-the terms URL, the instant, and the request origin. Approving twice is refused.
-`APPROVAL_STATEMENT` and `TERMS_URL` are in `constants.ts` — the statement is
-copied onto each record, so rewording it never changes what someone signed.
+block on BOTH public links **and at the bottom of the admin order sheet**, so a
+team can sign in person on Keenan's phone — same component, same server action,
+same record, only the wording differs (`audience="staff"`). `ApprovalRecord`
+stores the statement as it read, the terms URL, the instant, and the request
+origin. Approving twice is refused. `APPROVAL_STATEMENT` and `TERMS_URL` are in
+`constants.ts` — the statement is copied onto each record, so rewording it never
+changes what someone signed.
+
+**The signature is drawn, not typed.** `SignaturePad` (`components/signature-pad.tsx`)
+is a canvas using Pointer Events — one handler set for mouse, finger and stylus,
+`touch-action: none` so a finger draws instead of scrolling, buffer sized by
+`getBoundingClientRect()` × dpr so the ink lands under the pointer. A tap is not
+a signature: it needs 60px of travel (`MIN_INK`) before it exports. It exports
+downscaled to 800px because `ApprovalRecord.signatureDataUrl` is stored inline
+on the order row, and `listOrders` reads rows whole — a real signature is ~8 KB;
+the server rejects anything over 250 KB or not a `data:image/png;base64,` URL.
+Display it with `SignatureProof`, which renders identically in all three places
+and says so plainly when an old approval has a name but no drawn mark.
 
 ## Known dead weight from Base44 (don't port)
 

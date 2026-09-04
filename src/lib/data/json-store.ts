@@ -8,7 +8,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 import { seedDatabase } from './seed';
 
@@ -63,6 +63,7 @@ const state: StoreState = (g.__ppcStore ??= {
 function heal(db: Database): Database {
   db.orders.forEach(healOrder);
   db.submissions.forEach(healSubmission);
+  db.roster.forEach(healRosterEntry);
   return db;
 }
 

@@ -7,6 +7,7 @@ import {
 } from '@/lib/order-utils';
 import type { Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 import { SizeSelect } from './fields';
+import { CaptaincyPicker } from '@/components/captaincy';
 import { RosterTally, buildTallies } from './roster-tally';
 
 /**
@@ -269,11 +270,18 @@ export function RosterTable({
                             patch(i, {
                               sockOnly: !e.sockOnly,
                               isGoalie: false,
+                              captaincy: '',
                               jerseySize: '',
                               jerseysPerPlayer: e.sockOnly ? 1 : 0,
                             })
                           }
                         />
+                        {!e.sockOnly && (
+                          <CaptaincyPicker
+                            value={e.captaincy}
+                            onChange={(v) => patch(i, { captaincy: v })}
+                          />
+                        )}
                       </div>
                     </td>
                     <td className="py-2 pr-2">
@@ -414,11 +422,18 @@ export function RosterTable({
                       patch(i, {
                         sockOnly: !e.sockOnly,
                         isGoalie: false,
+                        captaincy: '',
                         jerseySize: '',
                         jerseysPerPlayer: e.sockOnly ? 1 : 0,
                       })
                     }
                   />
+                  {!e.sockOnly && (
+                    <CaptaincyPicker
+                      value={e.captaincy}
+                      onChange={(v) => patch(i, { captaincy: v })}
+                    />
+                  )}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <input

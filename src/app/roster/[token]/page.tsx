@@ -4,6 +4,7 @@ import { resolveAll } from '@/lib/storage';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { ClientForm } from './client-form';
 import { ApproveBlock } from '@/app/share/[token]/approve';
+import { SignatureProof } from '@/components/signature-proof';
 import { formatLong } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
@@ -126,12 +127,13 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
         */}
       {link.requestApproval && !link.locked && (
         link.approvedBy || link.approvedDate ? (
-          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
-            <p className="font-semibold text-emerald-200">This order is approved.</p>
-            <p className="mt-1 text-sm text-muted">
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5">
+            <p className="text-center font-semibold text-emerald-200">This order is approved.</p>
+            <p className="mt-1 text-center text-sm text-muted">
               Signed off by {link.approvedBy || 'your team'}
               {link.approvedDate ? ` on ${formatLong(link.approvedDate)}` : ''}.
             </p>
+            {link.approvalRecord && <SignatureProof record={link.approvalRecord} />}
           </div>
         ) : (
           <div className="space-y-3">

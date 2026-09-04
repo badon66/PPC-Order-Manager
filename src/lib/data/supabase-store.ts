@@ -7,7 +7,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 
 /**
@@ -91,7 +91,7 @@ async function orderByToken(column: 'share_token' | 'roster_token', token: strin
 async function rosterOf(orderId: string): Promise<RosterEntry[]> {
   const res = await supabase()
     .from(ROSTER).select('id, data').eq('order_id', orderId).order('sort_order');
-  return rows<RosterEntry>(unwrap(res, 'load roster'));
+  return rows<RosterEntry>(unwrap(res, 'load roster')).map(healRosterEntry);
 }
 
 async function assetsOf(orderId: string): Promise<OrderAsset[]> {

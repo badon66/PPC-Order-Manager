@@ -154,6 +154,7 @@ export interface Repository {
     requestApproval: boolean;
     approvedBy: string;
     approvedDate: Order['approvedDate'];
+    approvalRecord: Order['approvalRecord'];
     shareToken: string;
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;

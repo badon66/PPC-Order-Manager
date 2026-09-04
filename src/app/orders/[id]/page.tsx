@@ -14,6 +14,9 @@ import { ArtworkGallery } from '@/components/artwork-gallery';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { SubmissionReview } from '@/components/submission-review';
+import { SignatureProof } from '@/components/signature-proof';
+import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
+import { ApproveBlock } from '@/app/share/[token]/approve';
 import type { Order } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -353,11 +356,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                   <tr key={r.id} className="border-b border-line/50">
                     <td className="py-2 pr-3 font-semibold">
                       {r.playerNameAsPrinted || <span className="text-muted">—</span>}
-                      {r.isGoalie && (
-                        <span className="ml-2 rounded bg-ppc-gold/15 px-1.5 py-0.5 text-[0.65rem] font-bold text-ppc-gold">
-                          G
-                        </span>
-                      )}
+                      {r.isGoalie && <GoalieBadge />}
+                      <CaptaincyBadge value={r.captaincy} />
                       {r.sockOnly && (
                         <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[0.65rem] text-muted">
                           SOCK ONLY
@@ -422,6 +422,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             are recorded in the history below.
           </p>
         )}
+        {order.approvalRecord && <SignatureProof record={order.approvalRecord} />}
       </Section>
 
       <Section title={`History (${history.length})`}>
@@ -453,6 +454,24 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {history.length <= 20 && ' — with exact times and what changed'} →
         </Link>
       </Section>
+
+      {/*
+        * Sign-off at the bottom of the order sheet itself.
+        *
+        * Same block, same record, same server action as the customer's page —
+        * it just isn't always convenient to send a link. A team manager
+        * standing at the rink can read this screen and sign on the phone in
+        * front of them, and it counts exactly the same.
+        *
+        * Only while the toggle is on and nothing has been signed yet: once
+        * there's a signature it lives in Notes & Approval above, and a second
+        * one is refused by the server anyway.
+        */}
+      {order.requestApproval && !order.approvedDate && !order.approvalRecord && (
+        <Section title="Sign Off">
+          <ApproveBlock token={order.shareToken} teamName={order.teamName} audience="staff" />
+        </Section>
+      )}
     </div>
   );
 }

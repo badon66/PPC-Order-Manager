@@ -19,9 +19,19 @@ import type { ApprovalRecord } from '@/lib/types';
  * Everything the browser checked is checked again here. A disabled button is a
  * courtesy to the person; it is not a control.
  */
+/**
+ * A drawn signature, as a PNG data URL, capped.
+ *
+ * The cap is abuse defence, not a quality bar: this string is stored on the
+ * order row, and that row is read whole whenever the orders list loads. The
+ * pad downscales before it exports, so a real signature lands far below this.
+ */
+const SIGNATURE_PREFIX = 'data:image/png;base64,';
+const SIGNATURE_MAX_CHARS = 250_000;
+
 export async function approveOrder(
   token: string,
-  input: { signedName: string; termsAccepted: boolean },
+  input: { signedName: string; termsAccepted: boolean; signatureDataUrl: string },
 ): Promise<{ ok: boolean; error?: string }> {
   /*
    * Either public token can sign.
@@ -62,12 +72,28 @@ export async function approveOrder(
 
   const signedName = input.signedName.trim().slice(0, 120);
   if (signedName.length < 2) {
-    return { ok: false, error: 'Please type your name to sign.' };
+    return { ok: false, error: 'Please print your name under the signature.' };
+  }
+
+  /*
+   * The drawn mark is required, not optional.
+   *
+   * This is the whole point of the change: a typed name is something anybody
+   * can produce for anybody. Checked here as well as in the browser, because
+   * the browser is not where the rule lives.
+   */
+  const signatureDataUrl = input.signatureDataUrl ?? '';
+  if (!signatureDataUrl.startsWith(SIGNATURE_PREFIX) || signatureDataUrl.length < 200) {
+    return { ok: false, error: 'Please sign in the box before approving.' };
+  }
+  if (signatureDataUrl.length > SIGNATURE_MAX_CHARS) {
+    return { ok: false, error: 'That signature is too large to store. Clear it and sign again.' };
   }
 
   const h = await headers();
   const record: ApprovalRecord = {
     signedName,
+    signatureDataUrl,
     signedAt: new Date().toISOString(),
     termsAccepted: true,
     termsUrl: TERMS_URL,

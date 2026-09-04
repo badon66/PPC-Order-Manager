@@ -3,7 +3,7 @@
 import { repo } from '@/lib/data';
 import { CLIENT_LOCKED_MESSAGE } from '@/lib/data/logic';
 import type {
-  ClientLinkSections, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
+  Captaincy, ClientLinkSections, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
 } from '@/lib/types';
 
 /**
@@ -50,6 +50,9 @@ export async function submitClientForm(token: string, payload: SubmitPayload): P
           playerNameAsPrinted: clean(p.playerNameAsPrinted),
           number: clean(p.number),
           isGoalie: Boolean(p.isGoalie),
+          // Only the two letters, and never on a row with no jersey. Anything
+          // else arriving here didn't come from the form.
+          captaincy: (p.sockOnly ? '' : p.captaincy === 'C' || p.captaincy === 'A' ? p.captaincy : '') as Captaincy,
           sockOnly: Boolean(p.sockOnly),
           jerseySize: clean(p.jerseySize),
           // Blanked rather than trusted when the order has no shells — the

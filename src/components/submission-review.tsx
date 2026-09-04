@@ -5,6 +5,7 @@ import type { ClientRosterSubmission, RosterEntry } from '@/lib/types';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { acceptClientSubmission } from '@/app/orders/actions';
 import { formatShort } from '@/lib/dates';
+import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 
 /**
  * Review a client submission before it touches the order.
@@ -179,7 +180,8 @@ function SubmissionCard({
                     <tr key={i} className={`border-b border-line/40 ${dup ? 'text-amber-200' : ''}`}>
                       <td className="py-1.5 pr-2 font-semibold">
                         {p.playerNameAsPrinted || <span className="text-muted">—</span>}
-                        {p.isGoalie && <span className="ml-1.5 text-[0.65rem] text-ppc-gold">G</span>}
+                        {p.isGoalie && <GoalieBadge />}
+                        <CaptaincyBadge value={p.captaincy} />
                         {p.sockOnly && <span className="ml-1.5 text-[0.65rem] text-muted">SOCK ONLY</span>}
                         {dup && <span className="ml-1.5 text-[0.65rem]">DUP?</span>}
                       </td>

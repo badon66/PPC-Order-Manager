@@ -1,4 +1,4 @@
-import type { AssetRole, CaptainPatchStyle, JerseyTier, JerseyType, LacesStyle, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
+import type { AssetRole, Captaincy, CaptainPatchStyle, JerseyTier, JerseyType, LacesStyle, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
 
 /* ------------------------------------------------------------------ *
  * Status
@@ -69,6 +69,17 @@ export const NAME_STYLE_LABELS: Record<NameStyle, string> = {
   name_bars: 'Name Bars',
   none: 'No Letters',
 };
+
+/**
+ * Which letter goes on a player's jersey.
+ *
+ * Written out in full everywhere it's read — a lone "C" in a roster column is
+ * only obvious to someone who already knows what they're looking at, and the
+ * people reading these lists are often a parent checking their kid's row.
+ */
+export function captaincyLabel(v: Captaincy | undefined | null): string {
+  return v === 'C' ? 'Captain' : v === 'A' ? 'Alternate' : 'None';
+}
 
 export const CAPTAIN_PATCH_STYLE_META: Record<CaptainPatchStyle, { label: string; blurb: string }> = {
   standard_matching: {
@@ -417,6 +428,7 @@ export const CSV_COLUMNS = [
   'Player Name',
   'Number',
   'Goalie',
+  'Letter',
   'Jersey Size',
   'Sock Size',
   'Pant Size',

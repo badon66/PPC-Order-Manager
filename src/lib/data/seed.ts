@@ -40,6 +40,7 @@ function players(
     playerNameAsPrinted: name,
     number: num,
     isGoalie: goalie,
+    captaincy: '',
     sockOnly,
     jerseySize: sockOnly ? '' : size,
     sockSize: 'Senior',

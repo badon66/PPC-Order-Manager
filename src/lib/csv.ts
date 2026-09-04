@@ -23,6 +23,7 @@ export function rosterToCsv(roster: RosterEntry[]): string {
       r.playerNameAsPrinted,
       r.number,
       r.isGoalie ? 'Yes' : 'No',
+      r.captaincy || '',
       r.sockOnly ? 'Sock Only' : r.jerseySize,
       r.sockSize,
       r.pantShellSize,
@@ -81,6 +82,9 @@ const ALIASES: Record<string, string> = {
   number: 'number',
   '#': 'number',
   goalie: 'goalie',
+  letter: 'letter',
+  captain: 'letter',
+  captaincy: 'letter',
   'jersey size': 'jerseySize',
   'sock size': 'sockSize',
   'pant size': 'pantSize',
@@ -133,6 +137,10 @@ export function csvToRoster(text: string, orderId: string): CsvImportResult {
     e.playerNameAsPrinted = name;
     e.number = get(row, 'number');
     e.isGoalie = truthy(get(row, 'goalie'));
+    // Anything that isn't a bare C or A is no letter — a spreadsheet typed by
+    // hand will contain "Capt", "(A)", stars and blanks.
+    const letter = get(row, 'letter').trim().toUpperCase();
+    e.captaincy = sockOnly ? '' : letter === 'C' || letter === 'A' ? letter : '';
     e.sockOnly = sockOnly;
     e.jerseySize = sockOnly ? '' : jerseyRaw;
     e.sockSize = get(row, 'sockSize');

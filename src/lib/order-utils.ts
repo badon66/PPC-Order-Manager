@@ -455,6 +455,7 @@ export function blankRosterEntry(
     playerNameAsPrinted: '',
     number: '',
     isGoalie: false,
+    captaincy: '',
     sockOnly: false,
     jerseySize: '',
     sockSize: '',

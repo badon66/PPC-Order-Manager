@@ -186,8 +186,18 @@ export interface SetQuantities {
  * it after the fact would defeat the point of having it.
  */
 export interface ApprovalRecord {
-  /** Exactly what they typed into the signature box. */
+  /** The printed name, typed under the signature. */
   signedName: string;
+  /**
+   * The signature itself, drawn by hand: a PNG data URL.
+   *
+   * Typing a name proves somebody had the link and could reach a keyboard. A
+   * drawn mark is at least an act — it's what stops a manager signing on the
+   * captain's behalf without thinking about it. Stored inline on the record
+   * rather than in the artwork bucket: it's small, it's part of the evidence,
+   * and it must not be reachable by an expiring URL.
+   */
+  signatureDataUrl: string;
   /** ISO instant, not a calendar date — this is a moment, not a day. */
   signedAt: string;
   /** They ticked the terms box. Sign-off is refused without it. */
@@ -281,6 +291,15 @@ export interface OrderAsset {
  */
 export type ViewableAsset = OrderAsset & { viewUrl: string; placementViewUrl?: string };
 
+/**
+ * Captain's C, alternate's A, or neither.
+ *
+ * A plain string rather than a boolean pair, because a player is one or the
+ * other and never both — and `''` reads the same in the CSV, the JSON store
+ * and the form as it does here.
+ */
+export type Captaincy = '' | 'C' | 'A';
+
 export interface RosterEntry {
   id: string;
   orderId: string;
@@ -288,6 +307,14 @@ export interface RosterEntry {
   playerNameAsPrinted: string;
   number: string;
   isGoalie: boolean;
+  /**
+   * Whose jersey gets a letter.
+   *
+   * Only means anything in production when the order has captain patches on,
+   * but it's asked for either way: the team knows who its captain is long
+   * before anyone decides how the letter gets applied.
+   */
+  captaincy: Captaincy;
   /**
    * A participant who is only receiving socks (no jersey). In the old app this
    * was faked by typing "Sock Only" into the jersey-size column.
@@ -459,6 +486,8 @@ export interface SubmittedPlayer {
   playerNameAsPrinted: string;
   number: string;
   isGoalie: boolean;
+  /** Captain or alternate, as the team picked it on the form. */
+  captaincy: Captaincy;
   sockOnly: boolean;
   jerseySize: string;
   sockSize: string;

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { APPROVAL_STATEMENT, TERMS_URL } from '@/lib/constants';
+import { SignaturePad } from '@/components/signature-pad';
 import { approveOrder } from './actions';
 
 /**
@@ -12,24 +13,41 @@ import { approveOrder } from './actions';
  * a thumb can do while scrolling — the dialog is the pause.
  *
  * Inside it, three things have to be true before Approve does anything: the
- * terms box is ticked, a name is typed, and that name is at least a plausible
- * name rather than a keystroke. All three are checked again on the server; the
- * disabled button is a courtesy, not the enforcement.
+ * terms box is ticked, a name is printed, and a signature has actually been
+ * drawn. All three are checked again on the server; the disabled button is a
+ * courtesy, not the enforcement.
+ *
+ * The same block is used on the admin order sheet, so a team can sign in
+ * person on Keenan's phone. `audience` only changes the wording around it —
+ * what gets recorded is identical either way.
  */
-export function ApproveBlock({ token, teamName }: { token: string; teamName: string }) {
+export function ApproveBlock({
+  token,
+  teamName,
+  audience = 'customer',
+}: {
+  token: string;
+  teamName: string;
+  audience?: 'customer' | 'staff';
+}) {
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [name, setName] = useState('');
+  const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const signable = agreed && name.trim().length >= 2;
+  const signable = agreed && name.trim().length >= 2 && signature.length > 0;
 
   async function submit() {
     setError(null);
     setBusy(true);
-    const res = await approveOrder(token, { signedName: name.trim(), termsAccepted: agreed });
+    const res = await approveOrder(token, {
+      signedName: name.trim(),
+      termsAccepted: agreed,
+      signatureDataUrl: signature,
+    });
     setBusy(false);
     if (res.ok) {
       setDone(true);
@@ -44,8 +62,8 @@ export function ApproveBlock({ token, teamName }: { token: string; teamName: str
       <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
         <p className="font-semibold text-emerald-200">Thank you — that&apos;s approved.</p>
         <p className="mt-1 text-sm text-muted">
-          We&apos;ve recorded your sign-off and we&apos;ll get started. Refresh this page to see it
-          on the order.
+          We&apos;ve recorded the sign-off and we&apos;ll get started. Refresh this page to see it on
+          the order.
         </p>
       </div>
     );
@@ -54,17 +72,20 @@ export function ApproveBlock({ token, teamName }: { token: string; teamName: str
   return (
     <>
       <div className="rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-5">
-        <p className="font-semibold text-ppc-gold">Ready to approve?</p>
+        <p className="font-semibold text-ppc-gold">
+          {audience === 'staff' ? 'Customer sign-off' : 'Ready to approve?'}
+        </p>
         <p className="mt-1 text-sm text-muted">
-          Have a careful read through everything above first — the design, the names and numbers,
-          the sizes, and the shipping address. Approving finalises the order.
+          {audience === 'staff'
+            ? 'Hand this over and have them read the order through — the design, the names and numbers, the sizes, and the shipping address — then sign. Approving finalises the order.'
+            : 'Have a careful read through everything above first — the design, the names and numbers, the sizes, and the shipping address. Approving finalises the order.'}
         </p>
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="mt-4 rounded-lg bg-ppc-gold px-4 py-2.5 text-sm font-bold text-black hover:brightness-110"
         >
-          Approve this order
+          {audience === 'staff' ? 'Sign off this order' : 'Approve this order'}
         </button>
       </div>
 
@@ -108,12 +129,19 @@ export function ApproveBlock({ token, teamName }: { token: string; teamName: str
               </span>
             </label>
 
+            <div className="mt-4">
+              <span className="text-xs font-medium text-muted">Sign here</span>
+              <div className="mt-1">
+                <SignaturePad onChange={setSignature} />
+              </div>
+            </div>
+
             <label className="mt-4 block text-sm">
-              <span className="text-xs font-medium text-muted">Sign your name</span>
+              <span className="text-xs font-medium text-muted">Print your name</span>
               <input
                 className="mt-1"
                 value={name}
-                placeholder="Type your full name"
+                placeholder="Full name"
                 autoComplete="name"
                 onChange={(e) => setName(e.target.value)}
               />
@@ -142,7 +170,7 @@ export function ApproveBlock({ token, teamName }: { token: string; teamName: str
 
             {!signable && (
               <p className="mt-2 text-right text-xs text-muted">
-                Tick the box and sign your name to approve.
+                Tick the box, sign in the space above, and print your name to approve.
               </p>
             )}
           </div>

@@ -9,7 +9,8 @@ import {
 import { Card, Field, Section, Stat, StatusBadge, YesNo } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { ApproveBlock } from './approve';
-import { formatTimestamp } from '@/lib/dates';
+import { SignatureProof } from '@/components/signature-proof';
+import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { resolveAll } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -213,7 +214,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                   <tr key={r.id} className="border-b border-line/50">
                     <td className="py-2 pr-3 font-semibold">
                       {r.playerNameAsPrinted || <span className="text-muted">—</span>}
-                      {r.isGoalie && <span className="ml-2 text-xs text-ppc-gold">G</span>}
+                      {r.isGoalie && <GoalieBadge />}
+                      <CaptaincyBadge value={r.captaincy} />
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
                     <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : r.jerseySize || '—'}</td>
@@ -267,12 +269,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <Field label="Approved By">{view.approvedBy}</Field>
             <Field label="Approval Date">{formatLong(view.approvedDate)}</Field>
           </div>
-          {view.approvalRecord && (
-            <p className="mt-3 text-xs text-muted">
-              Signed {formatTimestamp(view.approvalRecord.signedAt)}, with the terms and conditions
-              accepted.
-            </p>
-          )}
+          {view.approvalRecord && <SignatureProof record={view.approvalRecord} />}
           <p className="mt-4 text-xs text-muted">
             Once a proof is approved the order is locked and final — no changes or cancellations
             after this point.

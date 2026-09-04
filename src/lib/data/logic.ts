@@ -1,9 +1,9 @@
 import type { CalendarDate } from '@/lib/dates';
 import type {
-  ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
+  ApprovalRecord, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from '@/lib/types';
-import { STATUS_META } from '@/lib/constants';
+import { STATUS_META, captaincyLabel } from '@/lib/constants';
 import {
   extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
@@ -67,7 +67,18 @@ export function healSubmission(s: ClientRosterSubmission): ClientRosterSubmissio
   s.sections ??= { ...DEFAULT_CLIENT_LINK_SECTIONS };
   s.revision ??= 1;
   s.changes ??= [];
+  for (const p of (s.players ??= [])) p.captaincy ??= '';
   return s;
+}
+
+/**
+ * Rows imported from Base44 and every row written before captaincy existed
+ * have no such field. Filled in on load so the rest of the app can treat it as
+ * a plain string rather than checking for undefined at every use.
+ */
+export function healRosterEntry(r: RosterEntry): RosterEntry {
+  r.captaincy ??= '';
+  return r;
 }
 
 /* ------------------------------------------------------------------ *
@@ -211,6 +222,14 @@ export function diffSubmissions(
         label: `${p.playerNameAsPrinted || p.number || 'Player'} — goalie`,
         from: was.isGoalie ? 'Yes' : 'No',
         to: p.isGoalie ? 'Yes' : 'No',
+      });
+    }
+    if ((was.captaincy || '') !== (p.captaincy || '')) {
+      out.push({
+        section: 'roster',
+        label: `${p.playerNameAsPrinted || p.number || 'Player'} — letter`,
+        from: captaincyLabel(was.captaincy),
+        to: captaincyLabel(p.captaincy),
       });
     }
   }
@@ -399,6 +418,7 @@ export function planAcceptance(
       playerNameAsPrinted: p.playerNameAsPrinted,
       number: p.number,
       isGoalie: p.isGoalie,
+      captaincy: p.captaincy || '',
       sockOnly: p.sockOnly,
       jerseySize: p.jerseySize,
       sockSize: p.sockSize,
@@ -610,6 +630,8 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   requestApproval: boolean;
   approvedBy: string;
   approvedDate: CalendarDate | null;
+  /** The signature itself, so a signed order looks signed on either link. */
+  approvalRecord: ApprovalRecord | null;
   /** So the form can point at the full order for review before signing. */
   shareToken: string;
   existingRosterCount: number;
@@ -638,6 +660,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     requestApproval: o.requestApproval,
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
+    approvalRecord: o.approvalRecord,
     shareToken: o.shareToken,
     existingRosterCount,
   };

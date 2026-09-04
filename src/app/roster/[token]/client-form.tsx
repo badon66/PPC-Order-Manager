@@ -5,6 +5,7 @@ import { PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL, SOCK_SIZES, je
 import type {
   ClientLinkSections, ExtraJersey, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
 } from '@/lib/types';
+import { CaptaincyPicker } from '@/components/captaincy';
 import { submitClientForm } from './actions';
 
 /**
@@ -44,7 +45,7 @@ type Props = {
 };
 
 const blankPlayer = (): SubmittedPlayer => ({
-  playerNameAsPrinted: '', number: '', isGoalie: false, sockOnly: false,
+  playerNameAsPrinted: '', number: '', isGoalie: false, captaincy: '', sockOnly: false,
   jerseySize: '', sockSize: '', pantShellSize: '', notes: '',
 });
 const blankLogo = (): SubmittedLogo => ({
@@ -300,6 +301,12 @@ export function ClientForm({
             </a>
           </p>
 
+          <p className="mb-3 text-sm text-muted">
+            Got a captain and alternates? Hit <span className="font-bold text-fg">C</span> or{' '}
+            <span className="font-bold text-fg">A</span> beside their name and we&apos;ll know whose
+            jersey gets the letter. Tap it again to clear it.
+          </p>
+
           <div className="space-y-3">
             {players.map((p, i) => (
               <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
@@ -309,7 +316,18 @@ export function ClientForm({
                     <Chip active={p.isGoalie} label="Goalie"
                       onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, isGoalie: !x.isGoalie, sockOnly: false } : x))} />
                     <Chip active={p.sockOnly} label="Socks only"
-                      onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '' } : x))} />
+                      onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '', captaincy: '' } : x))} />
+                    {/*
+                      * Hidden on a socks-only row: there's no jersey for a
+                      * letter to go on, and offering it there just invites a
+                      * tap that quietly means nothing.
+                      */}
+                    {!p.sockOnly && (
+                      <CaptaincyPicker
+                        value={p.captaincy}
+                        onChange={(v) => setPlayers(players.map((x, j) => (j === i ? { ...x, captaincy: v } : x)))}
+                      />
+                    )}
                     {players.length > 1 && (
                       /*
                        * Two taps to remove, never one.
