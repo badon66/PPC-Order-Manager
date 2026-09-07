@@ -131,7 +131,9 @@ export function contactsFromRows(
  * Script tab
  * ------------------------------------------------------------------ */
 
-const SCRIPT_KEYS = ['section', 'kind', 'text', 'response', 'option 1', 'option 2', 'option 3', 'option 4', 'option 5', 'option 6', 'show when'] as const;
+/** The Script tab's headers, lower-cased — the only cells scriptFromRows reads. */
+const OPTION_KEYS = ['option 1', 'option 2', 'option 3', 'option 4', 'option 5', 'option 6'] as const;
+type ScriptKey = 'section' | 'kind' | 'text' | 'response' | 'show when' | (typeof OPTION_KEYS)[number];
 
 export function scriptFromRows(rows: string[][]): { items: ScriptItem[]; skipped: Skipped; warnings: Warnings } {
   const items: ScriptItem[] = [];
@@ -140,7 +142,7 @@ export function scriptFromRows(rows: string[][]): { items: ScriptItem[]; skipped
   const headerIdx = rows.findIndex((r) => !isBlankRow(r));
   if (headerIdx === -1) return { items, skipped, warnings };
   const header = rows[headerIdx].map(norm);
-  const at = (key: (typeof SCRIPT_KEYS)[number], cells: string[]) => { const j = header.indexOf(key); return j === -1 ? '' : (cells[j] ?? '').trim(); };
+  const at = (key: ScriptKey, cells: string[]) => { const j = header.indexOf(key); return j === -1 ? '' : (cells[j] ?? '').trim(); };
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const line = i + 1;
@@ -156,7 +158,7 @@ export function scriptFromRows(rows: string[][]): { items: ScriptItem[]; skipped
     const showWhen = at('show when', cells);
     const parsed = parseShowWhen(showWhen);
     if (!parsed.ok) warnings.push({ line, reason: `Script: Show When "${showWhen}" — ${parsed.error}. The line will always show.` });
-    const options = (['option 1', 'option 2', 'option 3', 'option 4', 'option 5', 'option 6'] as const).map((k) => at(k, cells)).filter(Boolean);
+    const options = OPTION_KEYS.map((k) => at(k, cells)).filter(Boolean);
     items.push({ id: `s${items.length + 1}`, section, kind, text, response: at('response', cells), options, showWhen });
   }
   return { items, skipped, warnings };

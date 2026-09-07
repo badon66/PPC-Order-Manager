@@ -102,6 +102,12 @@ src/app/orders/           list, detail, edit
 src/app/queue/            production queue
 src/app/share/[token]/    customer read-only view
 src/app/roster/[token]/   customer roster form (revisits + change logging)
+src/app/sales/            cold calling: landing (upload, lists), contacts table, calling view
+src/app/sales/actions.ts  every sales mutation — upload, log, edit, skip, delete
+src/lib/data/sales-logic.ts  sales rules (queue, call state, validation) — pure, both stores use it
+src/lib/sales/            columns (the sheet), import, export, script rules, phone, timezones
+src/components/sales/     landing pieces + call-view/ (the one-contact-at-a-time screen)
+scripts/build-call-template.mjs  regenerates public/templates/… and the test fixture
 src/components/order-form/  the big form: index, fields, roster-table,
                             roster-tally, assets, additional-logos
 ```
@@ -203,6 +209,33 @@ and the per-order tokens, in app code.
 supabase-js has no transactions. `replaceRoster` and `acceptSubmission` are
 ordered so a failure part-way leaves duplicates (visible, deletable) rather
 than missing data. Read the comments there before reordering anything.
+
+## Sales — cold calling
+
+Design: `docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md`.
+
+- **One upload = one `CallList`.** Contacts and the script come from the
+  sheet; re-upload to change either. `Contact.raw` keeps every cell as typed,
+  including columns we don't know — they show under *Other info* and export.
+- **Rows are skipped only with no org AND no phone.** Everything else is a
+  warning, stored on `list.importReport`, shown every time the list opens.
+- **Call state on a contact is written only by `applyCallLog` / `applySkip`**
+  in `sales-logic.ts`. Never patch `lastOutcome`, `callCount`, `nextCallDate`
+  by hand — the queue is computed from them.
+- **Skip is not an outcome.** It logs nothing and bumps `skipCount`.
+- **Save & Next requires an outcome**; editing is allowed only for a contact's
+  most recent call, and can't undo Do Not Call.
+- **Do Not Call is enforced twice**: `buildQueue` drops the contact and the
+  server refuses any other outcome for it. The screen hides the number.
+- **Write order on Supabase**: list before contacts; log before contact patch
+  before referral. Read the comments in `supabase-store.ts` before reordering.
+- **Drafts live in `localStorage`** per contact until saved; the session
+  timer in `sessionStorage` per list. Both are per-device conveniences.
+- **The template and the importer share one column map** (`sales/columns.ts`)
+  and one pick-list file (`sales/picklists.json`). Change either, run
+  `npm run build:template`, commit the regenerated `.xlsx`.
+- `npm test` covers the pure modules (`tests/sales/`). Stores and pages are
+  checked by `tsc` and the browser walkthrough.
 
 ## Not built yet
 
