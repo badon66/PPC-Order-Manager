@@ -222,6 +222,9 @@ export function seedDatabase(): Database {
         createdAt: new Date().toISOString(),
       },
     ],
+    callLists: [],
+    callContacts: [],
+    callLogs: [],
   };
 }
 

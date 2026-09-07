@@ -1,6 +1,6 @@
 import type {
-  AppUser, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Order, OrderAsset,
-  RosterEntry,
+  AppUser, CallList, CallLog, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Contact,
+  Order, OrderAsset, RosterEntry,
 } from '@/lib/types';
 
 /**
@@ -33,6 +33,13 @@ export interface OrderBundle {
   roster: RosterEntry[];
   assets: OrderAsset[];
   submissions: ClientRosterSubmission[];
+}
+
+/** A call list with everything the sales pages need. Contacts in sheet order, logs newest first. */
+export interface CallListBundle {
+  list: CallList;
+  contacts: Contact[];
+  logs: CallLog[];
 }
 
 /**
@@ -180,4 +187,22 @@ export interface Repository {
 
   /* Users -------------------------------------------------------------- */
   listUsers(): Promise<AppUser[]>;
+
+  /* Sales — cold calling ------------------------------------------------ */
+  listCallLists(): Promise<CallList[]>;
+  getCallList(id: string): Promise<CallListBundle | null>;
+  getContact(id: string): Promise<Contact | null>;
+  latestCallLogFor(contactId: string): Promise<CallLog | null>;
+  /** List row first, then contacts — a failure part-way leaves an empty list, visible and deletable. */
+  createCallList(list: CallList, contacts: Contact[], actor: Actor): Promise<CallList>;
+  /**
+   * Log first, then the contact patch, then the referral (if any). The rules
+   * that produce the patch and the referral are in ./sales-logic.ts; the store
+   * only writes. A failure after the log leaves a contact that looks uncalled —
+   * you might ring twice. The other order would lose the notes.
+   */
+  addCallLog(log: CallLog, contactPatch: Partial<Contact>, referral: Contact | null, actor: Actor): Promise<void>;
+  updateCallLog(log: CallLog, contactPatch: Partial<Contact>, actor: Actor): Promise<void>;
+  updateContact(id: string, patch: Partial<Contact>, actor: Actor): Promise<Contact>;
+  softDeleteCallList(id: string, actor: Actor): Promise<void>;
 }

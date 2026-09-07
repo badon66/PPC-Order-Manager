@@ -155,6 +155,20 @@ await push(
 );
 await push('app_users', (local.users ?? []).map((u) => ({ id: u.id, data: u })), 'users');
 
+// Sales — lists first, then their contacts and logs (foreign keys).
+const listIds = new Set((local.callLists ?? []).map((l) => l.id));
+await push('call_lists', (local.callLists ?? []).map((l) => ({ id: l.id, data: l })), 'call lists');
+await push(
+  'call_contacts',
+  (local.callContacts ?? []).filter((c) => listIds.has(c.listId)).map((c) => ({ id: c.id, list_id: c.listId, data: c })),
+  'call contacts',
+);
+await push(
+  'call_logs',
+  (local.callLogs ?? []).filter((g) => listIds.has(g.listId)).map((g) => ({ id: g.id, list_id: g.listId, contact_id: g.contactId, data: g })),
+  'call logs',
+);
+
 /* ---------- artwork ---------- */
 
 let uploaded = 0, skipped = 0, failed = 0;
@@ -201,6 +215,9 @@ for (const [table, expected] of [
   ['order_assets', (local.assets ?? []).filter((a) => orderIds.has(a.orderId)).length],
   ['client_submissions', (local.submissions ?? []).filter((s) => orderIds.has(s.orderId)).length],
   ['change_log', (local.history ?? []).filter((h) => orderIds.has(h.orderId)).length],
+  ['call_lists', (local.callLists ?? []).length],
+  ['call_contacts', (local.callContacts ?? []).filter((c) => listIds.has(c.listId)).length],
+  ['call_logs', (local.callLogs ?? []).filter((g) => listIds.has(g.listId)).length],
 ]) {
   const { count, error } = await db.from(table).select('id', { count: 'exact', head: true });
   if (error) console.log(`  ? ${table}: ${error.message}`);

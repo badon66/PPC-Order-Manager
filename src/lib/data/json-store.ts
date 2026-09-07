@@ -1,15 +1,17 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import type {
-  AppUser, ChangeLogEntry, ClientRosterSubmission, Order, OrderAsset, RosterEntry,
+  AppUser, CallList, CallLog, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset,
+  RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import type {
-  Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
+  Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
   CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
+import { healCallList, healCallLog, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
 
 /**
@@ -31,6 +33,9 @@ export interface Database {
   submissions: ClientRosterSubmission[];
   history: ChangeLogEntry[];
   users: AppUser[];
+  callLists: CallList[];
+  callContacts: Contact[];
+  callLogs: CallLog[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -64,6 +69,9 @@ function heal(db: Database): Database {
   db.orders.forEach(healOrder);
   db.submissions.forEach(healSubmission);
   db.roster.forEach(healRosterEntry);
+  (db.callLists ??= []).forEach(healCallList);
+  (db.callContacts ??= []).forEach(healContact);
+  (db.callLogs ??= []).forEach(healCallLog);
   return db;
 }
 
@@ -336,6 +344,87 @@ export const jsonStore: Repository = {
   async listUsers() {
     const db = await load();
     return db.users;
+  },
+
+  /* Sales ------------------------------------------------------------ */
+
+  async listCallLists() {
+    const db = await load();
+    return db.callLists
+      .filter((l) => !l.deletedAt)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async getCallList(id): Promise<CallListBundle | null> {
+    const db = await load();
+    const list = db.callLists.find((l) => l.id === id && !l.deletedAt);
+    if (!list) return null;
+    const contacts = db.callContacts
+      .filter((c) => c.listId === id)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+    const logs = db.callLogs
+      .filter((g) => g.listId === id)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return { list, contacts, logs };
+  },
+
+  async getContact(id) {
+    const db = await load();
+    return db.callContacts.find((c) => c.id === id) ?? null;
+  },
+
+  async latestCallLogFor(contactId) {
+    const db = await load();
+    return db.callLogs
+      .filter((g) => g.contactId === contactId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ?? null;
+  },
+
+  async createCallList(list, contacts, _actor) {
+    return withWrite((db) => {
+      db.callLists.push(list);
+      db.callContacts.push(...contacts);
+      return list;
+    });
+  },
+
+  async addCallLog(log, contactPatch, referral, _actor) {
+    await withWrite((db) => {
+      db.callLogs.push(log);
+      const idx = db.callContacts.findIndex((c) => c.id === log.contactId);
+      if (idx === -1) throw new Error(`Contact ${log.contactId} not found`);
+      db.callContacts[idx] = { ...db.callContacts[idx], ...contactPatch };
+      if (referral) db.callContacts.push(referral);
+    });
+  },
+
+  async updateCallLog(log, contactPatch, _actor) {
+    await withWrite((db) => {
+      const gi = db.callLogs.findIndex((g) => g.id === log.id);
+      if (gi === -1) throw new Error(`Call log ${log.id} not found`);
+      db.callLogs[gi] = log;
+      const ci = db.callContacts.findIndex((c) => c.id === log.contactId);
+      if (ci === -1) throw new Error(`Contact ${log.contactId} not found`);
+      db.callContacts[ci] = { ...db.callContacts[ci], ...contactPatch };
+    });
+  },
+
+  async updateContact(id, patch, _actor) {
+    return withWrite((db) => {
+      const idx = db.callContacts.findIndex((c) => c.id === id);
+      if (idx === -1) throw new Error(`Contact ${id} not found`);
+      db.callContacts[idx] = { ...db.callContacts[idx], ...patch, updatedAt: new Date().toISOString() };
+      return db.callContacts[idx];
+    });
+  },
+
+  async softDeleteCallList(id, _actor) {
+    await withWrite((db) => {
+      const l = db.callLists.find((x) => x.id === id);
+      if (!l) throw new Error(`Call list ${id} not found`);
+      l.deletedAt = new Date().toISOString();
+      l.updatedAt = l.deletedAt;
+    });
   },
 };
 
