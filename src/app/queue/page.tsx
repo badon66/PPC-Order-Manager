@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { repo } from '@/lib/data';
 import { dueLabel, dueStatus, formatShort, monthKey, monthLabel, today } from '@/lib/dates';
-import { DUE_SOON_WINDOW_DAYS } from '@/lib/constants';
+import { DUE_SOON_WINDOW_DAYS, OPEN_STATUSES } from '@/lib/constants';
 import { Card, EmptyState, StatusBadge } from '@/components/ui';
 import type { Order } from '@/lib/types';
 
@@ -12,7 +12,13 @@ export const dynamic = 'force-dynamic';
  * orders exist" but never "what's due, what's late, what ships this week".
  */
 
-const ACTIVE = new Set(['incomplete', 'draft', 'waiting_for_payment', 'in_production', 'shipped']);
+/*
+ * Everything not finished. Shared with the order list rather than written out
+ * here: this used to be a hardcoded list, and when `waiting_for_approval` was
+ * added nobody updated it, so orders waiting on a signature silently dropped
+ * out of the production schedule.
+ */
+const ACTIVE = new Set<string>(OPEN_STATUSES);
 
 function QueueRow({ order, now }: { order: Order; now: string }) {
   const state = dueStatus(order.estimatedFinishDate, DUE_SOON_WINDOW_DAYS, now);

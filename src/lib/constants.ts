@@ -22,6 +22,46 @@ export const STATUS_OPTIONS = (Object.keys(STATUS_META) as OrderStatus[]).sort(
 );
 
 /* ------------------------------------------------------------------ *
+ * Work buckets
+ *
+ * Seven statuses is the right amount of detail on one order and too much to
+ * think in when you're looking at all of them. Three buckets is how the work
+ * actually divides:
+ *
+ *   unfinalized — not a job yet. A quote half typed in, an order started and
+ *                 abandoned. Real, but nothing is owed to anyone.
+ *   active      — a live job. Money or a deadline is attached and it is
+ *                 Keenan's problem until it isn't.
+ *   completed   — done. Kept for reference, not for managing.
+ *
+ * The order list shows ACTIVE by default for that reason. Defined here rather
+ * than inline on a page so the list and the production queue can't develop
+ * different opinions about what counts as live — which is exactly what
+ * happened when `waiting_for_approval` was added and the queue's hardcoded set
+ * wasn't updated, quietly hiding every order awaiting a signature.
+ * ------------------------------------------------------------------ */
+
+export const UNFINALIZED_STATUSES: OrderStatus[] = ['incomplete', 'draft'];
+
+export const ACTIVE_STATUSES: OrderStatus[] = [
+  'waiting_for_payment',
+  'waiting_for_approval',
+  'in_production',
+  'shipped',
+];
+
+/** Everything that isn't finished — what the production queue schedules. */
+export const OPEN_STATUSES: OrderStatus[] = [...UNFINALIZED_STATUSES, ...ACTIVE_STATUSES];
+
+export type StatusBucket = 'unfinalized' | 'active' | 'completed';
+
+export function statusBucket(s: OrderStatus): StatusBucket {
+  if (UNFINALIZED_STATUSES.includes(s)) return 'unfinalized';
+  if (ACTIVE_STATUSES.includes(s)) return 'active';
+  return 'completed';
+}
+
+/* ------------------------------------------------------------------ *
  * Order mode
  * ------------------------------------------------------------------ */
 

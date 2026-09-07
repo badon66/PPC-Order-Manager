@@ -108,6 +108,17 @@ src/components/order-form/  the big form: index, fields, roster-table,
 
 ## Conventions
 
+- **Statuses group into three buckets** (`constants.ts`): `UNFINALIZED_STATUSES`
+  (incomplete, draft), `ACTIVE_STATUSES` (waiting for payment / approval, in
+  production, shipped), and completed. `OPEN_STATUSES` is the first two — what
+  the production queue schedules. The order board shows ACTIVE by default and
+  puts the other two behind switches that say how many they hide. Use these
+  constants, never a hand-written list: the queue had one, `waiting_for_approval`
+  was added later and nobody updated it, and every order awaiting a signature
+  silently vanished from the schedule.
+- **Urgency colour is only for live jobs.** A draft with an old finish date is
+  not late — nothing is owed on it. Red on a card that doesn't need action
+  teaches you to ignore red on the ones that do.
 - Every mutation is a server action in `actions.ts`, calls `requireRole` first,
   goes through `repo`, then `revalidatePath`. Don't call the store from pages.
 - **`EDITABLE` in `orders/actions.ts` is an allowlist — add every new form
