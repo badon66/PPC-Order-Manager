@@ -1,0 +1,7 @@
+Org Name,Org Type,Contact Name,Role,Phone,Alt Phone,Email,City,Province,Timezone Override,League / Level,Age Divisions,Teams (#),Players (approx),Season Start (month),Ordering Window (month),Current Supplier,Last Ordered (year),Colours,Website,Social,Lead Source,Priority,Best Time to Call,Do Not Call,Notes,Rink
+Ennismore Eagles,Minor Hockey Association,Jamie Ouellette,Equipment Manager,(705) 555-0142,,jamie@example.ca,Ennismore,ON,,OMHA,"U9, U11, U13",14,210,Sep,Jun,XYZ Sports,2023,navy/gold,https://ennismoreeagles.ca,,Web research,A,Weekday evening,N,Board meets Tuesdays,Ennismore CC
+Kelowna Kodiaks,Adult Team,Pat Singh,Captain/Organiser,250 555 0100,250 555 0101,,Kelowna,BC,,KAHL Div 2,Adult,1,18,Oct,Sep,,,red/black,,@kodiakshockey,Social,B,Weekend,,,Rutland Arena
+,,Nobody Reachable,,,,,,,,,,,,,,,,,,,,,,,This row has no org and no phone,
+Ennismore Eagles,Minor Hockey Association,Jamie Ouellette,Equipment Manager,705-555-0142,,,Ennismore,ON,,,,,,,,,,,,,,,,,duplicate of line 2,
+Prairie Storm,MHA,Chris Roy,President,306 555 0199,,chris@example.ca,Regina,sk,,,"U7, U9",12,150,Sep,Jul,,2021,,,,Referral,,Weekday daytime,Y,asked not to be called,
+Lloydminster Lakers,Junior Team,Sam Lee,Head Coach,555-0100,,,Lloydminster,AB,Central,AJHL,U21,1,25,Aug,Jun,Local Shop,2024,,,,Tournament,C,Weekday daytime,N,,
