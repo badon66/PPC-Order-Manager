@@ -1,0 +1,80 @@
+'use client';
+
+import type { CallLog, Contact, ScriptItem } from '@/lib/types';
+import { keyForHeader } from '@/lib/sales/columns';
+import { phoneDisplay, telHref } from '@/lib/sales/phone';
+import { localTimeFor } from '@/lib/sales/timezones';
+import { StarRating } from '../star-rating';
+import { CallHistory } from './history';
+import { useNow } from './use-timers';
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  if (children === '' || children === null || children === undefined) return null;
+  return (
+    <div className="grid grid-cols-[7rem_1fr] gap-2 text-sm">
+      <dt className="text-xs font-medium text-muted">{label}</dt>
+      <dd className="min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+export function ContactPanel({ contact: c, logs, script }: { contact: Contact; logs: CallLog[]; script: ScriptItem[] }) {
+  const now = useNow(60_000);
+  const local = localTimeFor(c, now);
+  const tel = telHref(c.phone);
+  const altTel = telHref(c.altPhone);
+  const extra = Object.entries(c.raw ?? {}).filter(([h, v]) => v && !keyForHeader(h));
+  const orgLine = [c.orgName, c.orgType].filter(Boolean).join(' · ');
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold leading-tight">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
+        <p className="text-sm text-muted">{[c.role, orgLine].filter(Boolean).join(' — ')}</p>
+        {c.source === 'referral' && <p className="mt-1 text-xs text-violet-300">Referral</p>}
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-3">
+        {c.doNotCall ? (
+          <p className="text-sm font-semibold text-red-300">Number hidden — Do Not Call</p>
+        ) : (
+          <>
+            <p className="text-xl font-bold tabular-nums">
+              {tel ? <a href={tel} className="hover:text-ppc-gold">{phoneDisplay(c.phone)}</a> : <span className="text-muted">No phone</span>}
+              {c.altPhone && <span className="ml-3 text-sm font-normal text-muted">alt {altTel ? <a href={altTel} className="hover:text-ppc-gold">{phoneDisplay(c.altPhone)}</a> : c.altPhone}</span>}
+            </p>
+          </>
+        )}
+        <p className="text-sm">{c.email ? <a href={`mailto:${c.email}`} className="hover:text-ppc-gold">{c.email}</a> : <span className="text-muted">No email</span>}</p>
+        <p className="text-sm text-muted">
+          {[c.city, c.province].filter(Boolean).join(', ') || 'Location unknown'}
+          {local && <> · <span className="font-semibold text-foreground">{local}</span> local</>}
+        </p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          {c.priority && <span>Priority <span className="font-semibold text-foreground">{c.priority}</span></span>}
+          {c.bestTimeToCall && <span>Best: {c.bestTimeToCall}</span>}
+          {c.leadSource && <span>Source: {c.leadSource}</span>}
+          <span className="flex items-center gap-1">Rating <StarRating value={c.leadRating} /></span>
+        </p>
+      </div>
+
+      <dl className="space-y-1.5">
+        <Row label="League">{c.league}</Row>
+        <Row label="Divisions">{c.ageDivisions}</Row>
+        <Row label="Size">{[c.teams !== null ? `${c.teams} team${c.teams === 1 ? '' : 's'}` : '', c.players !== null ? `~${c.players} players` : ''].filter(Boolean).join(' · ')}</Row>
+        <Row label="Season">{[c.seasonStartMonth ? `starts ${c.seasonStartMonth}` : '', c.orderingMonth ? `orders ${c.orderingMonth}` : ''].filter(Boolean).join(' · ')}</Row>
+        <Row label="Supplier">{[c.currentSupplier, c.lastOrderedYear ? `last ${c.lastOrderedYear}` : ''].filter(Boolean).join(' · ')}</Row>
+        <Row label="Colours">{c.colours}</Row>
+        <Row label="Web">{c.website ? <a href={c.website} target="_blank" rel="noreferrer" className="text-ppc-gold hover:underline">{c.website}</a> : ''}</Row>
+        <Row label="Social">{c.social}</Row>
+        <Row label="Sheet notes">{c.notes}</Row>
+        {extra.map(([h, v]) => <Row key={h} label={h}>{v}</Row>)}
+      </dl>
+
+      <div>
+        <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-ppc-gold">History <span className="ml-1 text-muted">{logs.length}</span></h3>
+        <CallHistory logs={logs} script={script} />
+      </div>
+    </div>
+  );
+}
