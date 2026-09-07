@@ -58,7 +58,15 @@ export function blankCallLogInput(startedAt: string): CallLogInput {
   };
 }
 
-/** ADD A LINE HERE whenever a new non-optional field goes on Contact. */
+/*
+ * Healing patches the row IN PLACE and returns it — the same contract as
+ * healOrder / healRosterEntry in ./logic.ts, which the stores rely on when
+ * they heal cached rows on load. Only `undefined` fields are filled, so a
+ * legitimate 0, '' or null is never overwritten. The clock fallback below only
+ * fires for a row with no createdAt at all, which the factories never produce.
+ *
+ * ADD A LINE HERE whenever a new non-optional field goes on Contact.
+ */
 export function healContact(c: Contact): Contact {
   const b = blankContact(c.listId ?? '', c.sortOrder ?? 0, c.createdAt ?? new Date().toISOString());
   for (const k of Object.keys(b) as Array<keyof Contact>) {

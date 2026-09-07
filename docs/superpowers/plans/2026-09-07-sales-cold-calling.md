@@ -925,9 +925,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: types (Task 1), `PRIORITY_RANK`, `CALL_OUTCOMES`, `BUSINESS_TIMEZONE` (constants), `addDays`, `isCalendarDate`, `timestampDay` (dates), `phoneDigits`, `isNorthAmerican` (Task 2).
-- Produces (all pure):
+- Produces (no I/O; every function is deterministic except that the `heal*` functions patch their argument in place and return it — the same heal-on-load contract as `healOrder` in `logic.ts`, decided with Keenan on 2026-09-07):
   - `blankContact(listId, sortOrder, now): Contact`, `blankCallList(id, name, sourceFileName, createdBy, now): CallList`, `blankCallLogInput(startedAt): CallLogInput`
-  - `healCallList(l)`, `healContact(c)`, `healCallLog(g)`
+  - `healCallList(l)`, `healContact(c)`, `healCallLog(g)` — in place, fill only `undefined`
   - `type CallLogInput = Omit<CallLog, 'id' | 'listId' | 'contactId' | 'createdAt' | 'updatedAt'>`
   - `isClosed(c): boolean`, `contactBucket(c): ContactBucket`
   - `nextCallDateFor(input, contact, today): CalendarDate | null`
