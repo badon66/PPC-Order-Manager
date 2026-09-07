@@ -1,14 +1,15 @@
 import type {
-  AppUser, ChangeLogEntry, ClientRosterSubmission, Order, OrderAsset, RosterEntry,
+  AppUser, CallList, CallLog, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset, RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import { supabase } from '@/lib/supabase';
 import type {
-  Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
+  Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
   CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
+import { healCallList, healCallLog, healContact } from './sales-logic';
 
 /**
  * Postgres-backed store, for the hosted app.
@@ -36,6 +37,9 @@ const ASSETS = 'order_assets';
 const SUBMISSIONS = 'client_submissions';
 const HISTORY = 'change_log';
 const USERS = 'app_users';
+const CALL_LISTS = 'call_lists';
+const CALL_CONTACTS = 'call_contacts';
+const CALL_LOGS = 'call_logs';
 
 /** Postgrest returns `{ data, error }` everywhere; surface errors as throws. */
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -63,6 +67,32 @@ async function appendHistory(entries: ChangeLogEntry[]): Promise<void> {
     .from(HISTORY)
     .insert(entries.map((e) => ({ id: e.id, order_id: e.orderId, data: e })));
   if (res.error) throw new Error(`write history: ${res.error.message}`);
+}
+
+async function putCallList(l: CallList): Promise<void> {
+  const res = await supabase().from(CALL_LISTS).upsert({ id: l.id, data: l });
+  if (res.error) throw new Error(`save call list: ${res.error.message}`);
+}
+
+async function putContacts(cs: Contact[]): Promise<void> {
+  if (cs.length === 0) return;
+  const res = await supabase()
+    .from(CALL_CONTACTS)
+    .upsert(cs.map((c) => ({ id: c.id, list_id: c.listId, data: c })));
+  if (res.error) throw new Error(`save contacts: ${res.error.message}`);
+}
+
+async function putCallLog(g: CallLog): Promise<void> {
+  const res = await supabase()
+    .from(CALL_LOGS)
+    .upsert({ id: g.id, list_id: g.listId, contact_id: g.contactId, data: g });
+  if (res.error) throw new Error(`save call log: ${res.error.message}`);
+}
+
+async function contactById(id: string): Promise<Contact | null> {
+  const res = await supabase().from(CALL_CONTACTS).select('id, data').eq('id', id).maybeSingle();
+  if (res.error) throw new Error(`find contact: ${res.error.message}`);
+  return res.data ? healContact((res.data as Row<Contact>).data) : null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -414,6 +444,99 @@ export const supabaseStore: Repository = {
   async listUsers() {
     const res = await supabase().from(USERS).select('id, data');
     return rows<AppUser>(unwrap(res, 'list users'));
+  },
+
+  /* Sales ------------------------------------------------------------ */
+
+  async listCallLists() {
+    const res = await supabase()
+      .from(CALL_LISTS)
+      .select('id, data')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    return rows<CallList>(unwrap(res, 'list call lists')).map(healCallList);
+  },
+
+  async getCallList(id) {
+    const found = await supabase().from(CALL_LISTS).select('id, data').eq('id', id).is('deleted_at', null).maybeSingle();
+    if (found.error) throw new Error(`find call list: ${found.error.message}`);
+    if (!found.data) return null;
+    const list = healCallList((found.data as Row<CallList>).data);
+    const [cs, gs] = await Promise.all([
+      supabase().from(CALL_CONTACTS).select('id, data').eq('list_id', id).order('sort_order').order('created_at'),
+      supabase().from(CALL_LOGS).select('id, data').eq('list_id', id).order('started_at', { ascending: false }),
+    ]);
+    return {
+      list,
+      contacts: rows<Contact>(unwrap(cs, 'load contacts')).map(healContact),
+      logs: rows<CallLog>(unwrap(gs, 'load call logs')).map(healCallLog),
+    };
+  },
+
+  async getContact(id) {
+    return contactById(id);
+  },
+
+  async latestCallLogFor(contactId) {
+    const res = await supabase()
+      .from(CALL_LOGS)
+      .select('id, data')
+      .eq('contact_id', contactId)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (res.error) throw new Error(`find call log: ${res.error.message}`);
+    return res.data ? healCallLog((res.data as Row<CallLog>).data) : null;
+  },
+
+  /*
+   * List row first, then contacts. A failure after the first step leaves an
+   * empty list — visible on the Sales page and deletable. The other order
+   * would leave orphan contacts nobody can see.
+   */
+  async createCallList(list, contacts, _actor) {
+    await putCallList(list);
+    await putContacts(contacts);
+    return list;
+  },
+
+  /*
+   * Log first, then the contact, then the referral. See repository.ts — a
+   * failure after the log leaves a contact that looks uncalled (you might ring
+   * twice); the other order loses the notes. The referral is also inside the
+   * log's `referral` field, so a failure before it is visible in history.
+   */
+  async addCallLog(log, contactPatch, referral, _actor) {
+    await putCallLog(log);
+    const before = await contactById(log.contactId);
+    if (!before) throw new Error(`Contact ${log.contactId} not found`);
+    await putContacts([{ ...before, ...contactPatch }]);
+    if (referral) await putContacts([referral]);
+  },
+
+  async updateCallLog(log, contactPatch, _actor) {
+    await putCallLog(log);
+    const before = await contactById(log.contactId);
+    if (!before) throw new Error(`Contact ${log.contactId} not found`);
+    await putContacts([{ ...before, ...contactPatch }]);
+  },
+
+  async updateContact(id, patch, _actor) {
+    const before = await contactById(id);
+    if (!before) throw new Error(`Contact ${id} not found`);
+    const after: Contact = { ...before, ...patch, updatedAt: new Date().toISOString() };
+    await putContacts([after]);
+    return after;
+  },
+
+  async softDeleteCallList(id, _actor) {
+    const found = await supabase().from(CALL_LISTS).select('id, data').eq('id', id).maybeSingle();
+    if (found.error) throw new Error(`find call list: ${found.error.message}`);
+    if (!found.data) throw new Error(`Call list ${id} not found`);
+    const l = healCallList((found.data as Row<CallList>).data);
+    l.deletedAt = new Date().toISOString();
+    l.updatedAt = l.deletedAt;
+    await putCallList(l);
   },
 };
 
