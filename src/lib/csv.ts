@@ -11,7 +11,7 @@ import { blankRosterEntry } from './order-utils';
  * Requirement: export → re-import → identical data.
  */
 
-function escapeCell(v: unknown): string {
+export function escapeCell(v: unknown): string {
   const s = v === null || v === undefined ? '' : String(v);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
