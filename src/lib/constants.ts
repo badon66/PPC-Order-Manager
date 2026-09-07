@@ -346,7 +346,7 @@ export function jerseySizesFor(isGoalie: boolean): readonly string[] {
  */
 export const JERSEY_SIZES: readonly string[] = [...PLAYER_JERSEY_SIZES, ...GOALIE_JERSEY_SIZES];
 
-export const SOCK_SIZES: readonly string[] = ['XXS', 'XS', 'S', 'M', 'L', 'XL'];
+export const SOCK_SIZES: readonly string[] = ['Small', 'Medium', 'Large', 'XL', 'XXL', 'XXXL'];
 
 export const PANT_SHELL_SIZES: readonly string[] = [
   'Senior Small',
