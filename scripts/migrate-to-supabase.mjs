@@ -110,7 +110,7 @@ for (const a of local.assets ?? []) {
 
 console.log(`\nArtwork:`);
 console.log(`  ${String(localFiles.length).padStart(5)}  files to upload into the "${BUCKET}" bucket`);
-console.log(`  ${String(stillRemote.length).padStart(5)}  still pointing at Base44 — run /rehost first or they stay at risk`);
+console.log(`  ${String(stillRemote.length).padStart(5)}  still hosted on the old app's URLs, left as they are`);
 
 if (!COMMIT) {
   console.log('\nNothing written. Re-run with --commit when this looks right.\n');

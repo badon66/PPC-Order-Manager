@@ -230,6 +230,20 @@ the server rejects anything over 250 KB or not a `data:image/png;base64,` URL.
 Display it with `SignatureProof`, which renders identically in all three places
 and says so plainly when an old approval has a name but no drawn mark.
 
+## The Base44 rescue is gone — don't rebuild it
+
+The imported orders' artwork lives at `base44.app` URLs and is staying there.
+Keenan decided the old files aren't worth rescuing, so `/rehost`, the
+`/api/import/base44` endpoint, `lib/migrate-base44.ts`, `putBytes` and the
+`rehostAsset*` store helpers were deleted outright.
+
+**The asset rows were deliberately left alone.** `resolveAll` in `storage.ts`
+passes a full `http(s)://` value straight through instead of treating it as a
+bucket key, which is the only reason that artwork still displays. Don't
+"tidy up" that branch — it's what keeps 17 historical orders showing their
+crests. When Base44 is switched off they'll break, and that's the accepted
+outcome, not a bug to fix.
+
 ## Known dead weight from Base44 (don't port)
 
 "Build Type" dropdown in Add-Ons (Jersey/Sock/Pant Shell) — switches nothing,

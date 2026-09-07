@@ -339,19 +339,6 @@ export const jsonStore: Repository = {
   },
 };
 
-/**
- * Point an existing asset at a new URL. Used by the Base44 import's second
- * pass, which copies each remote file into local storage so the artwork
- * doesn't die with the old app.
- */
-export async function rehostAsset(assetId: string, fileUrl: string): Promise<boolean> {
-  return withWrite((db) => {
-    const a = db.assets.find((x) => x.id === assetId);
-    if (!a) return false;
-    a.fileUrl = fileUrl;
-    return true;
-  });
-}
 
 /** Test/dev helper — forget the in-memory cache. */
 export function resetCache(): void {

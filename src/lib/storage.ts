@@ -219,28 +219,3 @@ export async function resolveAll<T extends { fileUrl: string; placementFileUrl?:
   }));
 }
 
-/**
- * Store bytes we already hold — used by the Base44 rescue pass, where the
- * browser hands over a file it fetched from the old app.
- */
-export async function putBytes(
-  bytes: Buffer,
-  fileName: string,
-  contentType: string,
-): Promise<StoredFile> {
-  checkAllowed({ size: bytes.length, type: '', name: fileName });
-  const key = keyFor(fileName);
-
-  if (isSupabaseConfigured()) {
-    const { error } = await supabase()
-      .storage
-      .from(ARTWORK_BUCKET)
-      .upload(key, bytes, { contentType: contentType || 'application/octet-stream', upsert: false });
-    if (error) throw new Error(`Upload failed: ${error.message}`);
-    return { fileUrl: `${ARTWORK_BUCKET}/${key}`, fileName, bytes: bytes.length };
-  }
-
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  await fs.writeFile(path.join(UPLOAD_DIR, key), bytes);
-  return { fileUrl: `/uploads/${key}`, fileName, bytes: bytes.length };
-}

@@ -274,25 +274,6 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     }))
     .filter((g) => g.rows.length > 0);
 
-  /*
-   * Artwork imported from Base44 still points at base44.app until it's copied
-   * across. That's a countdown, not a preference — those files vanish when the
-   * old app is retired. The banner nags until the count is zero, then removes
-   * itself.
-   *
-   * Counted across every order, ignoring the search and the toggles: a number
-   * that shrank because you filtered the list would read as progress.
-   */
-  const everyOrder = await repo.listOrders({ status: 'all', includeCompleted: true });
-  const stillOnBase44 = (
-    await Promise.all(
-      everyOrder.map(async (o) => {
-        const b = await repo.getOrder(o.id);
-        return (b?.assets ?? []).filter((a) => /^https?:\/\//i.test(a.fileUrl)).length;
-      }),
-    )
-  ).reduce((a, b) => a + b, 0);
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,26 +286,6 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         </div>
         <NewOrderButton label="+ New Order" />
       </div>
-
-      {stillOnBase44 > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/[0.07] px-4 py-3">
-          <div>
-            <p className="text-sm font-bold text-amber-200">
-              {stillOnBase44} artwork file{stillOnBase44 === 1 ? '' : 's'} still stored on Base44
-            </p>
-            <p className="mt-0.5 text-xs text-muted">
-              Logos, crests and fonts on the imported orders. They stop working when Base44 is
-              switched off.
-            </p>
-          </div>
-          <Link
-            href="/rehost"
-            className="rounded-lg bg-amber-400 px-3.5 py-2 text-sm font-bold text-black hover:bg-amber-300"
-          >
-            Copy them here
-          </Link>
-        </div>
-      )}
 
       {/*
         * The pipeline, left to right in the order work moves through it.

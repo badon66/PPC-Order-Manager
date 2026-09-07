@@ -417,20 +417,5 @@ export const supabaseStore: Repository = {
   },
 };
 
-/**
- * Point an existing asset at a new URL. Used by the Base44 rescue pass, which
- * copies each remote file into the artwork bucket so it doesn't die with the
- * old app.
- */
-export async function rehostAssetSupabase(assetId: string, fileUrl: string): Promise<boolean> {
-  const found = await supabase().from(ASSETS).select('id, data').eq('id', assetId).maybeSingle();
-  if (found.error) throw new Error(`find artwork: ${found.error.message}`);
-  if (!found.data) return false;
-
-  const a = { ...(found.data as Row<OrderAsset>).data, fileUrl };
-  const res = await supabase().from(ASSETS).update({ data: a }).eq('id', assetId);
-  if (res.error) throw new Error(`update artwork: ${res.error.message}`);
-  return true;
-}
 
 export { newToken };
