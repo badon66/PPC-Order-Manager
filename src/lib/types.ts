@@ -603,3 +603,153 @@ export interface AppUser {
   active: boolean;
   createdAt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Sales — cold calling.
+ * Design: docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md
+ * ------------------------------------------------------------------ */
+
+export const CALL_OUTCOMES = [
+  // didn't reach them
+  'no_answer', 'voicemail', 'bad_number', 'referred',
+  // talked to them
+  'callback', 'send_info', 'interested', 'meeting_booked',
+  'not_now', 'not_interested', 'do_not_call',
+] as const;
+export type CallOutcome = (typeof CALL_OUTCOMES)[number];
+
+export const SCRIPT_KINDS = ['read', 'reminder', 'question', 'objection'] as const;
+export type ScriptKind = (typeof SCRIPT_KINDS)[number];
+
+export const SCRIPT_SECTIONS = ['opening', 'discovery', 'objections', 'close'] as const;
+export type ScriptSection = (typeof SCRIPT_SECTIONS)[number];
+
+export type LeadPriority = '' | 'A' | 'B' | 'C';
+export type LeadRating = 1 | 2 | 3 | 4 | 5;
+export type ContactSource = 'sheet' | 'referral';
+export type ContactBucket = 'do_not_call' | 'uncalled' | 'retry' | 'follow_up' | 'done';
+
+/** One row of the sheet's Script tab. Ids are per-list (`s1`, `s2`, …). */
+export interface ScriptItem {
+  id: string;
+  section: ScriptSection;
+  kind: ScriptKind;
+  text: string;
+  /** Objection rows: what to say back. '' otherwise. */
+  response: string;
+  /** Question rows: the choices. Empty = free-text answer. */
+  options: string[];
+  /** Show When rule as typed. '' = always. Parsed at render time. */
+  showWhen: string;
+}
+
+/** What the upload skipped or flagged. Persisted on the list; shown every time. */
+export interface ImportReport {
+  imported: number;
+  skipped: Array<{ line: number; reason: string; raw: string }>;
+  warnings: Array<{ line: number; reason: string }>;
+}
+
+export interface CallList {
+  id: string;
+  name: string;
+  sourceFileName: string;
+  script: ScriptItem[];
+  importReport: ImportReport;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface Contact {
+  id: string;
+  listId: string;
+  /** Sheet row order. A referral copies its source's, and sorts after it by createdAt. */
+  sortOrder: number;
+  source: ContactSource;
+  referredFromContactId: string | null;
+
+  /* From the sheet */
+  orgName: string;
+  orgType: string;
+  contactName: string;
+  role: string;
+  phone: string;
+  altPhone: string;
+  email: string;
+  city: string;
+  province: string;
+  timezoneOverride: string;
+  league: string;
+  ageDivisions: string;
+  teams: number | null;
+  players: number | null;
+  seasonStartMonth: string;
+  orderingMonth: string;
+  currentSupplier: string;
+  lastOrderedYear: string;
+  colours: string;
+  website: string;
+  social: string;
+  leadSource: string;
+  priority: LeadPriority;
+  bestTimeToCall: string;
+  doNotCall: boolean;
+  notes: string;
+  /** Every header → cell as uploaded, including columns the importer doesn't know. */
+  raw: Record<string, string>;
+
+  /* Call state. Written only by applyCallLog / applySkip in data/sales-logic.ts. */
+  lastOutcome: CallOutcome | null;
+  lastCalledAt: string | null;
+  callCount: number;
+  skipCount: number;
+  lastSkippedAt: string | null;
+  nextCallDate: CalendarDate | null;
+  leadRating: LeadRating | null;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FollowUp {
+  date: CalendarDate | null;
+  /** 'HH:MM' or ''. */
+  time: string;
+  note: string;
+}
+
+export interface Referral {
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+}
+
+export interface CallLog {
+  id: string;
+  listId: string;
+  contactId: string;
+  outcome: CallOutcome;
+  leadRating: LeadRating | null;
+  notes: string;
+  /** ScriptItem.id → chosen option or free text. */
+  answers: Record<string, string>;
+  /** ScriptItem.ids of reminders ticked. */
+  checklist: string[];
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  callerName: string;
+  followUp: FollowUp;
+  /** Captured on send_info / interested. */
+  email: string;
+  /** not_interested reason. */
+  reason: string;
+  referral: Referral;
+  /** bad_number replacement. */
+  newPhone: string;
+  createdAt: string;
+  updatedAt: string;
+}

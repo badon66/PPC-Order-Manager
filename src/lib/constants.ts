@@ -1,4 +1,5 @@
-import type { AssetRole, Captaincy, CaptainPatchStyle, JerseyTier, JerseyType, LacesStyle, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
+import type { AssetRole, Captaincy, CaptainPatchStyle, CallOutcome, JerseyTier, JerseyType, LacesStyle, LeadPriority, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
+import picklists from './sales/picklists.json';
 
 /* ------------------------------------------------------------------ *
  * Status
@@ -485,3 +486,43 @@ export const CSV_COLUMNS = [
 
 export const BUSINESS_TIMEZONE = 'America/Edmonton';
 export const DUE_SOON_WINDOW_DAYS = 7;
+
+/* ------------------------------------------------------------------ *
+ * Sales — call outcomes. Same shape as STATUS_META: one record, derived
+ * lists, never a hand-written subset at a call site.
+ * ------------------------------------------------------------------ */
+
+export type OutcomeGroup = 'missed' | 'talked';
+
+export const CALL_OUTCOME_META: Record<
+  CallOutcome,
+  { label: string; emoji: string; group: OutcomeGroup; className: string; order: number }
+> = {
+  no_answer:      { label: 'No Answer',            emoji: '📵', group: 'missed', order: 0,  className: 'border-line text-muted bg-surface-2' },
+  voicemail:      { label: 'Left Voicemail',       emoji: '📼', group: 'missed', order: 1,  className: 'border-sky-500/60 text-sky-300 bg-sky-500/10' },
+  bad_number:     { label: 'Bad Number',           emoji: '❌', group: 'missed', order: 2,  className: 'border-red-500/60 text-red-300 bg-red-500/10' },
+  referred:       { label: 'Gatekeeper / Referred', emoji: '↪️', group: 'missed', order: 3,  className: 'border-violet-500/60 text-violet-300 bg-violet-500/10' },
+  callback:       { label: 'Callback Requested',   emoji: '🔁', group: 'talked', order: 4,  className: 'border-amber-500/60 text-amber-300 bg-amber-500/10' },
+  send_info:      { label: 'Send Info',            emoji: '📨', group: 'talked', order: 5,  className: 'border-sky-500/60 text-sky-300 bg-sky-500/10' },
+  interested:     { label: 'Interested',           emoji: '🔥', group: 'talked', order: 6,  className: 'border-ppc-gold text-ppc-gold bg-ppc-gold/10' },
+  meeting_booked: { label: 'Meeting Booked',       emoji: '📅', group: 'talked', order: 7,  className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
+  not_now:        { label: 'Not Now',              emoji: '⏳', group: 'talked', order: 8,  className: 'border-amber-500/60 text-amber-300 bg-amber-500/10' },
+  not_interested: { label: 'Not Interested',       emoji: '🚫', group: 'talked', order: 9,  className: 'border-line text-muted bg-surface-2' },
+  do_not_call:    { label: 'Do Not Call',          emoji: '⛔', group: 'talked', order: 10, className: 'border-red-500/60 text-red-300 bg-red-500/10' },
+};
+
+export const CALL_OUTCOME_OPTIONS = (Object.keys(CALL_OUTCOME_META) as CallOutcome[]).sort(
+  (a, b) => CALL_OUTCOME_META[a].order - CALL_OUTCOME_META[b].order,
+);
+export const MISSED_OUTCOMES = CALL_OUTCOME_OPTIONS.filter((o) => CALL_OUTCOME_META[o].group === 'missed');
+export const TALKED_OUTCOMES = CALL_OUTCOME_OPTIONS.filter((o) => CALL_OUTCOME_META[o].group === 'talked');
+
+/** Keyboard keys for the eleven outcomes, in CALL_OUTCOME_OPTIONS order. */
+export const OUTCOME_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'] as const;
+
+export const NOT_INTERESTED_REASONS: readonly string[] = picklists.notInterestedReason;
+
+/** Queue sort: A first, blank last. */
+export const PRIORITY_RANK: Record<LeadPriority, number> = { A: 0, B: 1, C: 2, '': 3 };
+
+export const SALES_PICKLISTS = picklists;

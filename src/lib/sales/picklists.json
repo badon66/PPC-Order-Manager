@@ -1,0 +1,21 @@
+{
+  "orgType": [
+    "Minor Hockey Association", "Rep/Club Team", "Adult League (organiser)", "Adult Team",
+    "Junior Team", "School Team", "College/University", "Tournament",
+    "Spring/Summer Program", "Rec Program", "Other"
+  ],
+  "role": [
+    "President", "Vice President", "Equipment Manager", "Head Coach", "Team Manager",
+    "Treasurer", "Registrar", "Director/Board", "Tournament Director", "Athletic Director",
+    "League Convenor/Commissioner", "Captain/Organiser", "Office Admin", "Other"
+  ],
+  "province": ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"],
+  "timezoneOverride": ["Pacific", "Mountain", "Central", "Central (no DST)", "Eastern", "Atlantic", "Newfoundland"],
+  "ageDivisions": ["U7", "U9", "U11", "U13", "U15", "U18", "U21", "Adult"],
+  "month": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Unknown"],
+  "leadSource": ["Referral", "Tournament", "Web research", "Social", "Existing customer", "Inbound", "Other"],
+  "priority": ["A", "B", "C"],
+  "bestTimeToCall": ["Weekday daytime", "Weekday evening", "Weekend", "Unknown"],
+  "yesNo": ["Y", "N"],
+  "notInterestedReason": ["Happy with supplier", "Locked contract", "Price", "No need", "Other"]
+}
