@@ -50,6 +50,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   Production
                 </Link>
+                <Link
+                  href="/sales"
+                  className="rounded-lg px-3 py-2 font-semibold text-muted hover:bg-surface-2 hover:text-ppc-gold"
+                >
+                  Sales
+                </Link>
                 <form action={lock}>
                   <button
                     type="submit"
