@@ -236,6 +236,12 @@ master lists (named lists, repeat uploads, duplicate matching):
   items and differs; a contacts-only sheet leaves it alone.
 - **Rows are skipped only with no org AND no phone.** Everything else is a
   warning on that upload's `ImportRecord`, shown on the list page.
+- **Double-click a contacts-table row for row actions** (`row-actions.tsx`):
+  *Change status* is a real `CallLog` with zero duration and no session,
+  saved through `logCall` (`quickLogInput`) — never a bare badge; *Quick
+  edit* writes only `QUICK_EDIT_FIELDS` (`quickEditPatch`); *Delete* removes
+  the contact and its logs (`repo.deleteContact`, logs first) after a
+  confirm. Desktop table only — the phone cards keep single-tap.
 - **Call state on a contact is written only by `applyCallLog` / `applySkip`**
   in `sales-logic.ts`. Never patch `lastOutcome`, `callCount`, `nextCallDate`
   by hand — the queue is computed from them.

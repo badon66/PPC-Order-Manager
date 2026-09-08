@@ -32,7 +32,7 @@ export function quickEditPatch(raw: Record<string, unknown>): { ok: true; patch:
 export function quickLogInput(input: CallLogInput, callerName: string, now: string): CallLogInput;
 ```
 
-- [ ] Write `tests/sales/row-actions.test.ts`:
+- [x] Write `tests/sales/row-actions.test.ts`:
 
 ```ts
 import { test } from 'node:test';
@@ -77,8 +77,8 @@ test('quickLogInput is a zero-duration call stamped with the caller, no session'
 });
 ```
 
-- [ ] Run `node --import tsx --test tests/sales/row-actions.test.ts` → fails (not exported).
-- [ ] Add to `sales-logic.ts`:
+- [x] Run `node --import tsx --test tests/sales/row-actions.test.ts` → fails (not exported).
+- [x] Add to `sales-logic.ts`:
 
 ```ts
 /* ------------------------------------------------------------------ *
@@ -109,18 +109,18 @@ export function quickLogInput(input: CallLogInput, callerName: string, now: stri
 }
 ```
 
-- [ ] Test passes → `git commit -m "Sales: quick edit allowlist and quick status input"`.
+- [x] Test passes → `git commit -m "Sales: quick edit allowlist and quick status input"`.
 
 ### Task 2: Repository `deleteContact`
 
 **Files:** `src/lib/data/repository.ts` (sales section), `src/lib/data/json-store.ts`, `src/lib/data/supabase-store.ts`.
 
-- [ ] Interface, after `updateContact`:
+- [x] Interface, after `updateContact`:
 ```ts
   /** Logs first, then the contact — a failure part-way leaves a contact with no history, visible and deletable again. */
   deleteContact(id: string, actor: Actor): Promise<void>;
 ```
-- [ ] json-store:
+- [x] json-store:
 ```ts
   async deleteContact(id, _actor) {
     await withWrite((db) => {
@@ -129,7 +129,7 @@ export function quickLogInput(input: CallLogInput, callerName: string, now: stri
     });
   },
 ```
-- [ ] supabase-store:
+- [x] supabase-store:
 ```ts
   /* Logs first, then the contact. See repository.ts. */
   async deleteContact(id, _actor) {
@@ -139,13 +139,13 @@ export function quickLogInput(input: CallLogInput, callerName: string, now: stri
     if (row.error) throw new Error(`delete contact: ${row.error.message}`);
   },
 ```
-- [ ] tsc clean → commit `Sales: deleteContact in both stores`.
+- [x] tsc clean → commit `Sales: deleteContact in both stores`.
 
 ### Task 3: Actions
 
 **Files:** `src/app/sales/actions.ts`.
 
-- [ ] Add imports `quickEditPatch, quickLogInput, type QuickEditPatch` from sales-logic; add after `updateCallLog`:
+- [x] Add imports `quickEditPatch, quickLogInput, type QuickEditPatch` from sales-logic; add after `updateCallLog`:
 
 ```ts
 /** Status set from the contacts table: a zero-duration call through the same rule as the calling view. */
@@ -177,22 +177,22 @@ export async function deleteContact(listId: string, contactId: string): Promise<
   return { ok: true };
 }
 ```
-- [ ] tsc clean → commit `Sales: quickStatus, quickEditContact, deleteContact actions`.
+- [x] tsc clean → commit `Sales: quickStatus, quickEditContact, deleteContact actions`.
 
 ### Task 4: Row actions UI
 
 **Files:** Create `src/components/sales/row-actions.tsx`; modify `src/app/sales/[id]/page.tsx` (table rows).
 
-- [ ] `row-actions.tsx` (client): `RowActions({ listId, contact, callCount, today, callerDefault, children })` renders `<tr onDoubleClick>` with a positioned menu (`fixed`, at the pointer, `role="menu"`), and three dialogs sharing the `finish-dialog` look:
+- [x] `row-actions.tsx` (client): `RowActions({ listId, contact, callCount, today, callerDefault, children })` renders `<tr onDoubleClick>` with a positioned menu (`fixed`, at the pointer, `role="menu"`), and three dialogs sharing the `finish-dialog` look:
   - **Status**: `useState<CallDraft>(blankDraft(now))`; `OutcomePanel` with `seedForOutcome` on pick; `StarRating` is inside the panel; note field = `draft.notes`; Save calls `quickStatus(listId, contact.id, inputFromDraft(draft, callerName, now, null), callerName)`; shows `res.error` / `res.errors` on failure; on success closes and `router.refresh()`. Do Not Call contacts get the same panel (the server refuses other outcomes; the panel's disabled prop stays false so the reason can be typed) — show a one-line note above.
   - **Quick edit**: eight inputs (role and best time as `<select>` from `SALES_PICKLISTS`, priority as a select of blank/A/B/C, notes a textarea); Save calls `quickEditContact`.
   - **Delete**: text "Delete {name} · {org}? {n} logged call(s) go with it." Cancel / Delete (red); calls `deleteContact`.
   - Caller name via `useCallerName(callerDefault)`.
-- [ ] Page: pass `today={day}` and `callerDefault={user?.name ?? ''}` (add `currentUser` import); count logs per contact once (`const logCounts = …`); render each `<tr>` through `<RowActions>` keeping the existing cells as children. Add a hint under the table: "Double-click a row for status, edit and delete."
-- [ ] tsc, lint, `npm test`; browser: double-click opens the menu; status → Voicemail saves, row badge and calls count update; quick edit changes the phone; delete removes the row after confirm; Esc closes everything.
-- [ ] Commit `Sales: double-click row actions — status, quick edit, delete`.
+- [x] Page: pass `today={day}` and `callerDefault={user?.name ?? ''}` (add `currentUser` import); count logs per contact once (`const logCounts = …`); render each `<tr>` through `<RowActions>` keeping the existing cells as children. Add a hint under the table: "Double-click a row for status, edit and delete."
+- [x] tsc, lint, `npm test`; browser: double-click opens the menu; status → Voicemail saves, row badge and calls count update; quick edit changes the phone; delete removes the row after confirm; Esc closes everything.
+- [x] Commit `Sales: double-click row actions — status, quick edit, delete`.
 
 ### Task 5: Docs and finish
 
-- [ ] CLAUDE.md Sales section: one bullet on row actions (quick status is a real log; quick edit allowlist; delete removes logs).
-- [ ] `npm test`, filtered tsc, `npm run build` (Base44 failure only), commit, finishing-a-development-branch (merge to local main).
+- [x] CLAUDE.md Sales section: one bullet on row actions (quick status is a real log; quick edit allowlist; delete removes logs).
+- [x] `npm test`, filtered tsc, `npm run build` (Base44 failure only), commit, finishing-a-development-branch (merge to local main).
