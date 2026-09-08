@@ -78,3 +78,13 @@ test('placeholders', () => {
   assert.equal(fillPlaceholders('[Unknown Thing]', c, 'K'), '[Unknown Thing]');
   assert.equal(fillPlaceholders('[name] [ORG]', c, 'K'), 'Jamie Ennismore Eagles');
 });
+
+test('a rule value with punctuation and spaces matches as one value', () => {
+  const adult = contact({ orgType: 'Adult League (organiser)' });
+  assert.ok(showWhenMatches('Org Type = Adult League (organiser)', adult));
+  assert.ok(showWhenMatches('Org Type = Adult Team, Adult League (organiser)', adult));
+  assert.ok(!showWhenMatches('Org Type = Adult League (organiser)', contact({ orgType: 'Adult Team' })));
+  assert.deepEqual(parseShowWhen('Org Type = Adult League (organiser)'), {
+    ok: true, clauses: [{ field: 'Org Type', op: '=', values: ['adult league (organiser)'] }],
+  });
+});

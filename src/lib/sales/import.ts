@@ -172,7 +172,7 @@ async function readSheets(fileName: string, bytes: Uint8Array): Promise<{ contac
   if (bytes.byteLength === 0) return { error: 'The file is empty' };
   const ext = fileName.toLowerCase().split('.').pop() ?? '';
   if (ext === 'csv') {
-    const text = new TextDecoder('utf-8').decode(bytes).replace(/^﻿/, '');
+    const text = new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
     return { contacts: parseCsv(text), script: null };
   }
   if (ext !== 'xlsx') return { error: 'Upload an .xlsx or .csv file' };

@@ -47,6 +47,10 @@ test('applyCallLog: counts, rating, email, bad number, dnc, replacing', () => {
   const p3 = applyCallLog(k, log({ outcome: 'bad_number', newPhone: '222' }), TODAY, { replacing: false });
   assert.equal(p3.phone, '222');
   assert.equal(p3.altPhone, '111');
+  // An existing alt number is kept; the replaced number is appended after it.
+  const p3b = applyCallLog(c({ phone: '111', altPhone: '999' }), log({ outcome: 'bad_number', newPhone: '222' }), TODAY, { replacing: false });
+  assert.equal(p3b.altPhone, '999, 111');
+  assert.equal(p3b.nextCallDate, TODAY);
 
   const p4 = applyCallLog(k, log({ outcome: 'do_not_call' }), TODAY, { replacing: false });
   assert.equal(p4.doNotCall, true);
