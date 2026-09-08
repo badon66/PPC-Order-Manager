@@ -87,7 +87,7 @@ readme.getRow(1).font = { bold: true, size: 14 };
   'Placeholders in Text/Response: [Name] first name (or "there"), [Full Name], [Org], [City], [Rep] (the caller), [Supplier], or any Contacts column in brackets, e.g. [Rink].',
   'Show When: leave blank to always show. Otherwise a rule like  Org Type = Minor Hockey Association  or  Role != Head Coach  — several values with commas (any of), several rules with semicolons (all of).',
   '',
-  'UPLOADING — save this file and upload it on the Sales page. Each upload makes a new list; re-upload to change the script or add people. Results come back out with Export CSV.',
+  'UPLOADING — save this file and upload it into a list on the Sales page, as often as you like. A row with the same phone or email as a contact already in the list fills in that contact\'s blanks instead of being added twice. The Script tab is optional once the list has a script; include it to replace the script. Results come back out with Export CSV.',
 ].forEach((line) => readme.addRow([line]));
 readme.getColumn(1).alignment = { wrapText: true, vertical: 'top' };
 

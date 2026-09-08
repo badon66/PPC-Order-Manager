@@ -140,7 +140,8 @@ export function planImport(input: {
   });
 
   const script = parsed.script && parsed.script.length > 0 ? parsed.script : list.script;
-  record.scriptReplaced = script !== list.script;
+  // The same sheet uploaded again carries the same script; that isn't a replacement worth reporting.
+  record.scriptReplaced = script !== list.script && JSON.stringify(script) !== JSON.stringify(list.script);
   const nextList: CallList = { ...list, script, imports: [record, ...list.imports].slice(0, MAX_IMPORT_RECORDS), updatedAt: now };
   return { list: nextList, newContacts: accepted, updatedContacts: [...updated.values()], record };
 }
