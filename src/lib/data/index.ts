@@ -24,4 +24,4 @@ export const repo: Repository = isSupabaseConfigured() ? supabaseStore : jsonSto
 /** Which backend is live. Used by the rescue page and the migration script. */
 export const backend: 'supabase' | 'json' = isSupabaseConfigured() ? 'supabase' : 'json';
 
-export type { Repository, Actor, OrderBundle, OrderListFilters, PublicOrderView, CallListBundle } from './repository';
+export type { Repository, Actor, OrderBundle, OrderListFilters, PublicOrderView, CallListBundle, ContactPatch } from './repository';
