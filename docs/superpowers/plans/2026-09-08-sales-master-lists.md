@@ -34,7 +34,7 @@
 **Interfaces:**
 - Produces: `ImportRecord`, `CallList.imports: ImportRecord[]` (no `sourceFileName`, no `importReport`, `ImportReport` deleted); `phoneKey(raw): string`, `emailKey(raw): string`, `identityKeys(c: Contact): Set<string>`, `matches(a: Contact, b: Contact): boolean`, `findMatch(row: Contact, existing: Contact[]): Contact | null`, `AlsoIn`, `alsoIn(contact, others: Array<{ list: CallList; contacts: Contact[] }>): AlsoIn[]`.
 
-- [ ] **Step 1: Replace `ImportReport` and the list fields in `src/lib/types.ts`**
+- [x] **Step 1: Replace `ImportReport` and the list fields in `src/lib/types.ts`**
 
 Replace lines 647–663 with:
 
@@ -64,7 +64,7 @@ export interface CallList {
 }
 ```
 
-- [ ] **Step 2: Write the failing matcher test `tests/sales/match.test.ts`**
+- [x] **Step 2: Write the failing matcher test `tests/sales/match.test.ts`**
 
 ```ts
 import { test } from 'node:test';
@@ -123,12 +123,12 @@ test('alsoIn: other non-deleted lists only, one entry per list', () => {
 });
 ```
 
-- [ ] **Step 3: Run it to see it fail**
+- [x] **Step 3: Run it to see it fail**
 
 Run: `node --import tsx --test tests/sales/match.test.ts`
 Expected: FAIL — cannot find module `@/lib/sales/match` (and `blankCallList` arity errors under tsc until Task 3).
 
-- [ ] **Step 4: Create `src/lib/sales/match.ts`**
+- [x] **Step 4: Create `src/lib/sales/match.ts`**
 
 ```ts
 import type { CallList, Contact } from '@/lib/types';
@@ -183,7 +183,7 @@ export function alsoIn(contact: Contact, others: Array<{ list: CallList; contact
 }
 ```
 
-- [ ] **Step 5: Temporarily keep the tree compiling**
+- [x] **Step 5: Temporarily keep the tree compiling**
 
 `blankCallList` still has the old 5-argument signature and builds `importReport`. Update it now (Task 3 finishes the logic file) — in `src/lib/data/sales-logic.ts` replace lines 44–50 with:
 
@@ -195,12 +195,12 @@ export function blankCallList(id: string, name: string, createdBy: string, now: 
 
 and replace line 90 (`l.importReport ??= …`) inside `healCallList` with `l.imports ??= [];` (Task 3 replaces this with the real conversion). Remove `ImportReport` from the types import at the top of that file.
 
-- [ ] **Step 6: Run the matcher test**
+- [x] **Step 6: Run the matcher test**
 
 Run: `node --import tsx --test tests/sales/match.test.ts`
 Expected: 5 passing. (`npm test` and `tsc` still fail elsewhere — import.ts, stores, UI — until Tasks 3–7.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/types.ts src/lib/sales/match.ts src/lib/data/sales-logic.ts tests/sales/match.test.ts
@@ -219,7 +219,7 @@ git commit -m "Sales: ImportRecord on the list; phone/email matcher"
 - Consumes: `CONTACT_COLUMNS`, `keyForHeader` from `src/lib/sales/columns.ts`.
 - Produces: `fillBlanks(existing: Contact, row: Contact): { patch: Partial<Contact>; filled: string[] }`.
 
-- [ ] **Step 1: Write the failing test `tests/sales/merge.test.ts`**
+- [x] **Step 1: Write the failing test `tests/sales/merge.test.ts`**
 
 ```ts
 import { test } from 'node:test';
@@ -261,12 +261,12 @@ test('nothing to fill → empty patch and empty filled', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --import tsx --test tests/sales/merge.test.ts`
 Expected: FAIL — cannot find module `@/lib/sales/merge`.
 
-- [ ] **Step 3: Create `src/lib/sales/merge.ts`**
+- [x] **Step 3: Create `src/lib/sales/merge.ts`**
 
 ```ts
 import type { Contact } from '@/lib/types';
@@ -308,12 +308,12 @@ export function fillBlanks(existing: Contact, row: Contact): { patch: Partial<Co
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `node --import tsx --test tests/sales/merge.test.ts`
 Expected: 2 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/sales/merge.ts tests/sales/merge.test.ts
@@ -341,7 +341,7 @@ git commit -m "Sales: fillBlanks merge for matched uploads"
   - `contactsFromRows(rows, listId, now, idFor?)` now also returns `lines: number[]` (sheet line per contact).
   - `parseSheet({ fileName, bytes, listId, now }): Promise<{ ok: true } & ParsedSheet | { ok: false; error: string }>` (replaces `parseCallListFile`).
 
-- [ ] **Step 1: Write the failing test `tests/sales/import-plan.test.ts`**
+- [x] **Step 1: Write the failing test `tests/sales/import-plan.test.ts`**
 
 ```ts
 import { test } from 'node:test';
@@ -454,12 +454,12 @@ test('healCallList turns a legacy importReport into one ImportRecord', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --import tsx --test tests/sales/import-plan.test.ts`
 Expected: FAIL — `planImport` / `MAX_IMPORT_RECORDS` not exported.
 
-- [ ] **Step 3: Implement in `src/lib/data/sales-logic.ts`**
+- [x] **Step 3: Implement in `src/lib/data/sales-logic.ts`**
 
 Add to the imports at the top:
 
@@ -580,12 +580,12 @@ export function planImport(input: {
 }
 ```
 
-- [ ] **Step 4: Run the plan test**
+- [x] **Step 4: Run the plan test**
 
 Run: `node --import tsx --test tests/sales/import-plan.test.ts`
 Expected: 8 passing.
 
-- [ ] **Step 5: Split the parser in `src/lib/sales/import.ts`**
+- [x] **Step 5: Split the parser in `src/lib/sales/import.ts`**
 
 Change the imports: drop `CallList`, `ImportReport`, `blankCallList`; add `ImportRecord`, `ParsedSheet`:
 
@@ -631,7 +631,7 @@ export async function parseSheet(opts: { fileName: string; bytes: Uint8Array; li
 }
 ```
 
-- [ ] **Step 6: Update `tests/sales/import.test.ts`**
+- [x] **Step 6: Update `tests/sales/import.test.ts`**
 
 Change the import line to `import { parseSheet, contactsFromRows, scriptFromRows, cellText } from '@/lib/sales/import';` and `opts` to:
 
@@ -651,12 +651,12 @@ Also add `lines` coverage to the first test:
 
 (line 4 is the skipped row; adjust if the fixture's skipped line differs — the existing assertion `skipped.map(s => s.line)` says which.)
 
-- [ ] **Step 7: Run the sales tests that don't touch stores or export**
+- [x] **Step 7: Run the sales tests that don't touch stores or export**
 
 Run: `node --import tsx --test tests/sales/import.test.ts tests/sales/import-plan.test.ts tests/sales/match.test.ts tests/sales/merge.test.ts`
 Expected: all passing. Any other test file that calls `blankCallList` with five arguments or reads `importReport` (check with `grep -rn "blankCallList\|importReport\|sourceFileName" tests`) is updated to the four-argument form / `imports`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/data/sales-logic.ts src/lib/sales/import.ts tests/sales/import-plan.test.ts tests/sales/import.test.ts
@@ -675,7 +675,7 @@ git commit -m "Sales: planImport, legacy report healing, parseSheet"
 **Interfaces:**
 - Produces: `createCallList(list: CallList, actor): Promise<CallList>` (no contacts), `updateCallList(list: CallList, actor): Promise<void>`, `applyImport(list: CallList, newContacts: Contact[], updatedContacts: Contact[], actor): Promise<void>`.
 
-- [ ] **Step 1: Change the interface in `repository.ts`**
+- [x] **Step 1: Change the interface in `repository.ts`**
 
 Replace the `createCallList` line and its comment with:
 
@@ -695,7 +695,7 @@ Replace the `createCallList` line and its comment with:
   applyImport(list: CallList, newContacts: Contact[], updatedContacts: Contact[], actor: Actor): Promise<void>;
 ```
 
-- [ ] **Step 2: `json-store.ts`**
+- [x] **Step 2: `json-store.ts`**
 
 Replace `createCallList` with:
 
@@ -730,7 +730,7 @@ Replace `createCallList` with:
   },
 ```
 
-- [ ] **Step 3: `supabase-store.ts`**
+- [x] **Step 3: `supabase-store.ts`**
 
 Replace `createCallList` with:
 
@@ -752,12 +752,12 @@ Replace `createCallList` with:
   },
 ```
 
-- [ ] **Step 4: Typecheck the data layer**
+- [x] **Step 4: Typecheck the data layer**
 
 Run: `npx tsc --noEmit 2>&1 | grep -v "api/import/base44"`
 Expected: only errors in `src/app/sales/actions.ts`, `src/components/sales/*`, `src/app/sales/**/page.tsx` (fixed in Tasks 5–8). No errors under `src/lib`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/data/repository.ts src/lib/data/json-store.ts src/lib/data/supabase-store.ts
@@ -775,7 +775,7 @@ git commit -m "Sales: createCallList without contacts; updateCallList; applyImpo
 - Consumes: `parseSheet`, `planImport`, `blankCallList`, `repo.createCallList/updateCallList/applyImport/listCallLists/getCallList`.
 - Produces: `createCallList(name: string): Promise<{ ok: true; listId: string } | { ok: false; error: string }>`, `renameCallList(listId, name): Promise<{ ok: true } | { ok: false; error: string }>`, `uploadIntoList(listId: string, formData: FormData): Promise<UploadResult>` where `UploadResult = { ok: true; added: number; merged: number; alsoIn: number } | { ok: false; error: string }`.
 
-- [ ] **Step 1: Replace the upload section**
+- [x] **Step 1: Replace the upload section**
 
 Change the import `import { parseCallListFile } from '@/lib/sales/import';` to `import { parseSheet } from '@/lib/sales/import';` and add `blankCallList, planImport` to the sales-logic import. Replace `UploadResult` and `uploadCallList` with:
 
@@ -834,12 +834,12 @@ export async function uploadIntoList(listId: string, formData: FormData): Promis
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npx tsc --noEmit 2>&1 | grep -v "api/import/base44"`
 Expected: no errors under `src/app/sales/actions.ts`; remaining errors only in components/pages.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/app/sales/actions.ts
@@ -856,7 +856,7 @@ git commit -m "Sales: createCallList, renameCallList, uploadIntoList actions"
 - Modify: `src/components/sales/list-card.tsx` (line 17 and the "Uploaded …" line)
 - Modify: `src/app/sales/page.tsx` (upload card → new-list card; copy)
 
-- [ ] **Step 1: Create `src/components/sales/new-list-form.tsx`**
+- [x] **Step 1: Create `src/components/sales/new-list-form.tsx`**
 
 ```tsx
 'use client';
@@ -900,13 +900,13 @@ export function NewListForm() {
 }
 ```
 
-- [ ] **Step 2: Delete `src/components/sales/upload-form.tsx`**
+- [x] **Step 2: Delete `src/components/sales/upload-form.tsx`**
 
 ```bash
 git rm src/components/sales/upload-form.tsx
 ```
 
-- [ ] **Step 3: `list-card.tsx`**
+- [x] **Step 3: `list-card.tsx`**
 
 Replace line 17 (`const problems = …`) with:
 
@@ -925,7 +925,7 @@ Replace the `<p className="text-xs text-muted">Uploaded …</p>` with:
           </p>
 ```
 
-- [ ] **Step 4: `src/app/sales/page.tsx`**
+- [x] **Step 4: `src/app/sales/page.tsx`**
 
 Replace the `UploadForm` import with `import { NewListForm } from '@/components/sales/new-list-form';`, the subtitle with `Cold calling. One list per kind of team; upload sheets into it and call from the top.`, the card with:
 
@@ -938,12 +938,12 @@ Replace the `UploadForm` import with `import { NewListForm } from '@/components/
 
 and the empty-state hint with `Create a list above, then upload a sheet into it.`
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit 2>&1 | grep -v "api/import/base44"`
 Expected: remaining errors only in `src/app/sales/[id]/page.tsx` (`ImportReportPanel`), fixed next.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/sales/new-list-form.tsx src/components/sales/list-card.tsx src/app/sales/page.tsx
@@ -960,7 +960,7 @@ git commit -m "Sales landing: create a list by name; cards show upload count"
 - Modify: `src/components/sales/import-report.tsx` → replace contents with `ImportsPanel`
 - Modify: `src/app/sales/[id]/page.tsx` (header h1, the report line ~75, add the upload card, empty-state copy)
 
-- [ ] **Step 1: `add-contacts-form.tsx`**
+- [x] **Step 1: `add-contacts-form.tsx`**
 
 ```tsx
 'use client';
@@ -1021,7 +1021,7 @@ export function AddContactsForm({ listId }: { listId: string }) {
 }
 ```
 
-- [ ] **Step 2: `rename-list.tsx`**
+- [x] **Step 2: `rename-list.tsx`**
 
 ```tsx
 'use client';
@@ -1069,7 +1069,7 @@ export function RenameList({ listId, name }: { listId: string; name: string }) {
 }
 ```
 
-- [ ] **Step 3: Replace `import-report.tsx` with the imports panel**
+- [x] **Step 3: Replace `import-report.tsx` with the imports panel**
 
 ```tsx
 import Link from 'next/link';
@@ -1153,7 +1153,7 @@ export function ImportsPanel({ imports, contacts, listId }: { imports: ImportRec
 }
 ```
 
-- [ ] **Step 4: `src/app/sales/[id]/page.tsx`**
+- [x] **Step 4: `src/app/sales/[id]/page.tsx`**
 
 Change the import to `import { ImportsPanel } from '@/components/sales/import-report';` and add `import { AddContactsForm } from '@/components/sales/add-contacts-form';` and `import { RenameList } from '@/components/sales/rename-list';`. Replace `<h1 className="truncate text-2xl font-bold">{bundle.list.name}</h1>` with `<RenameList listId={id} name={bundle.list.name} />`. Replace `<ImportReportPanel report={bundle.list.importReport} />` with:
 
@@ -1168,15 +1168,15 @@ Change the import to `import { ImportsPanel } from '@/components/sales/import-re
 
 In the `EmptyState` for no contacts, change the hint to: `q ? 'Try a different search.' : bundle.contacts.length === 0 ? 'Upload a sheet above to add the first contacts.' : 'Nothing in this group yet.'`.
 
-- [ ] **Step 5: Typecheck and tests**
+- [x] **Step 5: Typecheck and tests**
 
 Run: `npx tsc --noEmit 2>&1 | grep -v "api/import/base44"` → nothing. Run: `npm test` → all passing (fix any test that still builds a `CallList` literal with old fields, e.g. `tests/sales/export.test.ts`).
 
-- [ ] **Step 6: Browser check**
+- [x] **Step 6: Browser check**
 
 Start the worktree server (`npm run dev -- -p 3001`), unlock, `/sales`: create "Beer league" → lands on its page → upload `tests/sales/fixtures/sample-list.xlsx` → report shows "4 added · 1 matched" (the fixture's line 5 is a deliberate same-phone duplicate of line 2, so it fills that contact's blanks instead of becoming a second Eagles row) → upload the same file again → "0 added · 5 matched", contacts still 4 → rename works. Create "Youth", upload the same sheet: "4 added · 1 matched · 5 also in another list"; the report links to Beer league.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/components/sales/add-contacts-form.tsx src/components/sales/rename-list.tsx src/components/sales/import-report.tsx "src/app/sales/[id]/page.tsx"
@@ -1198,7 +1198,7 @@ git commit -m "Sales list page: add contacts by upload, imports panel, rename"
 - Consumes: `alsoIn`, `AlsoIn` from `src/lib/sales/match.ts`.
 - Produces: `AlsoInLine({ items: AlsoIn[] })`; `CallViewProps.alsoIn: Record<string, AlsoIn[]>`; `ContactPanel` prop `alsoIn?: AlsoIn[]`.
 
-- [ ] **Step 1: `also-in.tsx`**
+- [x] **Step 1: `also-in.tsx`**
 
 ```tsx
 import Link from 'next/link';
@@ -1221,7 +1221,7 @@ export function AlsoInLine({ items }: { items: AlsoIn[] }) {
 }
 ```
 
-- [ ] **Step 2: Contact page**
+- [x] **Step 2: Contact page**
 
 In `src/app/sales/[id]/contacts/[contactId]/page.tsx` add `import { alsoIn } from '@/lib/sales/match';` and `import { AlsoInLine } from '@/components/sales/also-in';`. After `sessionsById` compute:
 
@@ -1233,7 +1233,7 @@ In `src/app/sales/[id]/contacts/[contactId]/page.tsx` add `import { alsoIn } fro
 
 Render `<AlsoInLine items={elsewhere} />` directly under the "Viewing only" paragraph.
 
-- [ ] **Step 3: Call page**
+- [x] **Step 3: Call page**
 
 In `src/app/sales/[id]/call/page.tsx` add the same two imports (`alsoIn`, and `type AlsoIn`), compute after `queue`:
 
@@ -1246,17 +1246,17 @@ In `src/app/sales/[id]/call/page.tsx` add the same two imports (`alsoIn`, and `t
 
 and pass `alsoIn={elsewhere}` to `<CallView>`.
 
-- [ ] **Step 4: CallView and ContactPanel**
+- [x] **Step 4: CallView and ContactPanel**
 
 `index.tsx`: add `import type { AlsoIn } from '@/lib/sales/match';`, `alsoIn: Record<string, AlsoIn[]>;` to `CallViewProps`, and pass `alsoIn={props.alsoIn[current.id] ?? []}` to `<ContactPanel>`.
 
 `contact-panel.tsx`: add `import { AlsoInLine } from '../also-in';` and `import type { AlsoIn } from '@/lib/sales/match';`, prop `alsoIn?: AlsoIn[]` (default `[]`), and render `<AlsoInLine items={alsoIn} />` right after the `<p className="mt-1 flex flex-wrap gap-2 text-xs">` badges line.
 
-- [ ] **Step 5: Typecheck, tests, browser**
+- [x] **Step 5: Typecheck, tests, browser**
 
 `npx tsc --noEmit 2>&1 | grep -v "api/import/base44"` → nothing; `npm test` → passing. Browser: with Beer league and Youth both holding the sample sheet, open an Eagles contact in Youth → "Also in: Beer league" links to the Beer league row; the calling view shows the same line; a contact in a list on its own shows nothing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/sales/also-in.tsx "src/app/sales/[id]/contacts/[contactId]/page.tsx" "src/app/sales/[id]/call/page.tsx" src/components/sales/call-view/index.tsx src/components/sales/call-view/contact-panel.tsx
@@ -1272,7 +1272,7 @@ git commit -m "Sales: Also in — the same person in another list"
 - Modify: `CLAUDE.md` (Sales section: the "One upload = one CallList" bullet; add matching + also-in bullets)
 - Modify: `docs/superpowers/plans/2026-09-08-sales-master-lists.md` — tick boxes as you go
 
-- [ ] **Step 1: Template Read Me**
+- [x] **Step 1: Template Read Me**
 
 In `scripts/build-call-template.mjs`, find the Read Me line that says each upload makes a new list (grep `new list`) and replace it with: `Upload this into a list on the Sales page as often as you like. A row with the same phone or email as a contact already in the list fills in that contact's blanks instead of being added twice. The Script tab is optional once the list has a script; include it to replace the script.` Then:
 
@@ -1282,7 +1282,7 @@ node --import tsx scripts/build-call-template.mjs --sample tests/sales/fixtures/
 npm test
 ```
 
-- [ ] **Step 2: CLAUDE.md**
+- [x] **Step 2: CLAUDE.md**
 
 Replace the bullet `**One upload = one CallList.** …` with:
 
@@ -1301,7 +1301,7 @@ Replace the bullet `**One upload = one CallList.** …` with:
   list → updated contacts → new contacts.
 ```
 
-- [ ] **Step 3: Full verification**
+- [x] **Step 3: Full verification**
 
 ```bash
 npx tsc --noEmit 2>&1 | grep -v "api/import/base44"   # nothing
@@ -1312,7 +1312,7 @@ npm run build                                          # fails only on src/app/a
 
 Browser walkthrough on the worktree server: landing (create, cards), list page (upload twice, rename, imports panel with merged links), contact page (Also in), calling view (Also in line, everything else unchanged), delete list. Existing list from before this change still opens and shows its old report as "Last upload".
 
-- [ ] **Step 4: Commit and finish**
+- [x] **Step 4: Commit and finish**
 
 ```bash
 git add scripts/build-call-template.mjs public/templates/powerplay-call-list-template.xlsx tests/sales/fixtures CLAUDE.md docs/superpowers/plans/2026-09-08-sales-master-lists.md

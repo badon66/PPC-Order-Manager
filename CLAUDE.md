@@ -214,13 +214,28 @@ than missing data. Read the comments there before reordering anything.
 
 Design: `docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md`,
 follow-ups (wide layout, finish dialog, jersey manager, contact page, sessions):
-`docs/superpowers/specs/2026-09-07-sales-follow-ups-design.md`.
+`docs/superpowers/specs/2026-09-07-sales-follow-ups-design.md`,
+master lists (named lists, repeat uploads, duplicate matching):
+`docs/superpowers/specs/2026-09-08-sales-master-lists-design.md`.
 
-- **One upload = one `CallList`.** Contacts and the script come from the
-  sheet; re-upload to change either. `Contact.raw` keeps every cell as typed,
-  including columns we don't know — they show under *Other info* and export.
+- **A list is a name; uploads add to it.** One list per kind of team (beer
+  league, youth, …). `createCallList(name)` makes an empty list;
+  `uploadIntoList` appends a sheet, as often as needed. Every upload is an
+  `ImportRecord` on `list.imports` (newest first, last 10). `Contact.raw`
+  keeps every cell as typed, including columns we don't know — they show
+  under *Other info* and export.
+- **Same phone or same email = the same person** (`sales/match.ts`: digits
+  only, leading 1 dropped, under 7 digits is no number; emails lowercased).
+  Inside a list a match **fills blanks and changes nothing else**
+  (`sales/merge.ts` — never call state, never the manager flag, never Do Not
+  Call). Two matching rows in one sheet become one contact. Across lists the
+  row is added here and flagged; *Also in* is computed on render by the same
+  matcher and never stored. `planImport` in `sales-logic.ts` is the only
+  place these rules meet; stores just write list → updated contacts → new
+  contacts. A sheet's Script tab replaces the list's script only when it has
+  items and differs; a contacts-only sheet leaves it alone.
 - **Rows are skipped only with no org AND no phone.** Everything else is a
-  warning, stored on `list.importReport`, shown every time the list opens.
+  warning on that upload's `ImportRecord`, shown on the list page.
 - **Call state on a contact is written only by `applyCallLog` / `applySkip`**
   in `sales-logic.ts`. Never patch `lastOutcome`, `callCount`, `nextCallDate`
   by hand — the queue is computed from them.
