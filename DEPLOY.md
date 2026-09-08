@@ -68,13 +68,8 @@ created 2026-08-24. Migrations applied and verified:
 2. `0001_init.sql` — 6 tables, 10 generated columns on `orders`, 17 indexes, RLS
 3. `0002_artwork_bucket.sql` — the private `artwork` bucket, 25 MB cap
 4. `0003_bigger_artwork_files.sql` — bucket cap raised to 50 MB (matches `MAX_BYTES`)
-5. `0004_sales.sql` — `call_lists`, `contacts`, `call_logs` (applied 2026-09-07)
-
-Pending — apply before deploying the sales follow-ups:
-
-6. `0005_call_sessions.sql` — `call_sessions`. Until it is applied, opening
-   the calling view on the hosted app fails to start a session (the timer
-   stays at 0:00 and logs save with no session).
+5. `0004_sales.sql` — `call_lists`, `call_contacts`, `call_logs` (applied 2026-09-07)
+6. `0005_call_sessions.sql` — `call_sessions` (applied 2026-09-07)
 
 Verified after applying: every table has RLS on with **zero** policies, both
 token indexes are unique-and-partial, and a round-trip insert confirmed the
