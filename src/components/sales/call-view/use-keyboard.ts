@@ -4,13 +4,17 @@ import { useEffect } from 'react';
 import { OUTCOME_HOTKEYS } from '@/lib/constants';
 
 export interface CallKeyHandlers {
+  /** An outcome hotkey: selects it and opens the finish dialog. */
   onOutcome: (index: number) => void;
   onRating: (n: 1 | 2 | 3 | 4 | 5) => void;
-  onSave: () => void;
+  /** Ctrl+Enter: open the finish dialog, or save when it is open. */
+  onFinish: () => void;
   onSkip: () => void;
   onPrevious: () => void;
   onFocusNotes: () => void;
   onHelp: () => void;
+  /** Esc outside a text box: close the dialog or the help sheet. */
+  onEscape: () => void;
 }
 
 const TYPING = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
@@ -26,7 +30,7 @@ export function useCallKeys(h: CallKeyHandlers, enabled: boolean) {
       const t = e.target as HTMLElement | null;
       const typing = !!t && (TYPING.has(t.tagName) || t.isContentEditable);
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'Enter') { e.preventDefault(); h.onSave(); }
+        if (e.key === 'Enter') { e.preventDefault(); h.onFinish(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); h.onSkip(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); h.onPrevious(); }
         return;
@@ -35,6 +39,7 @@ export function useCallKeys(h: CallKeyHandlers, enabled: boolean) {
         if (e.key === 'Escape') (t as HTMLElement).blur();
         return;
       }
+      if (e.key === 'Escape') { h.onEscape(); return; }
       if (e.shiftKey && /^[1-5]$/.test(e.key)) { e.preventDefault(); h.onRating(Number(e.key) as 1 | 2 | 3 | 4 | 5); return; }
       // Shift+1 arrives as "!" on US layouts — map the symbol row too.
       const shifted = ['!', '@', '#', '$', '%'].indexOf(e.key);

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CallOutcome, FollowUp, LeadRating, Referral } from '@/lib/types';
+import type { CallOutcome, FollowUp, JerseyManagerAnswer, LeadRating, Referral } from '@/lib/types';
+import { blankJerseyManager } from '@/lib/data/sales-logic';
 
 /** Everything typed during a call, before the outcome is saved. */
 export interface CallDraft {
@@ -16,6 +17,7 @@ export interface CallDraft {
   reason: string;
   referral: Referral;
   newPhone: string;
+  jerseyManager: JerseyManagerAnswer;
 }
 
 export function blankDraft(startedAt: string): CallDraft {
@@ -23,6 +25,7 @@ export function blankDraft(startedAt: string): CallDraft {
     startedAt, outcome: null, leadRating: null, notes: '', answers: {}, checklist: [],
     followUp: { date: null, time: '', note: '' }, email: '', reason: '',
     referral: { name: '', role: '', phone: '', email: '' }, newPhone: '',
+    jerseyManager: blankJerseyManager(),
   };
 }
 
@@ -44,7 +47,8 @@ export function useDraft(contactId: string | null) {
     let restored: CallDraft | null = null;
     try {
       const raw = localStorage.getItem(KEY(contactId));
-      if (raw) restored = JSON.parse(raw) as CallDraft;
+      // A draft saved before the jersey-manager field existed gets the blank answer.
+      if (raw) restored = { ...blankDraft(new Date().toISOString()), ...(JSON.parse(raw) as Partial<CallDraft>) };
     } catch { /* ignore */ }
     loadedFor.current = contactId;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading the per-contact draft only after the contact id changes; a lazy useState initializer can't read the current contactId prop

@@ -31,6 +31,7 @@ export default async function CallPage({
       list={bundle.list}
       contacts={bundle.contacts}
       logs={bundle.logs}
+      sessions={bundle.sessions}
       queue={queue}
       startId={startId}
       callerDefault={user?.name ?? ''}

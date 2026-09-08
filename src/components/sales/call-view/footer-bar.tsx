@@ -3,12 +3,11 @@
 export type SaveState = 'idle' | 'saving' | 'error';
 
 export function FooterBar({
-  canPrevious, onPrevious, canSkip, onSkip, canSave, onSave, saveLabel, saveState, error, missing, tally, onHelp,
+  canPrevious, onPrevious, canSkip, onSkip, canFinish, onFinish, finishLabel, tally, onHelp,
 }: {
   canPrevious: boolean; onPrevious: () => void;
   canSkip: boolean; onSkip: () => void;
-  canSave: boolean; onSave: () => void; saveLabel: string; saveState: SaveState;
-  error: string | null; missing: string | null;
+  canFinish: boolean; onFinish: () => void; finishLabel: string;
   tally: { calls: number; reached: number; voicemails: number; callbacks: number; infoSent: number };
   onHelp: () => void;
 }) {
@@ -27,20 +26,15 @@ export function FooterBar({
           <span>Info sent <b className="text-foreground">{tally.infoSent}</b></span>
           <button type="button" onClick={onHelp} className="rounded border border-line px-1.5 text-[0.7rem] hover:text-ppc-gold" title="Keyboard shortcuts">?</button>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`text-xs ${saveState === 'error' ? 'text-red-300' : 'text-muted'}`}>
-            {saveState === 'saving' ? 'Saving…' : error ?? (canSave ? '' : missing ?? '')}
-          </span>
-          <button
-            type="button"
-            disabled={!canSave || saveState === 'saving'}
-            onClick={onSave}
-            title="Ctrl+Enter"
-            className="rounded-lg bg-ppc-gold px-5 py-2.5 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-40"
-          >
-            {saveLabel}
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!canFinish}
+          onClick={onFinish}
+          title="Ctrl+Enter"
+          className="rounded-lg bg-ppc-gold px-5 py-2.5 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-40"
+        >
+          {finishLabel}
+        </button>
       </div>
     </div>
   );

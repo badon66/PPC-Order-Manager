@@ -1,9 +1,11 @@
 'use client';
 
-import type { CallLog, Contact, ScriptItem } from '@/lib/types';
+import Link from 'next/link';
+import type { CallLog, CallSession, Contact, ScriptItem } from '@/lib/types';
 import { keyForHeader } from '@/lib/sales/columns';
 import { phoneDisplay, telHref } from '@/lib/sales/phone';
 import { localTimeFor } from '@/lib/sales/timezones';
+import { OutcomeBadge } from '../outcome-badge';
 import { StarRating } from '../star-rating';
 import { CallHistory } from './history';
 import { useNow } from './use-timers';
@@ -18,7 +20,22 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function ContactPanel({ contact: c, logs, script }: { contact: Contact; logs: CallLog[]; script: ScriptItem[] }) {
+/** Small gold pill for the contact who handles the jerseys. */
+export function ManagerBadge() {
+  return <span className="inline-flex items-center rounded-full border border-ppc-gold/70 bg-ppc-gold/10 px-2 py-0.5 text-[0.7rem] font-semibold text-ppc-gold">Jersey manager</span>;
+}
+
+export function ContactPanel({
+  contact: c, logs, script, linked, listId, sessionsById = {},
+}: {
+  contact: Contact;
+  logs: CallLog[];
+  script: ScriptItem[];
+  /** Other contacts at the same team (same organisation name in this list). */
+  linked: Contact[];
+  listId: string;
+  sessionsById?: Record<string, CallSession>;
+}) {
   const now = useNow(60_000);
   const local = localTimeFor(c, now);
   const tel = telHref(c.phone);
@@ -31,19 +48,20 @@ export function ContactPanel({ contact: c, logs, script }: { contact: Contact; l
       <div>
         <h2 className="text-2xl font-bold leading-tight">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
         <p className="text-sm text-muted">{[c.role, orgLine].filter(Boolean).join(' — ')}</p>
-        {c.source === 'referral' && <p className="mt-1 text-xs text-violet-300">Referral</p>}
+        <p className="mt-1 flex flex-wrap gap-2 text-xs">
+          {c.isJerseyManager && <ManagerBadge />}
+          {c.source === 'referral' && <span className="text-violet-300">Added from a call</span>}
+        </p>
       </div>
 
       <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-3">
         {c.doNotCall ? (
           <p className="text-sm font-semibold text-red-300">Number hidden — Do Not Call</p>
         ) : (
-          <>
-            <p className="text-xl font-bold tabular-nums">
-              {tel ? <a href={tel} className="hover:text-ppc-gold">{phoneDisplay(c.phone)}</a> : <span className="text-muted">No phone</span>}
-              {c.altPhone && <span className="ml-3 text-sm font-normal text-muted">alt {altTel ? <a href={altTel} className="hover:text-ppc-gold">{phoneDisplay(c.altPhone)}</a> : c.altPhone}</span>}
-            </p>
-          </>
+          <p className="text-xl font-bold tabular-nums">
+            {tel ? <a href={tel} className="hover:text-ppc-gold">{phoneDisplay(c.phone)}</a> : <span className="text-muted">No phone</span>}
+            {c.altPhone && <span className="ml-3 text-sm font-normal text-muted">alt {altTel ? <a href={altTel} className="hover:text-ppc-gold">{phoneDisplay(c.altPhone)}</a> : c.altPhone}</span>}
+          </p>
         )}
         <p className="text-sm">{c.email ? <a href={`mailto:${c.email}`} className="hover:text-ppc-gold">{c.email}</a> : <span className="text-muted">No email</span>}</p>
         <p className="text-sm text-muted">
@@ -57,6 +75,28 @@ export function ContactPanel({ contact: c, logs, script }: { contact: Contact; l
           <span className="flex items-center gap-1">Rating <StarRating value={c.leadRating} /></span>
         </p>
       </div>
+
+      {linked.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-ppc-gold">Also at this team <span className="ml-1 text-muted">{linked.length}</span></h3>
+          <ul className="space-y-1.5">
+            {linked.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Link href={`/sales/${listId}/contacts/${x.id}`} className="font-semibold hover:text-ppc-gold">{x.contactName || x.orgName || '—'}</Link>
+                  {x.role && <span className="text-xs text-muted">{x.role}</span>}
+                  {x.isJerseyManager && <ManagerBadge />}
+                  {x.doNotCall && <span className="text-xs text-red-300">Do Not Call</span>}
+                </span>
+                <span className="flex items-center gap-2 text-xs text-muted">
+                  {!x.doNotCall && x.phone && <span className="tabular-nums">{phoneDisplay(x.phone)}</span>}
+                  <OutcomeBadge outcome={x.lastOutcome} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <dl className="space-y-1.5">
         <Row label="League">{c.league}</Row>
@@ -73,7 +113,7 @@ export function ContactPanel({ contact: c, logs, script }: { contact: Contact; l
 
       <div>
         <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-ppc-gold">History <span className="ml-1 text-muted">{logs.length}</span></h3>
-        <CallHistory logs={logs} script={script} />
+        <CallHistory contact={c} logs={logs} script={script} sessionsById={sessionsById} />
       </div>
     </div>
   );
