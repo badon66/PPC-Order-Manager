@@ -146,6 +146,33 @@ export function planImport(input: {
   return { list: nextList, newContacts: accepted, updatedContacts: [...updated.values()], record };
 }
 
+/* ------------------------------------------------------------------ *
+ * Row actions on the contacts table
+ * ------------------------------------------------------------------ */
+
+/** What Quick edit may change. Team fields stay as uploaded; call state and flags are never here. */
+export const QUICK_EDIT_FIELDS = ['contactName', 'role', 'phone', 'altPhone', 'email', 'bestTimeToCall', 'priority', 'notes'] as const;
+export type QuickEditField = (typeof QUICK_EDIT_FIELDS)[number];
+export type QuickEditPatch = Pick<Contact, QuickEditField>;
+
+export function quickEditPatch(raw: Record<string, unknown>): { ok: true; patch: QuickEditPatch } | { ok: false; error: string } {
+  const text = (k: string) => String(raw[k] ?? '').trim();
+  const p = text('priority').toUpperCase();
+  if (p !== '' && p !== 'A' && p !== 'B' && p !== 'C') return { ok: false, error: 'Priority is A, B, C or blank' };
+  return {
+    ok: true,
+    patch: {
+      contactName: text('contactName'), role: text('role'), phone: text('phone'), altPhone: text('altPhone'),
+      email: text('email'), bestTimeToCall: text('bestTimeToCall'), priority: p, notes: text('notes'),
+    },
+  };
+}
+
+/** A status set from the table: the same log as a call, with no time on the line and no session. */
+export function quickLogInput(input: CallLogInput, callerName: string, now: string): CallLogInput {
+  return { ...input, startedAt: now, endedAt: now, durationSeconds: 0, callerName, sessionId: null };
+}
+
 /*
  * Healing patches the row IN PLACE and returns it — the same contract as
  * healOrder / healRosterEntry in ./logic.ts, which the stores rely on when
