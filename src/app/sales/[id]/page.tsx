@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
+import { currentUser } from '@/lib/auth';
 import type { Contact, ContactBucket } from '@/lib/types';
 import { today, formatShort } from '@/lib/dates';
 import { BUSINESS_TIMEZONE } from '@/lib/constants';
@@ -12,6 +13,7 @@ import { StarRating } from '@/components/sales/star-rating';
 import { ImportsPanel } from '@/components/sales/imports-panel';
 import { AddContactsForm } from '@/components/sales/add-contacts-form';
 import { RenameList } from '@/components/sales/rename-list';
+import { RowActions } from '@/components/sales/row-actions';
 import { SessionsPanel } from '@/components/sales/sessions-panel';
 import { ManagerBadge } from '@/components/sales/call-view/contact-panel';
 
@@ -41,8 +43,11 @@ export default async function ContactsPage({
   const sp = await searchParams;
   const bundle = await repo.getCallList(id);
   if (!bundle) notFound();
+  const user = await currentUser();
 
   const day = today(BUSINESS_TIMEZONE);
+  const logCounts: Record<string, number> = {};
+  for (const g of bundle.logs) logCounts[g.contactId] = (logCounts[g.contactId] ?? 0) + 1;
   const q = (sp.q ?? '').trim();
   const bucket = (BUCKETS.some((b) => b.key === sp.bucket) ? sp.bucket : 'all') as ContactBucket | 'all';
 
@@ -137,7 +142,7 @@ export default async function ContactsPage({
               </thead>
               <tbody>
                 {shown.map((c) => (
-                  <tr key={c.id} className="border-b border-line/60 hover:bg-surface-2">
+                  <RowActions key={c.id} listId={id} contact={c} callCount={logCounts[c.id] ?? 0} today={day} callerDefault={user?.name ?? ''}>
                     <td className="py-2 pr-3 font-semibold"><Link href={`/sales/${id}/contacts/${c.id}`} className="hover:text-ppc-gold">{c.orgName || '—'}</Link></td>
                     <td className="py-2 pr-3"><Link href={`/sales/${id}/contacts/${c.id}`} className="hover:text-ppc-gold">{c.contactName || '—'}</Link>{c.isJerseyManager && <span className="ml-2 align-middle"><ManagerBadge /></span>}</td>
                     <td className="py-2 pr-3 text-muted">{c.role || '—'}</td>
@@ -147,10 +152,11 @@ export default async function ContactsPage({
                     <td className="py-2 pr-3"><OutcomeBadge outcome={c.doNotCall ? 'do_not_call' : c.lastOutcome} /></td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.callCount}{c.skipCount ? <span className="text-muted"> · {c.skipCount} skip</span> : null}</td>
                     <td className="py-2 tabular-nums text-muted">{c.nextCallDate ? formatShort(c.nextCallDate) : '—'}</td>
-                  </tr>
+                  </RowActions>
                 ))}
               </tbody>
             </table>
+            <p className="mt-2 text-xs text-muted">Double-click a row to change its status, quick-edit the person, or delete them.</p>
           </div>
           {/* Phone: cards, not a sideways table. */}
           <div className="space-y-3 md:hidden">

@@ -8,7 +8,7 @@ import { CALL_OUTCOME_OPTIONS } from '@/lib/constants';
 import { logCall, skipContact, updateCallLog } from '@/app/sales/actions';
 import { applicableItems, fillPlaceholders } from '@/lib/sales/script';
 import type { AlsoIn } from '@/lib/sales/match';
-import { isClosed, linkedContacts, sessionTallyFor, validateCallLog, type CallLogInput } from '@/lib/data/sales-logic';
+import { isClosed, linkedContacts, sessionTallyFor, validateCallLog } from '@/lib/data/sales-logic';
 import { TextArea } from '@/components/order-form/fields';
 import { EmptyState, Warning } from '@/components/ui';
 import { useCallerName } from '../use-caller-name';
@@ -19,7 +19,7 @@ import { FinishDialog } from './finish-dialog';
 import { CallSummary } from './call-summary';
 import { FooterBar, type SaveState } from './footer-bar';
 import { useCallKeys } from './use-keyboard';
-import { blankDraft, useDraft, type CallDraft } from './use-draft';
+import { draftFromLog, inputFromDraft, useDraft } from './use-draft';
 import { formatClock, useCallSession, useElapsedSince } from './use-timers';
 
 export interface CallViewProps {
@@ -35,37 +35,7 @@ export interface CallViewProps {
   today: CalendarDate;
 }
 
-export function inputFromDraft(d: CallDraft, callerName: string, now: string, sessionId: string | null): CallLogInput {
-  const started = new Date(d.startedAt).getTime();
-  return {
-    outcome: d.outcome ?? 'no_answer',
-    leadRating: d.leadRating,
-    notes: d.notes,
-    answers: d.answers,
-    checklist: d.checklist,
-    startedAt: d.startedAt,
-    endedAt: now,
-    durationSeconds: Math.max(0, Math.round((new Date(now).getTime() - started) / 1000)),
-    callerName,
-    followUp: d.followUp,
-    email: d.email,
-    reason: d.reason,
-    referral: d.referral,
-    newPhone: d.newPhone,
-    sessionId,
-    jerseyManager: d.jerseyManager,
-  };
-}
-
-export function draftFromLog(g: CallLog): CallDraft {
-  return {
-    ...blankDraft(g.startedAt),
-    outcome: g.outcome, leadRating: g.leadRating, notes: g.notes, answers: { ...g.answers },
-    checklist: [...g.checklist], followUp: { ...g.followUp }, email: g.email, reason: g.reason,
-    referral: { ...g.referral }, newPhone: g.newPhone,
-    jerseyManager: { ...g.jerseyManager, person: { ...g.jerseyManager.person } },
-  };
-}
+export { inputFromDraft, draftFromLog };
 
 const SHORTCUTS: Array<[string, string]> = [
   ['1–9, 0, -', 'Pick an outcome and open Call finished'], ['Shift+1…5', 'Rate the lead'], ['Ctrl+Enter', 'Call finished — then Save'],

@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CallOutcome, FollowUp, JerseyManagerAnswer, LeadRating, Referral } from '@/lib/types';
-import { blankJerseyManager } from '@/lib/data/sales-logic';
+import type { CallLog, CallOutcome, FollowUp, JerseyManagerAnswer, LeadRating, Referral } from '@/lib/types';
+import { blankJerseyManager, type CallLogInput } from '@/lib/data/sales-logic';
 
 /** Everything typed during a call, before the outcome is saved. */
 export interface CallDraft {
@@ -26,6 +26,40 @@ export function blankDraft(startedAt: string): CallDraft {
     followUp: { date: null, time: '', note: '' }, email: '', reason: '',
     referral: { name: '', role: '', phone: '', email: '' }, newPhone: '',
     jerseyManager: blankJerseyManager(),
+  };
+}
+
+/** The draft as the server wants it. `now` is the end of the call. */
+export function inputFromDraft(d: CallDraft, callerName: string, now: string, sessionId: string | null): CallLogInput {
+  const started = new Date(d.startedAt).getTime();
+  return {
+    outcome: d.outcome ?? 'no_answer',
+    leadRating: d.leadRating,
+    notes: d.notes,
+    answers: d.answers,
+    checklist: d.checklist,
+    startedAt: d.startedAt,
+    endedAt: now,
+    durationSeconds: Math.max(0, Math.round((new Date(now).getTime() - started) / 1000)),
+    callerName,
+    followUp: d.followUp,
+    email: d.email,
+    reason: d.reason,
+    referral: d.referral,
+    newPhone: d.newPhone,
+    sessionId,
+    jerseyManager: d.jerseyManager,
+  };
+}
+
+/** A logged call back into a draft, for editing it. */
+export function draftFromLog(g: CallLog): CallDraft {
+  return {
+    ...blankDraft(g.startedAt),
+    outcome: g.outcome, leadRating: g.leadRating, notes: g.notes, answers: { ...g.answers },
+    checklist: [...g.checklist], followUp: { ...g.followUp }, email: g.email, reason: g.reason,
+    referral: { ...g.referral }, newPhone: g.newPhone,
+    jerseyManager: { ...g.jerseyManager, person: { ...g.jerseyManager.person } },
   };
 }
 
