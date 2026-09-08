@@ -64,8 +64,10 @@ test('xlsx carries the script; csv has none', async () => {
   assert.equal(x.list.script.length, 20);
   assert.equal(x.list.script[0].id, 's1');
   assert.equal(x.list.script[0].kind, 'reminder');
-  assert.equal(x.list.script[6].kind, 'question');
-  assert.equal(x.list.script[6].options.length, 6);
+  assert.equal(x.list.script[6].kind, 'jersey_manager');
+  assert.equal(x.list.script[6].options.length, 0);
+  assert.equal(x.list.script[7].kind, 'question');
+  assert.equal(x.list.script[7].options.length, 4);
   assert.equal(x.list.script[4].showWhen, 'Org Type = Minor Hockey Association');
   assert.equal(x.list.script[12].response.length > 20, true);
   assert.equal(c.list.script.length, 0);
@@ -109,4 +111,18 @@ test('unsupported / empty files', async () => {
   assert.ok(!r1.ok);
   const r2 = await parseCallListFile({ ...opts('sample-list.csv'), bytes: new Uint8Array() });
   assert.ok(!r2.ok);
+});
+
+test('scriptFromRows maps the Kind label "Jersey manager" (any case) and the raw enum value', () => {
+  const header = ['Section', 'Kind', 'Text', 'Response', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Option 5', 'Option 6', 'Show When'];
+  const r = scriptFromRows([
+    header,
+    ['Discovery', 'Jersey manager', 'Who handles the jerseys?', '', '', '', '', '', '', '', ''],
+    ['Discovery', 'JERSEY MANAGER', 'Again?', '', '', '', '', '', '', '', ''],
+    ['Discovery', 'jersey_manager', 'Raw value', '', '', '', '', '', '', '', ''],
+    ['Discovery', 'Manager', 'Unknown kind', '', '', '', '', '', '', '', ''],
+  ]);
+  assert.deepEqual(r.items.map((i) => i.kind), ['jersey_manager', 'jersey_manager', 'jersey_manager']);
+  assert.equal(r.skipped.length, 1);
+  assert.match(r.skipped[0].reason, /Jersey manager/);
 });

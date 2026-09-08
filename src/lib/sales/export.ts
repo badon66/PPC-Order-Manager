@@ -3,9 +3,10 @@ import type { CallLog, Contact } from '@/lib/types';
 import { escapeCell } from '@/lib/csv';
 import { formatTimestamp } from '@/lib/dates';
 import { BUSINESS_TIMEZONE, CALL_OUTCOME_META } from '@/lib/constants';
+import { linkedContacts } from '@/lib/data/sales-logic';
 import { CONTACT_COLUMNS, keyForHeader, sheetValue } from './columns';
 
-const RESULT_HEADERS = ['Lead Rating', 'Last Outcome', 'Calls', 'Skips', 'Last Called', 'Next Call Date', 'Last Notes', 'Source'] as const;
+const RESULT_HEADERS = ['Lead Rating', 'Last Outcome', 'Calls', 'Skips', 'Last Called', 'Next Call Date', 'Last Notes', 'Source', 'Jersey Manager', 'Linked Contacts'] as const;
 
 /**
  * The list back out as a sheet: the template's 26 columns (current values — a
@@ -16,7 +17,8 @@ const RESULT_HEADERS = ['Lead Rating', 'Last Outcome', 'Calls', 'Skips', 'Last C
  */
 export function callListToCsv(bundle: CallListBundle): string {
   const { list, contacts, logs } = bundle;
-  const questions = list.script.filter((s) => s.kind === 'question');
+  // Jersey-manager items answer "This person" / "Someone else", so they get a column too.
+  const questions = list.script.filter((s) => s.kind === 'question' || s.kind === 'jersey_manager');
   const rawOnly: string[] = [];
   for (const c of contacts) for (const h of Object.keys(c.raw ?? {})) if (!keyForHeader(h) && !rawOnly.includes(h)) rawOnly.push(h);
 
@@ -45,6 +47,8 @@ export function callListToCsv(bundle: CallListBundle): string {
       c.nextCallDate ?? '',
       latest?.notes ?? '',
       c.source === 'referral' ? 'Referral' : 'Sheet',
+      c.isJerseyManager ? 'Y' : 'N',
+      linkedContacts(c, contacts).map((x) => x.contactName.trim() || x.role.trim() || '—').join('; '),
       ...questions.map((q) => latestAnswer(c, q.id)),
       ...rawOnly.map((h) => c.raw?.[h] ?? ''),
     ];

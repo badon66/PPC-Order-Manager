@@ -12,6 +12,7 @@ import ExcelJS from 'exceljs';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { CONTACT_COLUMNS } from '../src/lib/sales/columns.ts';
+import { SCRIPT_KIND_LABELS } from '../src/lib/constants.ts';
 import picklists from '../src/lib/sales/picklists.json' with { type: 'json' };
 import defaultScript from '../src/lib/sales/default-script.json' with { type: 'json' };
 
@@ -59,9 +60,9 @@ script.columns = SCRIPT_HEADERS.map((h) => ({ header: h, key: h, width: h === 'T
 script.getRow(1).font = { bold: true };
 script.views = [{ state: 'frozen', ySplit: 1 }];
 script.dataValidations.add(`A2:A${MAX_ROWS}`, { type: 'list', allowBlank: true, formulae: ['"Opening,Discovery,Objections,Close"'] });
-script.dataValidations.add(`B2:B${MAX_ROWS}`, { type: 'list', allowBlank: true, formulae: ['"Read,Reminder,Question,Objection"'] });
+script.dataValidations.add(`B2:B${MAX_ROWS}`, { type: 'list', allowBlank: true, formulae: [`"${Object.values(SCRIPT_KIND_LABELS).join(',')}"`] });
 for (const item of defaultScript) {
-  script.addRow([cap(item.section), cap(item.kind), item.text, item.response, ...Array.from({ length: 6 }, (_, i) => item.options[i] ?? ''), item.showWhen]);
+  script.addRow([cap(item.section), SCRIPT_KIND_LABELS[item.kind] ?? cap(item.kind), item.text, item.response, ...Array.from({ length: 6 }, (_, i) => item.options[i] ?? ''), item.showWhen]);
 }
 script.getColumn(3).alignment = { wrapText: true, vertical: 'top' };
 script.getColumn(4).alignment = { wrapText: true, vertical: 'top' };
@@ -82,7 +83,7 @@ readme.getRow(1).font = { bold: true, size: 14 };
   'Notes: your research. It shows on the call screen, read-only. Any extra column you add (say "Rink") also shows, under Other info.',
   '',
   'SCRIPT TAB — one row per line of the call, top to bottom within each Section (Opening, Discovery, Objections, Close).',
-  'Kind = Read: text to say. Reminder: a tick box. Question: a multiple-choice prompt (fill Option 1–6; leave all blank for a free-text answer). Objection: what they say (Text) and what you say back (Response).',
+  'Kind = Read: text to say. Reminder: a tick box. Question: a multiple-choice prompt (fill Option 1–6; leave all blank for a free-text answer). Objection: what they say (Text) and what you say back (Response). Jersey manager: asks who handles the jerseys — this person, or someone else (picked from the team\'s other contacts, or typed in as a new contact).',
   'Placeholders in Text/Response: [Name] first name (or "there"), [Full Name], [Org], [City], [Rep] (the caller), [Supplier], or any Contacts column in brackets, e.g. [Rink].',
   'Show When: leave blank to always show. Otherwise a rule like  Org Type = Minor Hockey Association  or  Role != Head Coach  — several values with commas (any of), several rules with semicolons (all of).',
   '',

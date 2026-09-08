@@ -8,6 +8,7 @@
 import readExcelFile from 'read-excel-file/node';
 import type { CallList, Contact, ImportReport, ScriptItem, ScriptKind, ScriptSection } from '@/lib/types';
 import { SCRIPT_KINDS, SCRIPT_SECTIONS } from '@/lib/types';
+import { SCRIPT_KIND_LABELS } from '@/lib/constants';
 import { parseCsv } from '@/lib/csv';
 import { newId } from '@/lib/order-utils';
 import { blankCallList, blankContact } from '@/lib/data/sales-logic';
@@ -133,6 +134,9 @@ export function contactsFromRows(
 
 /** The Script tab's headers, lower-cased — the only cells scriptFromRows reads. */
 const OPTION_KEYS = ['option 1', 'option 2', 'option 3', 'option 4', 'option 5', 'option 6'] as const;
+const KIND_BY_LABEL: Record<string, ScriptKind> = Object.fromEntries(
+  (Object.entries(SCRIPT_KIND_LABELS) as Array<[ScriptKind, string]>).map(([kind, label]) => [label.toLowerCase(), kind]),
+);
 type ScriptKey = 'section' | 'kind' | 'text' | 'response' | 'show when' | (typeof OPTION_KEYS)[number];
 
 export function scriptFromRows(rows: string[][]): { items: ScriptItem[]; skipped: Skipped; warnings: Warnings } {
@@ -149,11 +153,13 @@ export function scriptFromRows(rows: string[][]): { items: ScriptItem[]; skipped
     const cells = rows[i].map((c) => c ?? '');
     if (isBlankRow(cells)) continue;
     const section = norm(at('section', cells)) as ScriptSection;
-    const kind = norm(at('kind', cells)) as ScriptKind;
+    // The sheet says "Jersey manager"; the code says jersey_manager. Labels win, the raw enum value is accepted too.
+    const kindText = norm(at('kind', cells));
+    const kind = (KIND_BY_LABEL[kindText] ?? kindText) as ScriptKind;
     const text = at('text', cells);
     const raw = cells.filter(Boolean).join(' | ');
     if (!(SCRIPT_SECTIONS as readonly string[]).includes(section)) { skipped.push({ line, reason: `Script: Section "${at('section', cells)}" isn't Opening, Discovery, Objections or Close`, raw }); continue; }
-    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) { skipped.push({ line, reason: `Script: Kind "${at('kind', cells)}" isn't Read, Reminder, Question or Objection`, raw }); continue; }
+    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) { skipped.push({ line, reason: `Script: Kind "${at('kind', cells)}" isn't one of ${Object.values(SCRIPT_KIND_LABELS).join(', ')}`, raw }); continue; }
     if (!text) { skipped.push({ line, reason: 'Script: Text is blank', raw }); continue; }
     const showWhen = at('show when', cells);
     const parsed = parseShowWhen(showWhen);

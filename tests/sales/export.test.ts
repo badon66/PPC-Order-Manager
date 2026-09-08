@@ -18,7 +18,7 @@ test('export round-trips headers, adds outcome columns and question columns', as
   eagles.lastOutcome = 'send_info'; eagles.callCount = 1; eagles.leadRating = 4; eagles.nextCallDate = '2026-09-13'; eagles.email = 'new@example.ca';
   const log: CallLog = {
     ...blankCallLogInput('2026-09-06T20:00:00.000Z'), id: 'g1', listId: 'l1', contactId: eagles.id, outcome: 'send_info',
-    notes: 'wants the catalogue', answers: { s7: 'Board vote' }, endedAt: '2026-09-06T20:05:00.000Z',
+    notes: 'wants the catalogue', answers: { s7: 'This person' }, endedAt: '2026-09-06T20:05:00.000Z',
     createdAt: '2026-09-06T20:05:00.000Z', updatedAt: '2026-09-06T20:05:00.000Z',
   };
   const csv = callListToCsv({ list: r.list, contacts: r.contacts, logs: [log], sessions: [] });
@@ -29,7 +29,9 @@ test('export round-trips headers, adds outcome columns and question columns', as
   assert.equal(header[25], 'Notes');
   assert.equal(header[26], 'Lead Rating');
   assert.equal(header[33], 'Source');
-  assert.ok(header.includes('Q: Who looks after jerseys for [Org] — is that you, an equipment manager, or does the board decide?'));
+  assert.equal(header[34], 'Jersey Manager');
+  assert.equal(header[35], 'Linked Contacts');
+  assert.ok(header.includes('Q: Who handles the jerseys for [Org] — is that you, or someone else?'));
   assert.equal(header[header.length - 1], 'Rink');
   const row = rows[1];
   assert.equal(row[0], 'Ennismore Eagles');
@@ -39,7 +41,12 @@ test('export round-trips headers, adds outcome columns and question columns', as
   assert.equal(row[28], '1');
   assert.equal(row[31], '2026-09-13');
   assert.equal(row[32], 'wants the catalogue');
-  assert.equal(row[header.indexOf('Q: Who looks after jerseys for [Org] — is that you, an equipment manager, or does the board decide?')], 'Board vote');
+  assert.equal(row[header.indexOf('Q: Who handles the jerseys for [Org] — is that you, or someone else?')], 'This person');
+  assert.equal(row[34], 'N');
+  // The duplicate Eagles row (line 5 of the sheet) is the same organisation, so the two link to each other.
+  assert.equal(row[35], 'Jamie Ouellette');
+  assert.equal(rows[3][35], 'Jamie Ouellette');
+  assert.equal(rows[2][35], '');
   assert.equal(row[header.length - 1], 'Ennismore CC');
   assert.equal(rows.length, 6);
 });
