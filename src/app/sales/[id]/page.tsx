@@ -9,7 +9,9 @@ import { phoneDisplay } from '@/lib/sales/phone';
 import { Button, Card, EmptyState } from '@/components/ui';
 import { OutcomeBadge } from '@/components/sales/outcome-badge';
 import { StarRating } from '@/components/sales/star-rating';
-import { ImportReportPanel } from '@/components/sales/import-report';
+import { ImportsPanel } from '@/components/sales/imports-panel';
+import { AddContactsForm } from '@/components/sales/add-contacts-form';
+import { RenameList } from '@/components/sales/rename-list';
 import { SessionsPanel } from '@/components/sales/sessions-panel';
 import { ManagerBadge } from '@/components/sales/call-view/contact-panel';
 
@@ -63,7 +65,7 @@ export default async function ContactsPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <Link href="/sales" className="text-sm text-muted hover:text-ppc-gold">← Sales</Link>
-          <h1 className="truncate text-2xl font-bold">{bundle.list.name}</h1>
+          <RenameList listId={id} name={bundle.list.name} />
           <p className="text-sm text-muted">{bundle.contacts.length} contacts · {bundle.list.script.length} script lines</p>
         </div>
         <div className="flex gap-2">
@@ -72,7 +74,12 @@ export default async function ContactsPage({
         </div>
       </div>
 
-      <ImportReportPanel report={bundle.list.importReport} />
+      <Card className="p-4">
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ppc-gold">Add contacts</h2>
+        <AddContactsForm listId={id} />
+      </Card>
+
+      <ImportsPanel imports={bundle.list.imports} contacts={bundle.contacts} listId={id} />
 
       {due.length > 0 && (
         <Card className="p-4">
@@ -112,7 +119,10 @@ export default async function ContactsPage({
       </div>
 
       {shown.length === 0 ? (
-        <EmptyState title="No contacts match" hint={q ? 'Try a different search.' : 'Nothing in this group yet.'} />
+        <EmptyState
+          title={bundle.contacts.length === 0 ? 'No contacts yet' : 'No contacts match'}
+          hint={q ? 'Try a different search.' : bundle.contacts.length === 0 ? 'Upload a sheet above to add the first contacts.' : 'Nothing in this group yet.'}
+        />
       ) : (
         <>
           {/* Wide: table */}
