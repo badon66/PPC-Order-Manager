@@ -4,6 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { today } from '@/lib/dates';
 import { BUSINESS_TIMEZONE } from '@/lib/constants';
 import { buildQueue } from '@/lib/data/sales-logic';
+import { alsoIn, type AlsoIn } from '@/lib/sales/match';
 import { CallView } from '@/components/sales/call-view';
 
 export const dynamic = 'force-dynamic';
@@ -26,12 +27,22 @@ export default async function CallPage({
   const startId = c && bundle.contacts.some((x) => x.id === c) ? c : (queue[0] ?? null);
   if (c && !bundle.contacts.some((x) => x.id === c)) notFound();
 
+  // The same person in another list — computed here so the view never has to know about other lists.
+  const otherLists = (await repo.listCallLists()).filter((l) => l.id !== id);
+  const others = (await Promise.all(otherLists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
+  const elsewhere: Record<string, AlsoIn[]> = {};
+  for (const x of bundle.contacts) {
+    const a = alsoIn(x, others);
+    if (a.length) elsewhere[x.id] = a;
+  }
+
   return (
     <CallView
       list={bundle.list}
       contacts={bundle.contacts}
       logs={bundle.logs}
       sessions={bundle.sessions}
+      alsoIn={elsewhere}
       queue={queue}
       startId={startId}
       callerDefault={user?.name ?? ''}

@@ -5,8 +5,10 @@ import type { CallLog, CallSession, Contact, ScriptItem } from '@/lib/types';
 import { keyForHeader } from '@/lib/sales/columns';
 import { phoneDisplay, telHref } from '@/lib/sales/phone';
 import { localTimeFor } from '@/lib/sales/timezones';
+import type { AlsoIn } from '@/lib/sales/match';
 import { OutcomeBadge } from '../outcome-badge';
 import { StarRating } from '../star-rating';
+import { AlsoInLine } from '../also-in';
 import { CallHistory } from './history';
 import { useNow } from './use-timers';
 
@@ -26,7 +28,7 @@ export function ManagerBadge() {
 }
 
 export function ContactPanel({
-  contact: c, logs, script, linked, listId, sessionsById = {},
+  contact: c, logs, script, linked, listId, sessionsById = {}, alsoIn = [],
 }: {
   contact: Contact;
   logs: CallLog[];
@@ -35,6 +37,8 @@ export function ContactPanel({
   linked: Contact[];
   listId: string;
   sessionsById?: Record<string, CallSession>;
+  /** The same person (phone or email) in other lists. */
+  alsoIn?: AlsoIn[];
 }) {
   const now = useNow(60_000);
   const local = localTimeFor(c, now);
@@ -52,6 +56,7 @@ export function ContactPanel({
           {c.isJerseyManager && <ManagerBadge />}
           {c.source === 'referral' && <span className="text-violet-300">Added from a call</span>}
         </p>
+        <AlsoInLine items={alsoIn} />
       </div>
 
       <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-3">

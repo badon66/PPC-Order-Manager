@@ -7,6 +7,7 @@ import type { CalendarDate } from '@/lib/dates';
 import { CALL_OUTCOME_OPTIONS } from '@/lib/constants';
 import { logCall, skipContact, updateCallLog } from '@/app/sales/actions';
 import { applicableItems, fillPlaceholders } from '@/lib/sales/script';
+import type { AlsoIn } from '@/lib/sales/match';
 import { isClosed, linkedContacts, sessionTallyFor, validateCallLog, type CallLogInput } from '@/lib/data/sales-logic';
 import { TextArea } from '@/components/order-form/fields';
 import { EmptyState, Warning } from '@/components/ui';
@@ -26,6 +27,8 @@ export interface CallViewProps {
   contacts: Contact[];
   logs: CallLog[];
   sessions: CallSession[];
+  /** Per contact id: the other lists the same person is in. Computed by the page. */
+  alsoIn: Record<string, AlsoIn[]>;
   queue: string[];
   startId: string | null;
   callerDefault: string;
@@ -239,7 +242,7 @@ export function CallView(props: CallViewProps) {
         <div className="grid gap-6 lg:grid-cols-2 2xl:grid-cols-[minmax(0,3fr)_minmax(0,5fr)_minmax(0,4fr)]">
           <section className="rounded-xl border border-line bg-surface p-4">
             {current.doNotCall && <div className="mb-3"><Warning>Do Not Call — this contact asked not to be contacted. Outcomes are disabled.</Warning></div>}
-            <ContactPanel contact={current} logs={contactLogs} script={list.script} linked={linked} listId={list.id} sessionsById={sessionsById} />
+            <ContactPanel contact={current} logs={contactLogs} script={list.script} linked={linked} listId={list.id} sessionsById={sessionsById} alsoIn={props.alsoIn[current.id] ?? []} />
           </section>
           <section className="rounded-xl border border-line bg-surface p-4">
             <ScriptPanel

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
 import { linkedContacts } from '@/lib/data/sales-logic';
+import { alsoIn } from '@/lib/sales/match';
 import { Button, Card } from '@/components/ui';
 import { ContactPanel } from '@/components/sales/call-view/contact-panel';
+import { AlsoInLine } from '@/components/sales/also-in';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,9 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const linked = linkedContacts(contact, bundle.contacts);
   const logs = bundle.logs.filter((g) => g.contactId === contact.id);
   const sessionsById = Object.fromEntries(bundle.sessions.map((s) => [s.id, s]));
+  const otherLists = (await repo.listCallLists()).filter((l) => l.id !== id);
+  const others = (await Promise.all(otherLists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
+  const elsewhere = alsoIn(contact, others);
 
   return (
     <div className="space-y-5">
@@ -31,6 +36,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           <Link href={`/sales/${id}`} className="text-sm text-muted hover:text-ppc-gold">← {bundle.list.name}</Link>
           <h1 className="truncate text-2xl font-bold">{contact.contactName || contact.orgName || 'Contact'}</h1>
           <p className="text-sm text-muted">Viewing only — nothing here starts a session or changes the queue.</p>
+          <AlsoInLine items={elsewhere} />
         </div>
         <div className="flex items-center gap-2">
           {contact.doNotCall
