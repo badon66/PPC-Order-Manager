@@ -223,6 +223,8 @@ export interface Repository {
   addCallLog(log: CallLog, contactPatch: Partial<Contact>, newContact: Contact | null, actor: Actor, extraPatches?: ContactPatch[]): Promise<void>;
   updateCallLog(log: CallLog, contactPatch: Partial<Contact>, actor: Actor): Promise<void>;
   updateContact(id: string, patch: Partial<Contact>, actor: Actor): Promise<Contact>;
+  /** Logs first, then the contact — a failure part-way leaves a contact with no history, visible and deletable again. */
+  deleteContact(id: string, actor: Actor): Promise<void>;
   softDeleteCallList(id: string, actor: Actor): Promise<void>;
 
   /* Sales — calling sessions. One small row each; logs carry the session id. */

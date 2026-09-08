@@ -552,6 +552,14 @@ export const supabaseStore: Repository = {
     return after;
   },
 
+  /* Logs first, then the contact. See repository.ts. */
+  async deleteContact(id, _actor) {
+    const logs = await supabase().from(CALL_LOGS).delete().eq('contact_id', id);
+    if (logs.error) throw new Error(`delete call logs: ${logs.error.message}`);
+    const row = await supabase().from(CALL_CONTACTS).delete().eq('id', id);
+    if (row.error) throw new Error(`delete contact: ${row.error.message}`);
+  },
+
   async softDeleteCallList(id, _actor) {
     const found = await supabase().from(CALL_LISTS).select('id, data').eq('id', id).maybeSingle();
     if (found.error) throw new Error(`find call list: ${found.error.message}`);

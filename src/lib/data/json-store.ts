@@ -448,6 +448,13 @@ export const jsonStore: Repository = {
     });
   },
 
+  async deleteContact(id, _actor) {
+    await withWrite((db) => {
+      db.callLogs = db.callLogs.filter((g) => g.contactId !== id);
+      db.callContacts = db.callContacts.filter((c) => c.id !== id);
+    });
+  },
+
   async softDeleteCallList(id, _actor) {
     await withWrite((db) => {
       const l = db.callLists.find((x) => x.id === id);
