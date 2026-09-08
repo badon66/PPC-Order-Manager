@@ -502,10 +502,20 @@ export const supabaseStore: Repository = {
    * empty list — visible on the Sales page and deletable. The other order
    * would leave orphan contacts nobody can see.
    */
-  async createCallList(list, contacts, _actor) {
+  async createCallList(list, _actor) {
     await putCallList(list);
-    await putContacts(contacts);
     return list;
+  },
+
+  async updateCallList(list, _actor) {
+    await putCallList(list);
+  },
+
+  /* List first, then filled-in contacts, then new contacts. See repository.ts. */
+  async applyImport(list, newContacts, updatedContacts, _actor) {
+    await putCallList(list);
+    await putContacts(updatedContacts);
+    await putContacts(newContacts);
   },
 
   /*

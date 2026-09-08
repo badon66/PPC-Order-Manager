@@ -385,11 +385,32 @@ export const jsonStore: Repository = {
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ?? null;
   },
 
-  async createCallList(list, contacts, _actor) {
+  async createCallList(list, _actor) {
     return withWrite((db) => {
       db.callLists.push(list);
-      db.callContacts.push(...contacts);
       return list;
+    });
+  },
+
+  async updateCallList(list, _actor) {
+    await withWrite((db) => {
+      const idx = db.callLists.findIndex((l) => l.id === list.id);
+      if (idx === -1) throw new Error(`Call list ${list.id} not found`);
+      db.callLists[idx] = list;
+    });
+  },
+
+  async applyImport(list, newContacts, updatedContacts, _actor) {
+    await withWrite((db) => {
+      const idx = db.callLists.findIndex((l) => l.id === list.id);
+      if (idx === -1) throw new Error(`Call list ${list.id} not found`);
+      db.callLists[idx] = list;
+      for (const u of updatedContacts) {
+        const i = db.callContacts.findIndex((c) => c.id === u.id);
+        if (i === -1) throw new Error(`Contact ${u.id} not found`);
+        db.callContacts[i] = u;
+      }
+      db.callContacts.push(...newContacts);
     });
   },
 

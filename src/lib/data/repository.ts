@@ -200,8 +200,19 @@ export interface Repository {
   getCallList(id: string): Promise<CallListBundle | null>;
   getContact(id: string): Promise<Contact | null>;
   latestCallLogFor(contactId: string): Promise<CallLog | null>;
-  /** List row first, then contacts — a failure part-way leaves an empty list, visible and deletable. */
-  createCallList(list: CallList, contacts: Contact[], actor: Actor): Promise<CallList>;
+  /** An empty named list. Contacts only ever arrive through applyImport. */
+  createCallList(list: CallList, actor: Actor): Promise<CallList>;
+  /** Rename, script, imports — the whole row is replaced. */
+  updateCallList(list: CallList, actor: Actor): Promise<void>;
+  /**
+   * One upload: the list row (script + the new import record) first, then the
+   * existing contacts whose blanks were filled, then the new contacts. A
+   * failure part-way leaves the report saying more was added than exists —
+   * visible on the list page, and the next upload of the same sheet repairs it
+   * (matching rows merge, missing rows get added). The other order would add
+   * contacts the report doesn't mention.
+   */
+  applyImport(list: CallList, newContacts: Contact[], updatedContacts: Contact[], actor: Actor): Promise<void>;
   /**
    * Log first, then the contact patch, then the other contacts' flag changes,
    * then the new contact (a referral or a newly named jersey manager), if any.
