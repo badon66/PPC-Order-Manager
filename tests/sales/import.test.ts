@@ -1,29 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseCallListFile, contactsFromRows, scriptFromRows, cellText } from '@/lib/sales/import';
+import { parseSheet, contactsFromRows, scriptFromRows, cellText } from '@/lib/sales/import';
 
 const NOW = '2026-09-06T20:00:00.000Z';
 const opts = (fileName: string) => ({
-  fileName, bytes: new Uint8Array(readFileSync(`tests/sales/fixtures/${fileName}`)),
-  listId: 'list-1', listName: 'Sample', createdBy: 'Keenan Huber', now: NOW,
+  fileName, bytes: new Uint8Array(readFileSync(`tests/sales/fixtures/${fileName}`)), listId: 'list-1', now: NOW,
 });
 
 for (const fileName of ['sample-list.xlsx', 'sample-list.csv']) {
   test(`${fileName}: rows, skips, warnings, normalisation`, async () => {
-    const r = await parseCallListFile(opts(fileName));
+    const r = await parseSheet(opts(fileName));
     assert.ok(r.ok, r.ok ? '' : r.error);
     if (!r.ok) return;
-    const { list, contacts } = r;
+    const { contacts } = r;
 
-    assert.equal(list.id, 'list-1');
-    assert.equal(list.name, 'Sample');
-    assert.equal(list.sourceFileName, fileName);
     assert.equal(contacts.length, 5);
-    assert.equal(list.importReport.imported, 5);
-    assert.deepEqual(list.importReport.skipped.map((s) => s.line), [4]);
-    assert.match(list.importReport.skipped[0].reason, /no org and no phone/i);
-    assert.match(list.importReport.skipped[0].raw, /Nobody Reachable/);
+    assert.deepEqual(r.lines, [2, 3, 5, 6, 7]);
+    assert.deepEqual(r.skipped.map((s) => s.line), [4]);
+    assert.match(r.skipped[0].reason, /no org and no phone/i);
+    assert.match(r.skipped[0].raw, /Nobody Reachable/);
 
     const [eagles, kodiaks, dup, storm, lakers] = contacts;
     assert.equal(eagles.orgName, 'Ennismore Eagles');
@@ -48,8 +44,8 @@ for (const fileName of ['sample-list.xlsx', 'sample-list.csv']) {
     assert.equal(lakers.timezoneOverride, 'Central');
     assert.equal(lakers.teams, 1);
 
-    const reasons = list.importReport.warnings.map((w) => `${w.line}:${w.reason}`).join('\n');
-    assert.match(reasons, /^5:.*duplicate/im);
+    const reasons = r.warnings.map((w) => `${w.line}:${w.reason}`).join('\n');
+    assert.doesNotMatch(reasons, /duplicate/i, 'same-person rows are merged by planImport, not warned about');
     assert.match(reasons, /^6:.*Org Type/im);
     assert.match(reasons, /^6:.*Do Not Call/im);
     assert.match(reasons, /^7:.*phone/im);
@@ -57,20 +53,22 @@ for (const fileName of ['sample-list.xlsx', 'sample-list.csv']) {
 }
 
 test('xlsx carries the script; csv has none', async () => {
-  const x = await parseCallListFile(opts('sample-list.xlsx'));
-  const c = await parseCallListFile(opts('sample-list.csv'));
+  const x = await parseSheet(opts('sample-list.xlsx'));
+  const c = await parseSheet(opts('sample-list.csv'));
   assert.ok(x.ok && c.ok);
   if (!x.ok || !c.ok) return;
-  assert.equal(x.list.script.length, 20);
-  assert.equal(x.list.script[0].id, 's1');
-  assert.equal(x.list.script[0].kind, 'reminder');
-  assert.equal(x.list.script[6].kind, 'jersey_manager');
-  assert.equal(x.list.script[6].options.length, 0);
-  assert.equal(x.list.script[7].kind, 'question');
-  assert.equal(x.list.script[7].options.length, 4);
-  assert.equal(x.list.script[4].showWhen, 'Org Type = Minor Hockey Association');
-  assert.equal(x.list.script[12].response.length > 20, true);
-  assert.equal(c.list.script.length, 0);
+  assert.ok(x.script);
+  if (!x.script) return;
+  assert.equal(x.script.length, 20);
+  assert.equal(x.script[0].id, 's1');
+  assert.equal(x.script[0].kind, 'reminder');
+  assert.equal(x.script[6].kind, 'jersey_manager');
+  assert.equal(x.script[6].options.length, 0);
+  assert.equal(x.script[7].kind, 'question');
+  assert.equal(x.script[7].options.length, 4);
+  assert.equal(x.script[4].showWhen, 'Org Type = Minor Hockey Association');
+  assert.equal(x.script[12].response.length > 20, true);
+  assert.equal(c.script, null);
 });
 
 test('scriptFromRows: unknown kind/section or blank text is skipped and reported; bad Show When warns', () => {
@@ -107,9 +105,9 @@ test('cellText', () => {
 });
 
 test('unsupported / empty files', async () => {
-  const r1 = await parseCallListFile({ ...opts('sample-list.csv'), fileName: 'list.pdf' });
+  const r1 = await parseSheet({ ...opts('sample-list.csv'), fileName: 'list.pdf' });
   assert.ok(!r1.ok);
-  const r2 = await parseCallListFile({ ...opts('sample-list.csv'), bytes: new Uint8Array() });
+  const r2 = await parseSheet({ ...opts('sample-list.csv'), bytes: new Uint8Array() });
   assert.ok(!r2.ok);
 });
 

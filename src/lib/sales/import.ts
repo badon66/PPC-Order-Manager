@@ -6,21 +6,21 @@
  * `raw`. The upload is one step; the report is persisted on the list.
  */
 import readExcelFile from 'read-excel-file/node';
-import type { CallList, Contact, ImportReport, ScriptItem, ScriptKind, ScriptSection } from '@/lib/types';
+import type { Contact, ImportRecord, ScriptItem, ScriptKind, ScriptSection } from '@/lib/types';
 import { SCRIPT_KINDS, SCRIPT_SECTIONS } from '@/lib/types';
 import { SCRIPT_KIND_LABELS } from '@/lib/constants';
 import { parseCsv } from '@/lib/csv';
 import { newId } from '@/lib/order-utils';
-import { blankCallList, blankContact } from '@/lib/data/sales-logic';
+import { blankContact, type ParsedSheet } from '@/lib/data/sales-logic';
 import { CONTACT_COLUMNS, keyForHeader, type ContactSheetKey } from './columns';
 import { parseShowWhen } from './script';
-import { isNorthAmerican, phoneDigits } from './phone';
+import { isNorthAmerican } from './phone';
 import picklists from './picklists.json';
 
-export type ImportResult = { ok: true; list: CallList; contacts: Contact[] } | { ok: false; error: string };
+export type ParseResult = ({ ok: true } & ParsedSheet) | { ok: false; error: string };
 
-type Skipped = ImportReport['skipped'];
-type Warnings = ImportReport['warnings'];
+type Skipped = ImportRecord['skipped'];
+type Warnings = ImportRecord['warnings'];
 
 /** What a spreadsheet cell becomes. Dates are calendar dates, never instants. */
 export function cellText(v: unknown): string {
@@ -50,10 +50,11 @@ export function contactsFromRows(
   listId: string,
   now: string,
   idFor: () => string = newId,
-): { contacts: Contact[]; skipped: Skipped; warnings: Warnings } {
+): { contacts: Contact[]; lines: number[]; skipped: Skipped; warnings: Warnings } {
   const skipped: Skipped = [];
   const warnings: Warnings = [];
   const contacts: Contact[] = [];
+  const lines: number[] = [];
 
   const headerIdx = rows.findIndex((r) => !isBlankRow(r));
   const headers = headerIdx === -1 ? [] : rows[headerIdx].map((h) => h.trim());
@@ -61,10 +62,9 @@ export function contactsFromRows(
   const known = keyAt.filter(Boolean);
   if (headerIdx === -1 || (!known.includes('orgName') && !known.includes('phone'))) {
     skipped.push({ line: headerIdx === -1 ? 1 : headerIdx + 1, reason: 'No recognisable header row — need at least "Org Name" or "Phone"', raw: headers.join(', ') });
-    return { contacts, skipped, warnings };
+    return { contacts, lines, skipped, warnings };
   }
 
-  const seen = new Map<string, number>();
   let sortOrder = 0;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
@@ -115,17 +115,12 @@ export function contactsFromRows(
     if (c.altPhone && !isNorthAmerican(c.altPhone)) warnings.push({ line, reason: `Alt Phone "${c.altPhone}" isn't a 10-digit number — kept as typed` });
     if (c.doNotCall) warnings.push({ line, reason: 'Do Not Call is set — this contact will never be queued' });
 
-    const dupKey = `${norm(c.orgName)}|${phoneDigits(c.phone)}`;
-    if (phoneDigits(c.phone)) {
-      const first = seen.get(dupKey);
-      if (first) warnings.push({ line, reason: `Looks like a duplicate of line ${first} (same org and phone) — both kept` });
-      else seen.set(dupKey, line);
-    }
-
+    // Rows that are the same person (same phone or email) are merged by planImport, not warned about here.
+    lines.push(line);
     contacts.push(c);
   }
 
-  return { contacts, skipped, warnings };
+  return { contacts, lines, skipped, warnings };
 }
 
 /* ------------------------------------------------------------------ *
@@ -196,24 +191,25 @@ async function readSheets(fileName: string, bytes: Uint8Array): Promise<{ contac
   return { contacts: toText(contacts.data), script: script ? toText(script.data) : null };
 }
 
-export async function parseCallListFile(opts: {
-  fileName: string; bytes: Uint8Array; listId: string; listName: string; createdBy: string; now: string;
-}): Promise<ImportResult> {
+/**
+ * Read one sheet. The list it goes into is decided by the caller; `listId`
+ * only stamps the rows. A sheet with no contacts and no script is an error;
+ * a script-only sheet is allowed (it replaces the list's script).
+ */
+export async function parseSheet(opts: { fileName: string; bytes: Uint8Array; listId: string; now: string }): Promise<ParseResult> {
   const read = await readSheets(opts.fileName, opts.bytes);
   if ('error' in read) return { ok: false, error: read.error };
-
   const c = contactsFromRows(read.contacts, opts.listId, opts.now);
-  const s = read.script ? scriptFromRows(read.script) : { items: [], skipped: [], warnings: [] };
-  if (c.contacts.length === 0) {
+  const s = read.script ? scriptFromRows(read.script) : null;
+  if (c.contacts.length === 0 && !(s && s.items.length > 0)) {
     return { ok: false, error: c.skipped[0]?.reason ?? 'No contacts found in the sheet' };
   }
-
-  const list = blankCallList(opts.listId, opts.listName.trim() || opts.fileName.replace(/\.[^.]+$/, ''), opts.fileName, opts.createdBy, opts.now);
-  list.script = s.items;
-  list.importReport = {
-    imported: c.contacts.length,
-    skipped: [...c.skipped, ...s.skipped],
-    warnings: [...c.warnings, ...s.warnings].sort((a, b) => a.line - b.line),
+  return {
+    ok: true,
+    contacts: c.contacts,
+    lines: c.lines,
+    script: s ? s.items : null,
+    skipped: [...c.skipped, ...(s?.skipped ?? [])],
+    warnings: [...c.warnings, ...(s?.warnings ?? [])].sort((a, b) => a.line - b.line),
   };
-  return { ok: true, list, contacts: c.contacts };
 }

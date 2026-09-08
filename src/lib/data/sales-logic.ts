@@ -16,6 +16,8 @@ import type {
 import { CALL_OUTCOMES } from '@/lib/types';
 import { BUSINESS_TIMEZONE, PRIORITY_RANK } from '@/lib/constants';
 import { isNorthAmerican } from '@/lib/sales/phone';
+import { findMatch } from '@/lib/sales/match';
+import { fillBlanks } from '@/lib/sales/merge';
 
 export type CallLogInput = Omit<CallLog, 'id' | 'listId' | 'contactId' | 'createdAt' | 'updatedAt'>;
 
@@ -61,6 +63,86 @@ export function blankCallLogInput(startedAt: string): CallLogInput {
 
 export function blankCallSession(id: string, listId: string, callerName: string, now: string): CallSession {
   return { id, listId, callerName, startedAt: now, endedAt: null, createdAt: now, updatedAt: now };
+}
+
+/* ------------------------------------------------------------------ *
+ * Uploads into a list
+ * ------------------------------------------------------------------ */
+
+export interface ParsedSheet {
+  contacts: Contact[];
+  /** Sheet line of each contact, parallel to `contacts`. */
+  lines: number[];
+  /** null when the sheet has no Script tab. */
+  script: ScriptItem[] | null;
+  skipped: ImportRecord['skipped'];
+  warnings: ImportRecord['warnings'];
+}
+
+export interface ImportPlan {
+  list: CallList;
+  newContacts: Contact[];
+  /** Existing contacts with blanks filled — full rows, ready to upsert. */
+  updatedContacts: Contact[];
+  record: ImportRecord;
+}
+
+/**
+ * Everything an upload does, decided in one place so both stores write the
+ * same thing. Sheet order is walked once: a row that matches a contact in the
+ * list fills that contact's blanks; one that matches a row accepted earlier in
+ * this upload fills that; otherwise it is a new contact after the existing
+ * ones. Matches in other lists are only reported. Call state is never touched.
+ */
+export function planImport(input: {
+  list: CallList;
+  existing: Contact[];
+  others: Array<{ list: CallList; contacts: Contact[] }>;
+  parsed: ParsedSheet;
+  fileName: string;
+  by: string;
+  now: string;
+}): ImportPlan {
+  const { list, existing, parsed, now } = input;
+  const others = input.others.filter((o) => o.list.id !== list.id && !o.list.deletedAt);
+  const record: ImportRecord = {
+    at: now, by: input.by, fileName: input.fileName, added: 0, merged: [], alsoIn: [],
+    skipped: parsed.skipped, warnings: parsed.warnings, scriptReplaced: false,
+  };
+  const updated = new Map<string, Contact>();
+  const accepted: Contact[] = [];
+  let sortOrder = existing.reduce((m, c) => Math.max(m, c.sortOrder), 0);
+
+  parsed.contacts.forEach((row, i) => {
+    const line = parsed.lines[i];
+    const inList = findMatch(row, existing);
+    if (inList) {
+      const base = updated.get(inList.id) ?? inList;
+      const { patch, filled } = fillBlanks(base, row);
+      if (filled.length > 0) updated.set(inList.id, { ...base, ...patch, updatedAt: now });
+      record.merged.push({ line, contactId: inList.id, filled });
+    } else {
+      const inUpload = findMatch(row, accepted);
+      if (inUpload) {
+        const { patch, filled } = fillBlanks(inUpload, row);
+        Object.assign(inUpload, patch);
+        record.merged.push({ line, contactId: inUpload.id, filled });
+      } else {
+        sortOrder += 1;
+        accepted.push({ ...row, listId: list.id, sortOrder, createdAt: now, updatedAt: now });
+        record.added += 1;
+      }
+    }
+    for (const o of others) {
+      const m = findMatch(row, o.contacts);
+      if (m) record.alsoIn.push({ line, contactId: m.id, listId: o.list.id, listName: o.list.name });
+    }
+  });
+
+  const script = parsed.script && parsed.script.length > 0 ? parsed.script : list.script;
+  record.scriptReplaced = script !== list.script;
+  const nextList: CallList = { ...list, script, imports: [record, ...list.imports].slice(0, MAX_IMPORT_RECORDS), updatedAt: now };
+  return { list: nextList, newContacts: accepted, updatedContacts: [...updated.values()], record };
 }
 
 /*
