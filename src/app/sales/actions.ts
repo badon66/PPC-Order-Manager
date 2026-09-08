@@ -7,10 +7,10 @@ import { newId } from '@/lib/order-utils';
 import { today } from '@/lib/dates';
 import { BUSINESS_TIMEZONE } from '@/lib/constants';
 import type { CallLog, CallSession, Contact } from '@/lib/types';
-import { parseCallListFile } from '@/lib/sales/import';
+import { parseSheet } from '@/lib/sales/import';
 import {
-  applyCallLog, applySkip, blankCallSession, linkedContacts, planJerseyManager, referralContactFrom,
-  sessionEnd, validateCallLog, type CallLogInput,
+  applyCallLog, applySkip, blankCallList, blankCallSession, linkedContacts, planImport, planJerseyManager,
+  referralContactFrom, sessionEnd, validateCallLog, type CallLogInput,
 } from '@/lib/data/sales-logic';
 
 /*
@@ -22,27 +22,57 @@ import {
 /** A spreadsheet is a few hundred KB. Far under Vercel's body cap; the artwork rule does not apply. */
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
-export type UploadResult = { ok: true; listId: string } | { ok: false; error: string };
+export type ListResult = { ok: true; listId: string } | { ok: false; error: string };
 
-export async function uploadCallList(formData: FormData): Promise<UploadResult> {
+export async function createCallList(name: string): Promise<ListResult> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return { ok: false, error: 'Give the list a name' };
+  const list = blankCallList(newId(), trimmed, actor.name, new Date().toISOString());
+  await repo.createCallList(list, actor);
+  revalidatePath('/sales');
+  return { ok: true, listId: list.id };
+}
+
+export async function renameCallList(listId: string, name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return { ok: false, error: 'Give the list a name' };
+  const bundle = await repo.getCallList(listId);
+  if (!bundle) return { ok: false, error: 'That list is gone' };
+  await repo.updateCallList({ ...bundle.list, name: trimmed, updatedAt: new Date().toISOString() }, actor);
+  revalidatePath('/sales');
+  revalidatePath(`/sales/${listId}`);
+  return { ok: true };
+}
+
+export type UploadResult = { ok: true; added: number; merged: number; alsoIn: number } | { ok: false; error: string };
+
+/** Add a sheet's rows to an existing list. The rules are planImport's; this only reads, plans and writes. */
+export async function uploadIntoList(listId: string, formData: FormData): Promise<UploadResult> {
   await requireRole('staff');
   const actor = await currentActor();
 
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: 'Choose an .xlsx or .csv file' };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: 'That file is over 5 MB — a call list should be far smaller' };
-  const listName = String(formData.get('name') ?? '');
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const listId = newId();
-  const parsed = await parseCallListFile({
-    fileName: file.name, bytes, listId, listName, createdBy: actor.name, now: new Date().toISOString(),
-  });
+  const bundle = await repo.getCallList(listId);
+  if (!bundle) return { ok: false, error: 'That list is gone' };
+  const now = new Date().toISOString();
+  const parsed = await parseSheet({ fileName: file.name, bytes: new Uint8Array(await file.arrayBuffer()), listId, now });
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
-  await repo.createCallList(parsed.list, parsed.contacts, actor);
+  const otherLists = (await repo.listCallLists()).filter((l) => l.id !== listId);
+  const others = (await Promise.all(otherLists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
+
+  const plan = planImport({ list: bundle.list, existing: bundle.contacts, others, parsed, fileName: file.name, by: actor.name, now });
+  await repo.applyImport(plan.list, plan.newContacts, plan.updatedContacts, actor);
   revalidatePath('/sales');
-  return { ok: true, listId };
+  revalidatePath(`/sales/${listId}`);
+  return { ok: true, added: plan.record.added, merged: plan.record.merged.length, alsoIn: plan.record.alsoIn.length };
 }
 
 export type LogCallResult =
