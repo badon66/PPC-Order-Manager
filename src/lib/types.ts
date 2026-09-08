@@ -643,19 +643,25 @@ export interface ScriptItem {
   showWhen: string;
 }
 
-/** What the upload skipped or flagged. Persisted on the list; shown every time. */
-export interface ImportReport {
-  imported: number;
+/** One upload into a list. Kept on the list, newest first, capped at 10. */
+export interface ImportRecord {
+  at: string;                 // instant
+  by: string;                 // caller name
+  fileName: string;
+  added: number;              // new contacts
+  merged: Array<{ line: number; contactId: string; filled: string[] }>;
+  alsoIn: Array<{ line: number; contactId: string; listId: string; listName: string }>;
   skipped: Array<{ line: number; reason: string; raw: string }>;
   warnings: Array<{ line: number; reason: string }>;
+  scriptReplaced: boolean;
 }
 
+/** A master list: one per kind of team, grown by uploads. Contacts, logs and sessions hang off it. */
 export interface CallList {
   id: string;
   name: string;
-  sourceFileName: string;
   script: ScriptItem[];
-  importReport: ImportReport;
+  imports: ImportRecord[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

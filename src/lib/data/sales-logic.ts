@@ -11,7 +11,7 @@ import type {
 } from '@/lib/dates';
 import { addDays, isCalendarDate, timestampDay } from '@/lib/dates';
 import type {
-  CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, ImportReport, JerseyManagerAnswer, ScriptItem,
+  CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, ImportRecord, JerseyManagerAnswer, ScriptItem,
 } from '@/lib/types';
 import { CALL_OUTCOMES } from '@/lib/types';
 import { BUSINESS_TIMEZONE, PRIORITY_RANK } from '@/lib/constants';
@@ -41,12 +41,8 @@ export function blankContact(listId: string, sortOrder: number, now: string): Co
   };
 }
 
-export function blankCallList(id: string, name: string, sourceFileName: string, createdBy: string, now: string): CallList {
-  return {
-    id, name, sourceFileName, script: [],
-    importReport: { imported: 0, skipped: [], warnings: [] },
-    createdBy, createdAt: now, updatedAt: now, deletedAt: null,
-  };
+export function blankCallList(id: string, name: string, createdBy: string, now: string): CallList {
+  return { id, name, script: [], imports: [], createdBy, createdAt: now, updatedAt: now, deletedAt: null };
 }
 
 export function blankJerseyManager(): JerseyManagerAnswer {
@@ -84,12 +80,29 @@ export function healContact(c: Contact): Contact {
   return c;
 }
 
+export const MAX_IMPORT_RECORDS = 10;
+
+/** Lists written before repeat uploads had one report and a source file name; they become one ImportRecord. */
 export function healCallList(l: CallList): CallList {
   l.script ??= [];
   l.script.forEach((s: ScriptItem) => { s.options ??= []; s.response ??= ''; s.showWhen ??= ''; });
-  l.importReport ??= { imported: 0, skipped: [], warnings: [] } as ImportReport;
   l.createdBy ??= '';
   l.deletedAt ??= null;
+  const legacy = l as unknown as {
+    importReport?: { imported: number; skipped: ImportRecord['skipped']; warnings: ImportRecord['warnings'] };
+    sourceFileName?: string;
+  };
+  if (!l.imports) {
+    l.imports = legacy.importReport
+      ? [{
+          at: l.createdAt, by: l.createdBy, fileName: legacy.sourceFileName ?? '', added: legacy.importReport.imported ?? 0,
+          merged: [], alsoIn: [], skipped: legacy.importReport.skipped ?? [], warnings: legacy.importReport.warnings ?? [],
+          scriptReplaced: true,
+        }]
+      : [];
+  }
+  delete legacy.importReport;
+  delete legacy.sourceFileName;
   return l;
 }
 
