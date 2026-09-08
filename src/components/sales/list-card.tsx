@@ -14,7 +14,8 @@ export function ListCard({ list, contacts, today }: { list: CallList; contacts: 
   const dueToday = contacts.filter((c) => c.callCount > 0 && !c.doNotCall && !!c.nextCallDate && c.nextCallDate <= today && !isClosed(c)).length;
   const dnc = contacts.filter((c) => c.doNotCall).length;
   const pct = total ? Math.round((called / total) * 100) : 0;
-  const problems = list.importReport.skipped.length + list.importReport.warnings.length;
+  const latest = list.imports[0];
+  const problems = latest ? latest.skipped.length + latest.warnings.length : 0;
 
   return (
     <Card className="flex flex-col gap-3 p-4 transition-colors hover:border-ppc-gold/50">
@@ -22,7 +23,8 @@ export function ListCard({ list, contacts, today }: { list: CallList; contacts: 
         <div className="min-w-0">
           <h3 className="truncate font-bold">{list.name}</h3>
           <p className="text-xs text-muted">
-            Uploaded {formatShort(timestampDay(list.createdAt, BUSINESS_TIMEZONE))} by {list.createdBy || '—'}
+            Created {formatShort(timestampDay(list.createdAt, BUSINESS_TIMEZONE))} by {list.createdBy || '—'}
+            {' · '}{list.imports.length} upload{list.imports.length === 1 ? '' : 's'}
             {problems > 0 && <> · <span className="text-amber-300">{problems} import note{problems === 1 ? '' : 's'}</span></>}
           </p>
         </div>
