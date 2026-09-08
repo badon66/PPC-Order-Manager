@@ -12,7 +12,7 @@ function contact(over: Partial<Contact> = {}): Contact {
     players: 210, seasonStartMonth: 'Sep', orderingMonth: 'Jun', currentSupplier: 'XYZ Sports',
     lastOrderedYear: '2023', colours: 'navy/gold', website: '', social: '', leadSource: 'Web research',
     priority: 'A', bestTimeToCall: 'Weekday evening', doNotCall: false, notes: '',
-    raw: { 'Rink': 'Ennismore CC' },
+    raw: { 'Rink': 'Ennismore CC' }, isJerseyManager: false,
     lastOutcome: null, lastCalledAt: null, callCount: 0, skipCount: 0, lastSkippedAt: null,
     nextCallDate: null, leadRating: null, createdAt: '2026-09-06T00:00:00.000Z', updatedAt: '2026-09-06T00:00:00.000Z',
     ...over,

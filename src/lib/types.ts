@@ -618,7 +618,7 @@ export const CALL_OUTCOMES = [
 ] as const;
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
-export const SCRIPT_KINDS = ['read', 'reminder', 'question', 'objection'] as const;
+export const SCRIPT_KINDS = ['read', 'reminder', 'question', 'objection', 'jersey_manager'] as const;
 export type ScriptKind = (typeof SCRIPT_KINDS)[number];
 
 export const SCRIPT_SECTIONS = ['opening', 'discovery', 'objections', 'close'] as const;
@@ -699,6 +699,11 @@ export interface Contact {
   notes: string;
   /** Every header → cell as uploaded, including columns the importer doesn't know. */
   raw: Record<string, string>;
+  /**
+   * Handles the jerseys for this team. Set by the Jersey manager script question;
+   * at most one contact per linked team (same orgName) carries it.
+   */
+  isJerseyManager: boolean;
 
   /* Call state. Written only by applyCallLog / applySkip in data/sales-logic.ts. */
   lastOutcome: CallOutcome | null;
@@ -727,6 +732,27 @@ export interface Referral {
   email: string;
 }
 
+/** The Jersey manager question's answer. '' = not asked or not answered. */
+export interface JerseyManagerAnswer {
+  answer: '' | 'self' | 'other';
+  /** 'other' → an already-known contact at the same team… */
+  existingContactId: string;
+  /** …or someone new. Blank when existingContactId is set. */
+  person: { name: string; role: string; phone: string; email: string; note: string };
+}
+
+/** One calling session: opened when the calling view is entered, closed by the back link. */
+export interface CallSession {
+  id: string;
+  listId: string;
+  callerName: string;
+  startedAt: string;
+  /** null while open (or abandoned — see sessionEnd). */
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CallLog {
   id: string;
   listId: string;
@@ -750,6 +776,9 @@ export interface CallLog {
   referral: Referral;
   /** bad_number replacement. */
   newPhone: string;
+  /** The session this call was made in; null for calls logged outside one. */
+  sessionId: string | null;
+  jerseyManager: JerseyManagerAnswer;
   createdAt: string;
   updatedAt: string;
 }

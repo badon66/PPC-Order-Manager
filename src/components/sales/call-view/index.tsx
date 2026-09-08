@@ -8,7 +8,7 @@ import { formatTimestamp } from '@/lib/dates';
 import { BUSINESS_TIMEZONE, CALL_OUTCOME_OPTIONS } from '@/lib/constants';
 import { logCall, skipContact, updateCallLog } from '@/app/sales/actions';
 import { applicableItems, fillPlaceholders } from '@/lib/sales/script';
-import { isClosed, sessionTally, validateCallLog, type CallLogInput } from '@/lib/data/sales-logic';
+import { blankJerseyManager, isClosed, sessionTally, validateCallLog, type CallLogInput } from '@/lib/data/sales-logic';
 import { TextArea } from '@/components/order-form/fields';
 import { EmptyState, Warning } from '@/components/ui';
 import { useCallerName } from '../use-caller-name';
@@ -48,6 +48,9 @@ export function inputFromDraft(d: CallDraft, callerName: string, now: string): C
     reason: d.reason,
     referral: d.referral,
     newPhone: d.newPhone,
+    // Wired up by the session and jersey-manager work; blank until then.
+    sessionId: null,
+    jerseyManager: blankJerseyManager(),
   };
 }
 

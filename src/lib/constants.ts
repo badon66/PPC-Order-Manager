@@ -1,4 +1,4 @@
-import type { AssetRole, Captaincy, CaptainPatchStyle, CallOutcome, JerseyTier, JerseyType, LacesStyle, LeadPriority, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ShoulderCut, SockType } from './types';
+import type { AssetRole, Captaincy, CaptainPatchStyle, CallOutcome, JerseyTier, JerseyType, LacesStyle, LeadPriority, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ScriptKind, ShoulderCut, SockType } from './types';
 import picklists from './sales/picklists.json';
 
 /* ------------------------------------------------------------------ *
@@ -526,3 +526,12 @@ export const NOT_INTERESTED_REASONS: readonly string[] = picklists.notInterested
 export const PRIORITY_RANK: Record<LeadPriority, number> = { A: 0, B: 1, C: 2, '': 3 };
 
 export const SALES_PICKLISTS = picklists;
+
+/** The Script tab's Kind column ↔ ScriptKind. The importer reads these labels case-insensitively; the template writes them. */
+export const SCRIPT_KIND_LABELS: Record<ScriptKind, string> = {
+  read: 'Read',
+  reminder: 'Reminder',
+  question: 'Question',
+  objection: 'Objection',
+  jersey_manager: 'Jersey manager',
+};

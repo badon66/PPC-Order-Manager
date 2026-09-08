@@ -11,7 +11,7 @@ import type {
 } from '@/lib/dates';
 import { addDays, isCalendarDate, timestampDay } from '@/lib/dates';
 import type {
-  CallList, CallLog, CallOutcome, Contact, ContactBucket, ImportReport, ScriptItem,
+  CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, ImportReport, JerseyManagerAnswer, ScriptItem,
 } from '@/lib/types';
 import { CALL_OUTCOMES } from '@/lib/types';
 import { BUSINESS_TIMEZONE, PRIORITY_RANK } from '@/lib/constants';
@@ -34,7 +34,7 @@ export function blankContact(listId: string, sortOrder: number, now: string): Co
     city: '', province: '', timezoneOverride: '', league: '', ageDivisions: '', teams: null,
     players: null, seasonStartMonth: '', orderingMonth: '', currentSupplier: '', lastOrderedYear: '',
     colours: '', website: '', social: '', leadSource: '', priority: '', bestTimeToCall: '',
-    doNotCall: false, notes: '', raw: {},
+    doNotCall: false, notes: '', raw: {}, isJerseyManager: false,
     lastOutcome: null, lastCalledAt: null, callCount: 0, skipCount: 0, lastSkippedAt: null,
     nextCallDate: null, leadRating: null,
     createdAt: now, updatedAt: now,
@@ -49,13 +49,22 @@ export function blankCallList(id: string, name: string, sourceFileName: string, 
   };
 }
 
+export function blankJerseyManager(): JerseyManagerAnswer {
+  return { answer: '', existingContactId: '', person: { name: '', role: '', phone: '', email: '', note: '' } };
+}
+
 export function blankCallLogInput(startedAt: string): CallLogInput {
   return {
     outcome: 'no_answer', leadRating: null, notes: '', answers: {}, checklist: [],
     startedAt, endedAt: startedAt, durationSeconds: 0, callerName: '',
     followUp: { date: null, time: '', note: '' }, email: '', reason: '',
     referral: { name: '', role: '', phone: '', email: '' }, newPhone: '',
+    sessionId: null, jerseyManager: blankJerseyManager(),
   };
+}
+
+export function blankCallSession(id: string, listId: string, callerName: string, now: string): CallSession {
+  return { id, listId, callerName, startedAt: now, endedAt: null, createdAt: now, updatedAt: now };
 }
 
 /*
@@ -89,7 +98,14 @@ export function healCallLog(g: CallLog): CallLog {
   for (const k of Object.keys(b) as Array<keyof CallLogInput>) {
     if (g[k] === undefined) (g as unknown as Record<string, unknown>)[k] = b[k];
   }
+  if (!g.jerseyManager.person) g.jerseyManager.person = blankJerseyManager().person;
   return g;
+}
+
+export function healCallSession(s: CallSession): CallSession {
+  s.endedAt ??= null;
+  s.callerName ??= '';
+  return s;
 }
 
 /* ------------------------------------------------------------------ *
@@ -182,11 +198,34 @@ export function buildQueue(contacts: Contact[], today: CalendarDate): string[] {
 }
 
 /* ------------------------------------------------------------------ *
- * Referral (§6)
+ * Linked contacts (follow-ups §2–§3)
+ *
+ * People at the same team are linked by organisation name — nothing to type,
+ * nothing to store, and a contact created from a call copies its source's
+ * orgName so it links by itself. They are never merged: each stays a row and
+ * a place in the queue.
  * ------------------------------------------------------------------ */
 
-export function referralContactFrom(source: Contact, log: CallLog, now: string): Contact {
-  const r = log.referral;
+export function orgKey(name: string): string {
+  return (name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function linkedContacts(contact: Contact, all: Contact[]): Contact[] {
+  const key = orgKey(contact.orgName);
+  if (!key) return [];
+  return all
+    .filter((x) => x.id !== contact.id && x.listId === contact.listId && orgKey(x.orgName) === key)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+}
+
+/* ------------------------------------------------------------------ *
+ * People named on a call: referrals and jersey managers (§6, follow-ups §3)
+ * ------------------------------------------------------------------ */
+
+export interface NamedPerson { name: string; role: string; phone: string; email: string; note?: string }
+
+/** A new row for someone named on a call: the team's details copied, the person's filled in, same sheet position as the source. */
+export function contactFromPerson(source: Contact, p: NamedPerson, now: string, opts: { isJerseyManager: boolean; reason: string }): Contact {
   return {
     ...blankContact(source.listId, source.sortOrder, now),
     source: 'referral',
@@ -198,9 +237,53 @@ export function referralContactFrom(source: Contact, log: CallLog, now: string):
     lastOrderedYear: source.lastOrderedYear, colours: source.colours, website: source.website,
     social: source.social, leadSource: 'Referral', priority: source.priority,
     bestTimeToCall: source.bestTimeToCall,
-    contactName: r.name.trim(), role: r.role.trim(), phone: r.phone.trim(), email: r.email.trim(),
-    notes: `Referred by ${source.contactName.trim() || source.orgName.trim() || 'a previous contact'}`,
+    contactName: p.name.trim(), role: p.role.trim(), phone: p.phone.trim(), email: p.email.trim(),
+    isJerseyManager: opts.isJerseyManager,
+    notes: [opts.reason, (p.note ?? '').trim()].filter(Boolean).join(' — '),
   };
+}
+
+const whoIs = (c: Contact) => c.contactName.trim() || c.orgName.trim() || 'a previous contact';
+
+export function referralContactFrom(source: Contact, log: CallLog, now: string): Contact {
+  return contactFromPerson(source, log.referral, now, { isJerseyManager: false, reason: `Referred by ${whoIs(source)}` });
+}
+
+export interface JerseyManagerPlan {
+  currentPatch: Partial<Contact>;
+  otherPatches: Array<{ id: string; patch: Partial<Contact> }>;
+  newContact: Contact | null;
+}
+
+/**
+ * What the Jersey manager answer does to the team's rows. At most one linked
+ * contact carries the flag afterwards. An unanswered question, or "someone
+ * else" with nothing filled in, changes nothing.
+ */
+export function planJerseyManager(contact: Contact, linked: Contact[], log: CallLog, now: string): JerseyManagerPlan {
+  const jm = log.jerseyManager;
+  const nothing: JerseyManagerPlan = { currentPatch: {}, otherPatches: [], newContact: null };
+  if (jm.answer === '') return nothing;
+  const clearOthers = (except?: string) =>
+    linked.filter((x) => x.id !== except && x.isJerseyManager).map((x) => ({ id: x.id, patch: { isJerseyManager: false } as Partial<Contact> }));
+  if (jm.answer === 'self') return { currentPatch: { isJerseyManager: true }, otherPatches: clearOthers(), newContact: null };
+  if (jm.existingContactId) {
+    const target = linked.find((x) => x.id === jm.existingContactId);
+    if (!target) return nothing;
+    return {
+      currentPatch: { isJerseyManager: false },
+      otherPatches: [...clearOthers(target.id), { id: target.id, patch: { isJerseyManager: true } }],
+      newContact: null,
+    };
+  }
+  if (jm.person.name.trim() || jm.person.phone.trim()) {
+    return {
+      currentPatch: { isJerseyManager: false },
+      otherPatches: clearOthers(),
+      newContact: contactFromPerson(contact, jm.person, now, { isJerseyManager: true, reason: `Named as jersey manager by ${whoIs(contact)}` }),
+    };
+  }
+  return nothing;
 }
 
 /* ------------------------------------------------------------------ *
@@ -227,7 +310,7 @@ const NEEDS_DATE: ReadonlySet<CallOutcome> = new Set(['callback', 'send_info', '
 export function validateCallLog(
   input: CallLogInput,
   contact: Contact,
-  opts: { replacing: boolean },
+  opts: { replacing: boolean; linkedIds?: string[]; sessionIds?: string[] },
 ): { blocking: Record<string, string>; warnings: Record<string, string> } {
   const blocking: Record<string, string> = {};
   const warnings: Record<string, string> = {};
@@ -250,6 +333,14 @@ export function validateCallLog(
   if (opts.replacing && contact.lastOutcome === 'do_not_call' && input.outcome !== 'do_not_call') {
     blocking.outcome = 'Do Not Call cannot be undone by editing the call';
   }
+  const jm = input.jerseyManager;
+  if (!['', 'self', 'other'].includes(jm.answer)) blocking.jerseyManager = 'Bad jersey manager answer';
+  if (jm.existingContactId && opts.linkedIds && !opts.linkedIds.includes(jm.existingContactId)) {
+    blocking.jerseyManager = 'That person is not a contact at this team';
+  }
+  if (input.sessionId && opts.sessionIds && !opts.sessionIds.includes(input.sessionId)) {
+    blocking.sessionId = 'That calling session does not belong to this list';
+  }
 
   if (input.email.trim() && !EMAIL_RE.test(input.email.trim())) warnings.email = "That doesn't look like an email";
   if (input.outcome === 'interested' && !input.email.trim()) warnings.email = 'No email captured — follow-up will be harder';
@@ -263,14 +354,31 @@ export function validateCallLog(
  * Session tally (§7 footer)
  * ------------------------------------------------------------------ */
 
-export function sessionTally(logs: CallLog[], callerName: string, today: CalendarDate) {
-  const mine = logs.filter((g) => g.callerName === callerName && timestampDay(g.endedAt, BUSINESS_TIMEZONE) === today);
-  const talked = new Set<CallOutcome>(['callback', 'send_info', 'interested', 'meeting_booked', 'not_now', 'not_interested', 'do_not_call']);
+const TALKED_OUTCOMES: ReadonlySet<CallOutcome> = new Set(['callback', 'send_info', 'interested', 'meeting_booked', 'not_now', 'not_interested', 'do_not_call']);
+
+function tallyOf(mine: CallLog[]) {
   return {
     calls: mine.length,
-    reached: mine.filter((g) => talked.has(g.outcome)).length,
+    reached: mine.filter((g) => TALKED_OUTCOMES.has(g.outcome)).length,
     voicemails: mine.filter((g) => g.outcome === 'voicemail').length,
     callbacks: mine.filter((g) => g.outcome === 'callback').length,
     infoSent: mine.filter((g) => g.outcome === 'send_info').length,
   };
+}
+
+/** Today's calls by one caller — the pre-session tally, kept for reports. */
+export function sessionTally(logs: CallLog[], callerName: string, today: CalendarDate) {
+  return tallyOf(logs.filter((g) => g.callerName === callerName && timestampDay(g.endedAt, BUSINESS_TIMEZONE) === today));
+}
+
+/** The calls of one session. */
+export function sessionTallyFor(logs: CallLog[], sessionId: string | null) {
+  return tallyOf(sessionId ? logs.filter((g) => g.sessionId === sessionId) : []);
+}
+
+/** When a session ended: as recorded, else at its last call, else at its start. */
+export function sessionEnd(session: CallSession, logs: CallLog[]): string {
+  if (session.endedAt) return session.endedAt;
+  const last = logs.filter((g) => g.sessionId === session.id).map((g) => g.endedAt).sort().at(-1);
+  return last ?? session.startedAt;
 }
