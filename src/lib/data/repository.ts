@@ -1,5 +1,5 @@
 import type {
-  AppUser, CallList, CallLog, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Contact,
+  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Contact,
   Order, OrderAsset, RosterEntry,
 } from '@/lib/types';
 
@@ -35,11 +35,18 @@ export interface OrderBundle {
   submissions: ClientRosterSubmission[];
 }
 
-/** A call list with everything the sales pages need. Contacts in sheet order, logs newest first. */
+/** A call list with everything the sales pages need. Contacts in sheet order, logs and sessions newest first. */
 export interface CallListBundle {
   list: CallList;
   contacts: Contact[];
   logs: CallLog[];
+  sessions: CallSession[];
+}
+
+/** A flag change on another contact of the same team, written alongside a call log. */
+export interface ContactPatch {
+  id: string;
+  patch: Partial<Contact>;
 }
 
 /**
@@ -196,13 +203,19 @@ export interface Repository {
   /** List row first, then contacts — a failure part-way leaves an empty list, visible and deletable. */
   createCallList(list: CallList, contacts: Contact[], actor: Actor): Promise<CallList>;
   /**
-   * Log first, then the contact patch, then the referral (if any). The rules
-   * that produce the patch and the referral are in ./sales-logic.ts; the store
-   * only writes. A failure after the log leaves a contact that looks uncalled —
-   * you might ring twice. The other order would lose the notes.
+   * Log first, then the contact patch, then the other contacts' flag changes,
+   * then the new contact (a referral or a newly named jersey manager), if any.
+   * The rules that produce all of these are in ./sales-logic.ts; the store only
+   * writes. A failure after the log leaves a contact that looks uncalled — you
+   * might ring twice. The other order would lose the notes.
    */
-  addCallLog(log: CallLog, contactPatch: Partial<Contact>, referral: Contact | null, actor: Actor): Promise<void>;
+  addCallLog(log: CallLog, contactPatch: Partial<Contact>, newContact: Contact | null, actor: Actor, extraPatches?: ContactPatch[]): Promise<void>;
   updateCallLog(log: CallLog, contactPatch: Partial<Contact>, actor: Actor): Promise<void>;
   updateContact(id: string, patch: Partial<Contact>, actor: Actor): Promise<Contact>;
   softDeleteCallList(id: string, actor: Actor): Promise<void>;
+
+  /* Sales — calling sessions. One small row each; logs carry the session id. */
+  listCallSessions(listId: string): Promise<CallSession[]>;                       // newest first
+  createCallSession(session: CallSession, actor: Actor): Promise<CallSession>;
+  endCallSession(id: string, endedAt: string, actor: Actor): Promise<void>;
 }

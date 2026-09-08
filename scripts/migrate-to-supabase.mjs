@@ -168,6 +168,11 @@ await push(
   (local.callLogs ?? []).filter((g) => listIds.has(g.listId)).map((g) => ({ id: g.id, list_id: g.listId, contact_id: g.contactId, data: g })),
   'call logs',
 );
+await push(
+  'call_sessions',
+  (local.callSessions ?? []).filter((s) => listIds.has(s.listId)).map((s) => ({ id: s.id, list_id: s.listId, data: s })),
+  'call sessions',
+);
 
 /* ---------- artwork ---------- */
 
@@ -218,6 +223,7 @@ for (const [table, expected] of [
   ['call_lists', (local.callLists ?? []).length],
   ['call_contacts', (local.callContacts ?? []).filter((c) => listIds.has(c.listId)).length],
   ['call_logs', (local.callLogs ?? []).filter((g) => listIds.has(g.listId)).length],
+  ['call_sessions', (local.callSessions ?? []).filter((s) => listIds.has(s.listId)).length],
 ]) {
   const { count, error } = await db.from(table).select('id', { count: 'exact', head: true });
   if (error) console.log(`  ? ${table}: ${error.message}`);

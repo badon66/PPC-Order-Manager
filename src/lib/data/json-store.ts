@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import type {
-  AppUser, CallList, CallLog, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset,
+  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset,
   RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
@@ -11,7 +11,7 @@ import type {
 import {
   CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
-import { healCallList, healCallLog, healContact } from './sales-logic';
+import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
 
 /**
@@ -36,6 +36,7 @@ export interface Database {
   callLists: CallList[];
   callContacts: Contact[];
   callLogs: CallLog[];
+  callSessions: CallSession[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -72,6 +73,7 @@ function heal(db: Database): Database {
   (db.callLists ??= []).forEach(healCallList);
   (db.callContacts ??= []).forEach(healContact);
   (db.callLogs ??= []).forEach(healCallLog);
+  (db.callSessions ??= []).forEach(healCallSession);
   return db;
 }
 
@@ -365,7 +367,10 @@ export const jsonStore: Repository = {
     const logs = db.callLogs
       .filter((g) => g.listId === id)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return { list, contacts, logs };
+    const sessions = db.callSessions
+      .filter((s) => s.listId === id)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return { list, contacts, logs, sessions };
   },
 
   async getContact(id) {
@@ -388,13 +393,17 @@ export const jsonStore: Repository = {
     });
   },
 
-  async addCallLog(log, contactPatch, referral, _actor) {
+  async addCallLog(log, contactPatch, newContact, _actor, extraPatches = []) {
     await withWrite((db) => {
       db.callLogs.push(log);
       const idx = db.callContacts.findIndex((c) => c.id === log.contactId);
       if (idx === -1) throw new Error(`Contact ${log.contactId} not found`);
       db.callContacts[idx] = { ...db.callContacts[idx], ...contactPatch };
-      if (referral) db.callContacts.push(referral);
+      for (const { id, patch } of extraPatches) {
+        const i = db.callContacts.findIndex((c) => c.id === id);
+        if (i !== -1) db.callContacts[i] = { ...db.callContacts[i], ...patch, updatedAt: log.endedAt };
+      }
+      if (newContact) db.callContacts.push(newContact);
     });
   },
 
@@ -424,6 +433,31 @@ export const jsonStore: Repository = {
       if (!l) throw new Error(`Call list ${id} not found`);
       l.deletedAt = new Date().toISOString();
       l.updatedAt = l.deletedAt;
+    });
+  },
+
+  /* Sales — sessions ------------------------------------------------- */
+
+  async listCallSessions(listId) {
+    const db = await load();
+    return db.callSessions
+      .filter((s) => s.listId === listId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  },
+
+  async createCallSession(session, _actor) {
+    return withWrite((db) => {
+      db.callSessions.push(session);
+      return session;
+    });
+  },
+
+  async endCallSession(id, endedAt, _actor) {
+    await withWrite((db) => {
+      const s = db.callSessions.find((x) => x.id === id);
+      if (!s) throw new Error(`Session ${id} not found`);
+      s.endedAt = endedAt;
+      s.updatedAt = endedAt;
     });
   },
 };

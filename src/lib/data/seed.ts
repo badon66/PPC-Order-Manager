@@ -225,6 +225,7 @@ export function seedDatabase(): Database {
     callLists: [],
     callContacts: [],
     callLogs: [],
+    callSessions: [],
   };
 }
 

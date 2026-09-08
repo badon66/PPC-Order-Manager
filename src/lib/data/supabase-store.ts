@@ -1,5 +1,5 @@
 import type {
-  AppUser, CallList, CallLog, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset, RosterEntry,
+  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset, RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import { supabase } from '@/lib/supabase';
@@ -9,7 +9,7 @@ import type {
 import {
   CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
-import { healCallList, healCallLog, healContact } from './sales-logic';
+import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 
 /**
  * Postgres-backed store, for the hosted app.
@@ -40,6 +40,7 @@ const USERS = 'app_users';
 const CALL_LISTS = 'call_lists';
 const CALL_CONTACTS = 'call_contacts';
 const CALL_LOGS = 'call_logs';
+const CALL_SESSIONS = 'call_sessions';
 
 /** Postgrest returns `{ data, error }` everywhere; surface errors as throws. */
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -87,6 +88,11 @@ async function putCallLog(g: CallLog): Promise<void> {
     .from(CALL_LOGS)
     .upsert({ id: g.id, list_id: g.listId, contact_id: g.contactId, data: g });
   if (res.error) throw new Error(`save call log: ${res.error.message}`);
+}
+
+async function putCallSession(s: CallSession): Promise<void> {
+  const res = await supabase().from(CALL_SESSIONS).upsert({ id: s.id, list_id: s.listId, data: s });
+  if (res.error) throw new Error(`save call session: ${res.error.message}`);
 }
 
 async function contactById(id: string): Promise<Contact | null> {
@@ -462,14 +468,16 @@ export const supabaseStore: Repository = {
     if (found.error) throw new Error(`find call list: ${found.error.message}`);
     if (!found.data) return null;
     const list = healCallList((found.data as Row<CallList>).data);
-    const [cs, gs] = await Promise.all([
+    const [cs, gs, ss] = await Promise.all([
       supabase().from(CALL_CONTACTS).select('id, data').eq('list_id', id).order('sort_order').order('created_at'),
       supabase().from(CALL_LOGS).select('id, data').eq('list_id', id).order('started_at', { ascending: false }),
+      supabase().from(CALL_SESSIONS).select('id, data').eq('list_id', id).order('started_at', { ascending: false }),
     ]);
     return {
       list,
       contacts: rows<Contact>(unwrap(cs, 'load contacts')).map(healContact),
       logs: rows<CallLog>(unwrap(gs, 'load call logs')).map(healCallLog),
+      sessions: rows<CallSession>(unwrap(ss, 'load call sessions')).map(healCallSession),
     };
   },
 
@@ -501,17 +509,22 @@ export const supabaseStore: Repository = {
   },
 
   /*
-   * Log first, then the contact, then the referral. See repository.ts — a
-   * failure after the log leaves a contact that looks uncalled (you might ring
-   * twice); the other order loses the notes. The referral is also inside the
-   * log's `referral` field, so a failure before it is visible in history.
+   * Log first, then the contact, then the other contacts' flag changes, then
+   * the new contact. See repository.ts — a failure after the log leaves a
+   * contact that looks uncalled (you might ring twice); the other order loses
+   * the notes. A referral or named manager is also inside the log, so a
+   * failure before the last step is still visible in history.
    */
-  async addCallLog(log, contactPatch, referral, _actor) {
+  async addCallLog(log, contactPatch, newContact, _actor, extraPatches = []) {
     await putCallLog(log);
     const before = await contactById(log.contactId);
     if (!before) throw new Error(`Contact ${log.contactId} not found`);
     await putContacts([{ ...before, ...contactPatch }]);
-    if (referral) await putContacts([referral]);
+    for (const { id, patch } of extraPatches) {
+      const other = await contactById(id);
+      if (other) await putContacts([{ ...other, ...patch, updatedAt: log.endedAt }]);
+    }
+    if (newContact) await putContacts([newContact]);
   },
 
   async updateCallLog(log, contactPatch, _actor) {
@@ -537,6 +550,32 @@ export const supabaseStore: Repository = {
     l.deletedAt = new Date().toISOString();
     l.updatedAt = l.deletedAt;
     await putCallList(l);
+  },
+
+  /* Sales — sessions ------------------------------------------------- */
+
+  async listCallSessions(listId) {
+    const res = await supabase()
+      .from(CALL_SESSIONS)
+      .select('id, data')
+      .eq('list_id', listId)
+      .order('started_at', { ascending: false });
+    return rows<CallSession>(unwrap(res, 'list call sessions')).map(healCallSession);
+  },
+
+  async createCallSession(session, _actor) {
+    await putCallSession(session);
+    return session;
+  },
+
+  async endCallSession(id, endedAt, _actor) {
+    const found = await supabase().from(CALL_SESSIONS).select('id, data').eq('id', id).maybeSingle();
+    if (found.error) throw new Error(`find call session: ${found.error.message}`);
+    if (!found.data) throw new Error(`Session ${id} not found`);
+    const s = healCallSession((found.data as Row<CallSession>).data);
+    s.endedAt = endedAt;
+    s.updatedAt = endedAt;
+    await putCallSession(s);
   },
 };
 

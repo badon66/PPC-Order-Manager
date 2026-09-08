@@ -21,7 +21,7 @@ test('export round-trips headers, adds outcome columns and question columns', as
     notes: 'wants the catalogue', answers: { s7: 'Board vote' }, endedAt: '2026-09-06T20:05:00.000Z',
     createdAt: '2026-09-06T20:05:00.000Z', updatedAt: '2026-09-06T20:05:00.000Z',
   };
-  const csv = callListToCsv({ list: r.list, contacts: r.contacts, logs: [log] });
+  const csv = callListToCsv({ list: r.list, contacts: r.contacts, logs: [log], sessions: [] });
   assert.ok(csv.startsWith('\uFEFF'));
   const rows = parseCsv(csv.slice(1));
   const header = rows[0];
