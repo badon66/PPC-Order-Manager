@@ -572,6 +572,10 @@ export function publicViewOf(
     approvedDate: o.approvedDate,
     approvalRecord: o.approvalRecord,
     specialNotes: o.specialNotes,
+    captainPatchNotes: o.captainPatchNotes,
+    designReferenceNotes: o.designReferenceNotes,
+    collarReferenceNotes: o.collarReferenceNotes,
+    mainCrestNotes: o.mainCrestNotes,
     contact: {
       firstName: o.contactFirstName,
       lastName: o.contactLastName,

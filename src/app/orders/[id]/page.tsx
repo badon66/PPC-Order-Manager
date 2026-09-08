@@ -9,6 +9,7 @@ import {
 } from '@/lib/constants';
 import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
+import { asDownload, downloadName } from '@/lib/download';
 import { baseUrl, isLocalUrl } from '@/lib/base-url';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
@@ -165,8 +166,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
               {fonts.map((f) => (
                 <a
                   key={f.id}
-                  href={f.viewUrl}
-                  download={f.fileName || undefined}
+                  /*
+                   * Same trick as the artwork tiles: `download` alone is
+                   * ignored cross-origin, and the font lives on Supabase.
+                   */
+                  href={asDownload(f.viewUrl, downloadName([order.teamName, 'font'], f.fileName, f.viewUrl))}
+                  download={downloadName([order.teamName, 'font'], f.fileName, f.viewUrl)}
                   className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-sm font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
                 >
                   ↓ {f.displayName?.trim() || f.fileName || 'Download font'}
@@ -400,7 +405,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        <ArtworkGallery assets={assets} hideRoles={['font']} />
+        <ArtworkGallery assets={assets} hideRoles={['font']} teamName={order.teamName} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

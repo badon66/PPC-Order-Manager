@@ -45,6 +45,16 @@ customer data.
 - **Public pages are built field-by-field, never by spreading the order.**
   `publicViewOf` in `data/logic.ts` — so a new field on Order doesn't leak to
   the customer's page by default.
+
+  The flip side, and it bit us: a field can sit in `PublicOrderView` for months
+  and be rendered by nothing. `specialNotes` did exactly that — collected on
+  the form, carried into the view, shown on no page, so every note Keenan or a
+  customer typed reached nobody. **The share sheet is the manufacturer's sheet
+  too.** Notes on it are production instructions ("needs an A", "crest 10%
+  larger"), not commentary, so they must be visible: order notes, captain-patch
+  notes, the three artwork reference notes, and a Notes column on the roster
+  table carrying both players' and spares' notes. Adding a field to the view is
+  half the job — render it.
 - **Business rules live in `data/logic.ts`, not in a store.** What gets logged,
   what a customer sees, what accepting a submission does. Both backends call
   it. Put a rule in one store and the two quietly stop agreeing.
@@ -142,6 +152,16 @@ src/components/order-form/  the big form: index, fields, roster-table,
   `buildTallies` in `roster-tally.tsx` shows the live count vs set quantities.
 - Sizes are controlled lists (`JERSEY_SIZES` etc.). Goalie and sock-only are
   flags on the row, not strings in the size field.
+- **`<a download>` is ignored cross-origin — use `asDownload`** (`lib/download.ts`).
+  Artwork is served from Supabase signed URLs, a different origin, so the bare
+  attribute silently opens the file in a tab instead of saving it. Supabase
+  honours a `?download=<name>` parameter on a signed URL and answers with
+  `Content-Disposition: attachment`; `asDownload` adds it, and leaves local
+  paths (same-origin, attribute works) and foreign URLs alone. `downloadName`
+  builds the filename from the team and the role, because the stored ones are
+  hashes like `dcaadcd01_Screenshot....png` and six of those in a folder are
+  indistinguishable. Every artwork tile has a download; a tile with both a
+  placement photo and a print-ready file offers each separately.
 - **Roster markers are spelled out, never abbreviated.** `GoalieBadge` and
   `CaptaincyBadge` (`components/captaincy.tsx`) print "Goalie", "Captain" and
   "Alternate" — a bare G or A means nothing to the parent checking their kid's

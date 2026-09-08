@@ -200,13 +200,23 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           }${view.extraJerseyDetails.length > 1 ? 's' : ''})`}
         >
           <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[28rem] text-sm">
+            <table className="w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">#</th>
                   <th className="py-2 pr-3">Jersey</th>
-                  <th className="py-2">Sock</th>
+                  <th className="py-2 pr-3">Sock</th>
+                  {/*
+                    * Always rendered, even when every row is empty.
+                    *
+                    * This sheet goes to the manufacturer as well as the team,
+                    * and a note is usually the one thing on a row that isn't
+                    * obvious from the sizes — "needs an A", "sleeve length",
+                    * "spell it with the accent". It was collected on the
+                    * client form and then shown to nobody.
+                    */}
+                  <th className="py-2">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,7 +229,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
                     <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : r.jerseySize || '—'}</td>
-                    <td className="py-2">{r.sockSize || '—'}</td>
+                    <td className="py-2 pr-3">{r.sockSize || '—'}</td>
+                    <td className="py-2 text-muted">{r.notes || '—'}</td>
                   </tr>
                 ))}
 
@@ -237,11 +248,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                       <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ppc-gold">
                         Spare
                       </span>
-                      {x.notes && <span className="ml-2 text-xs text-muted">{x.notes}</span>}
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
                     <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : x.size || '—'}</td>
-                    <td className="py-2">{x.sockSize || '—'}</td>
+                    <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                    {/* Same column as the players', not tucked beside the badge. */}
+                    <td className="py-2 text-muted">{x.notes || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -252,7 +264,41 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
       {assets.length > 0 && (
         <Section title="Logos & Artwork">
-          <ArtworkGallery assets={assets} />
+          <ArtworkGallery assets={assets} teamName={view.teamName} />
+          {/*
+            * The notes that go with the artwork, same as the order sheet shows
+            * them. Whoever is making these needs the instruction as much as
+            * the picture.
+            */}
+          {(view.designReferenceNotes || view.collarReferenceNotes || view.mainCrestNotes) && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <Field label="Design Reference Notes">{view.designReferenceNotes}</Field>
+              <Field label="Collar Reference Notes">{view.collarReferenceNotes}</Field>
+              <Field label="Main Crest Notes">{view.mainCrestNotes}</Field>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/*
+        * Notes, finally rendered.
+        *
+        * `specialNotes` has been on this view since it was written and was
+        * never put on the page, so anything typed into it reached nobody — not
+        * the team, and not the manufacturer, who both read this sheet.
+        * Whitespace is preserved: these get typed as lists.
+        */}
+      {(view.specialNotes || view.captainPatchNotes) && (
+        <Section title="Notes">
+          {view.specialNotes && (
+            <p className="whitespace-pre-wrap text-sm">{view.specialNotes}</p>
+          )}
+          {view.captainPatchNotes && (
+            <div className={view.specialNotes ? 'mt-4 border-t border-line/60 pt-4' : ''}>
+              <p className="text-xs font-medium text-muted">Captain Patches</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm">{view.captainPatchNotes}</p>
+            </div>
+          )}
         </Section>
       )}
 

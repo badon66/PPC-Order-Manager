@@ -60,8 +60,10 @@ export interface ContactPatch {
  * The token is long and random so it can't be guessed, but a forwarded link
  * carries the address with it.
  *
- * Still deliberately excluded: internal notes, the change history, the font
- * file, and anything else that isn't the customer's own information.
+ * Still deliberately excluded: the change history, the font file, and anything
+ * else that isn't the customer's own information. Notes ARE included — see
+ * below. They are instructions about what to make, and this sheet is what goes
+ * to the manufacturer.
  */
 export interface PublicOrderView {
   /**
@@ -107,6 +109,15 @@ export interface PublicOrderView {
   approvedDate: Order['approvedDate'];
   approvalRecord: Order['approvalRecord'];
   specialNotes: string;
+  /*
+   * Production notes. These describe what to make, not what we think about the
+   * customer, and the share sheet is what goes to the manufacturer as well as
+   * to the team — so the instructions have to travel with it.
+   */
+  captainPatchNotes: string;
+  designReferenceNotes: string;
+  collarReferenceNotes: string;
+  mainCrestNotes: string;
 
   /** Shown so the customer can confirm it's correct before anything ships. */
   contact: {

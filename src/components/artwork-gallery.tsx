@@ -1,4 +1,5 @@
 import type { AssetRole, ViewableAsset } from '@/lib/types';
+import { asDownload, downloadName } from '@/lib/download';
 
 /**
  * Artwork, shown as pictures rather than a list of filenames.
@@ -121,12 +122,15 @@ function Tile({
   index,
   groupSize,
   hero = false,
+  namePrefix,
 }: {
   asset: ViewableAsset;
   index: number;
   groupSize: number;
   /** The design reference: shown at a size you can actually judge a jersey by. */
   hero?: boolean;
+  /** Team name, so a downloaded file says whose it is. */
+  namePrefix?: string;
 }) {
   const named = asset.displayName.trim();
   const title = named || derivedLabel(asset.role, index, groupSize);
@@ -146,6 +150,19 @@ function Tile({
   const shownName = asset.placementViewUrl ? asset.placementFileName ?? '' : asset.fileName;
   const image = looksLikeImage(shownUrl, shownName);
   const hasPrintFile = Boolean(asset.placementViewUrl) && Boolean(asset.viewUrl);
+
+  /*
+   * Named for what it is, not what it was called. The stored filename is
+   * usually a hash, and six of those in a downloads folder are six files
+   * nobody can tell apart. The extension still comes from the real file so it
+   * opens in the right program.
+   */
+  const shownDownloadName = downloadName(
+    [namePrefix, title, hasPrintFile ? 'placement' : ''],
+    shownName,
+    shownUrl,
+  );
+  const printDownloadName = downloadName([namePrefix, title, 'print'], asset.fileName, asset.viewUrl);
 
   return (
     <div className="group overflow-hidden rounded-lg border border-line bg-black/20 transition hover:border-ppc-gold">
@@ -200,28 +217,43 @@ function Tile({
         )}
 
         {/*
-          * Only where there are genuinely two files. One upload doesn't need
-          * two buttons pointing at it — that reads as a choice when it isn't.
+          * Every tile gets a download. Clicking the picture opens it, which is
+          * the wrong verb when the job is "put this file somewhere I can send
+          * it to production" — and on a phone, opening an image in a tab is a
+          * dead end.
+          *
+          * A second link appears only where there are genuinely two files: the
+          * placement photo you're looking at, and the print-ready vector
+          * behind it. One upload doesn't need two buttons pointing at it.
           */}
-        {hasPrintFile && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <a
+            href={asDownload(shownUrl, shownDownloadName)}
+            download={shownDownloadName}
+            className="font-semibold text-ppc-gold hover:underline"
+          >
+            ↓ {hasPrintFile ? 'Photo' : 'Download'}
+          </a>
+
+          {hasPrintFile && (
             <a
-              href={asset.viewUrl}
-              download={asset.fileName || undefined}
+              href={asDownload(asset.viewUrl, printDownloadName)}
+              download={printDownloadName}
               className="font-semibold text-ppc-gold hover:underline"
             >
               ↓ Print-ready file
             </a>
-            <a
-              href={asset.viewUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-muted hover:text-ppc-gold hover:underline"
-            >
-              Preview
-            </a>
-          </div>
-        )}
+          )}
+
+          <a
+            href={shownUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-muted hover:text-ppc-gold hover:underline"
+          >
+            Preview
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -238,7 +270,15 @@ function Tile({
  * `min(100%, 17rem)` rather than a bare `17rem`: on a narrow phone a 17rem
  * minimum would overflow the viewport instead of falling back to one column.
  */
-function Grid({ assets, hero = false }: { assets: ViewableAsset[]; hero?: boolean }) {
+function Grid({
+  assets,
+  hero = false,
+  namePrefix,
+}: {
+  assets: ViewableAsset[];
+  hero?: boolean;
+  namePrefix?: string;
+}) {
   return (
     <div
       className="grid gap-4"
@@ -251,7 +291,14 @@ function Grid({ assets, hero = false }: { assets: ViewableAsset[]; hero?: boolea
       }}
     >
       {assets.map((a, i) => (
-        <Tile key={a.id} asset={a} index={i} groupSize={assets.length} hero={hero} />
+        <Tile
+          key={a.id}
+          asset={a}
+          index={i}
+          groupSize={assets.length}
+          hero={hero}
+          namePrefix={namePrefix}
+        />
       ))}
     </div>
   );
@@ -260,10 +307,13 @@ function Grid({ assets, hero = false }: { assets: ViewableAsset[]; hero?: boolea
 export function ArtworkGallery({
   assets,
   hideRoles = [],
+  teamName,
 }: {
   assets: ViewableAsset[];
   /** Roles shown elsewhere on the page — the font moved up to Order Information. */
   hideRoles?: AssetRole[];
+  /** Prefixes every downloaded filename, so files from two orders don't collide. */
+  teamName?: string;
 }) {
   assets = hideRoles.length ? assets.filter((a) => !hideRoles.includes(a.role)) : assets;
   if (assets.length === 0) {
@@ -313,7 +363,7 @@ export function ArtworkGallery({
                     {block[0].displayName.trim() || `Logo ${blockIndex + 1}`}
                   </p>
                   {block[0].notes && <p className="text-xs text-muted">{block[0].notes}</p>}
-                  <Grid assets={block} />
+                  <Grid assets={block} namePrefix={teamName} />
                 </div>
               ))}
             </div>
@@ -330,7 +380,7 @@ export function ArtworkGallery({
               {ROLE_LABELS[role] ?? role}
               {group.length > 1 && ` (${group.length})`}
             </h3>
-            <Grid assets={group} hero={hero} />
+            <Grid assets={group} hero={hero} namePrefix={teamName} />
           </div>
         );
       })}
