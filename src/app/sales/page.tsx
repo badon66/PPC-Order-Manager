@@ -38,7 +38,7 @@ export default async function SalesPage() {
         {bundles.length === 0 ? (
           <EmptyState title="No call lists yet" hint="Fill in the blank template and upload it above." />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {bundles.map((b) => <ListCard key={b.list.id} list={b.list} contacts={b.contacts} today={day} />)}
           </div>
         )}

@@ -33,6 +33,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Sales is used on an ultra-wide monitor. Its layout renders a `.sales-wide`
+ * wrapper, and while that is on the page the header row and the main column
+ * widen from the app's 72rem to 120rem. Orders and Production are untouched.
+ */
+body:has(.sales-wide) :is(header > div, main) { max-width: 120rem; }
+
 /* Comfortable tap targets on a phone — this gets used at a rink. */
 @media (max-width: 640px) {
   button, a[role="button"], input, select, textarea { min-height: 44px; }
