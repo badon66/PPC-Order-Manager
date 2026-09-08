@@ -10,7 +10,7 @@ import type { CallLog, CallSession, Contact } from '@/lib/types';
 import { parseSheet } from '@/lib/sales/import';
 import {
   applyCallLog, applySkip, blankCallList, blankCallSession, linkedContacts, planImport, planJerseyManager,
-  referralContactFrom, sessionEnd, validateCallLog, type CallLogInput,
+  quickEditPatch, quickLogInput, referralContactFrom, sessionEnd, validateCallLog, type CallLogInput,
 } from '@/lib/data/sales-logic';
 
 /*
@@ -167,6 +167,39 @@ export type SessionResult = { ok: true; session: CallSession } | { ok: false; er
  * first — at its last call, or its start — so an abandoned tab never leaves
  * two sessions running.
  */
+/** Status set from the contacts table: a zero-duration call through the same rule as the calling view. */
+export async function quickStatus(listId: string, contactId: string, raw: CallLogInput, callerName: string): Promise<LogCallResult> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  return logCall(listId, contactId, quickLogInput(raw, String(callerName ?? '').trim() || actor.name, new Date().toISOString()));
+}
+
+export async function quickEditContact(
+  listId: string, contactId: string, raw: Record<string, unknown>,
+): Promise<{ ok: true; contact: Contact } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const existing = await repo.getContact(contactId);
+  if (!existing || existing.listId !== listId) return { ok: false, error: 'That contact is gone' };
+  const r = quickEditPatch(raw);
+  if (!r.ok) return r;
+  const contact = await repo.updateContact(contactId, r.patch, actor);
+  revalidatePath(`/sales/${listId}`);
+  revalidatePath(`/sales/${listId}/contacts/${contactId}`);
+  return { ok: true, contact };
+}
+
+export async function deleteContact(listId: string, contactId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const existing = await repo.getContact(contactId);
+  if (!existing || existing.listId !== listId) return { ok: false, error: 'That contact is gone' };
+  await repo.deleteContact(contactId, actor);
+  revalidatePath('/sales');
+  revalidatePath(`/sales/${listId}`);
+  return { ok: true };
+}
+
 export async function startSession(listId: string, callerName: string): Promise<SessionResult> {
   await requireRole('staff');
   const actor = await currentActor();
