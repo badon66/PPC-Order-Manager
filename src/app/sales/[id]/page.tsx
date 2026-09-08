@@ -10,6 +10,8 @@ import { Button, Card, EmptyState } from '@/components/ui';
 import { OutcomeBadge } from '@/components/sales/outcome-badge';
 import { StarRating } from '@/components/sales/star-rating';
 import { ImportReportPanel } from '@/components/sales/import-report';
+import { SessionsPanel } from '@/components/sales/sessions-panel';
+import { ManagerBadge } from '@/components/sales/call-view/contact-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +80,7 @@ export default async function ContactsPage({
           <ul className="divide-y divide-line">
             {due.map((c) => (
               <li key={c.id}>
-                <Link href={`/sales/${id}/call?c=${c.id}`} className="flex items-center justify-between gap-3 py-2 hover:text-ppc-gold">
+                <Link href={`/sales/${id}/contacts/${c.id}`} className="flex items-center justify-between gap-3 py-2 hover:text-ppc-gold">
                   <span className="min-w-0 truncate"><span className="font-semibold">{c.contactName || '—'}</span> · {c.orgName}</span>
                   <span className="flex shrink-0 items-center gap-2 text-xs text-muted"><OutcomeBadge outcome={c.lastOutcome} /> {c.nextCallDate ? formatShort(c.nextCallDate) : ''}</span>
                 </Link>
@@ -87,6 +89,8 @@ export default async function ContactsPage({
           </ul>
         </Card>
       )}
+
+      <SessionsPanel sessions={bundle.sessions} logs={bundle.logs} contacts={bundle.contacts} listId={id} now={new Date().toISOString()} />
 
       <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
         <form className="flex items-center gap-2 sm:flex-1" action={`/sales/${id}`}>
@@ -124,8 +128,8 @@ export default async function ContactsPage({
               <tbody>
                 {shown.map((c) => (
                   <tr key={c.id} className="border-b border-line/60 hover:bg-surface-2">
-                    <td className="py-2 pr-3 font-semibold"><Link href={`/sales/${id}/call?c=${c.id}`} className="hover:text-ppc-gold">{c.orgName || '—'}</Link></td>
-                    <td className="py-2 pr-3">{c.contactName || '—'}</td>
+                    <td className="py-2 pr-3 font-semibold"><Link href={`/sales/${id}/contacts/${c.id}`} className="hover:text-ppc-gold">{c.orgName || '—'}</Link></td>
+                    <td className="py-2 pr-3"><Link href={`/sales/${id}/contacts/${c.id}`} className="hover:text-ppc-gold">{c.contactName || '—'}</Link>{c.isJerseyManager && <span className="ml-2 align-middle"><ManagerBadge /></span>}</td>
                     <td className="py-2 pr-3 text-muted">{c.role || '—'}</td>
                     <td className="py-2 pr-3 tabular-nums">{c.doNotCall ? <span className="text-red-300">hidden</span> : phoneDisplay(c.phone) || '—'}</td>
                     <td className="py-2 pr-3 text-muted">{[c.city, c.province].filter(Boolean).join(', ') || '—'}</td>
@@ -141,12 +145,12 @@ export default async function ContactsPage({
           {/* Phone: cards, not a sideways table. */}
           <div className="space-y-3 md:hidden">
             {shown.map((c) => (
-              <Link key={c.id} href={`/sales/${id}/call?c=${c.id}`} className="block">
+              <Link key={c.id} href={`/sales/${id}/contacts/${c.id}`} className="block">
                 <Card className="p-3 hover:border-ppc-gold/60">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{c.orgName || '—'}</p>
-                      <p className="truncate text-sm text-muted">{[c.contactName, c.role].filter(Boolean).join(' · ') || '—'}</p>
+                      <p className="truncate text-sm text-muted">{[c.contactName, c.role].filter(Boolean).join(' · ') || '—'}{c.isJerseyManager && <span className="ml-2"><ManagerBadge /></span>}</p>
                     </div>
                     <OutcomeBadge outcome={c.doNotCall ? 'do_not_call' : c.lastOutcome} />
                   </div>
