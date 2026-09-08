@@ -212,7 +212,9 @@ than missing data. Read the comments there before reordering anything.
 
 ## Sales — cold calling
 
-Design: `docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md`.
+Design: `docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md`,
+follow-ups (wide layout, finish dialog, jersey manager, contact page, sessions):
+`docs/superpowers/specs/2026-09-07-sales-follow-ups-design.md`.
 
 - **One upload = one `CallList`.** Contacts and the script come from the
   sheet; re-upload to change either. `Contact.raw` keeps every cell as typed,
@@ -224,13 +226,37 @@ Design: `docs/superpowers/specs/2026-09-06-sales-cold-calling-design.md`.
   by hand — the queue is computed from them.
 - **Skip is not an outcome.** It logs nothing and bumps `skipCount`.
 - **Save & Next requires an outcome**; editing is allowed only for a contact's
-  most recent call, and can't undo Do Not Call.
+  most recent call, and can't undo Do Not Call. The survey lives in the
+  *Call finished* dialog (`call-view/finish-dialog.tsx`); an outcome hotkey
+  opens it with that outcome chosen, Ctrl+Enter opens it or saves it.
 - **Do Not Call is enforced twice**: `buildQueue` drops the contact and the
   server refuses any other outcome for it. The screen hides the number.
+- **Linked contacts are derived, never stored.** Same list + same
+  `orgKey(orgName)` = the same team (`linkedContacts`). They stay separate
+  rows — one team is often two or three people to call — and list each other
+  under *Also at this team*. Don't merge them and don't add a team table.
+- **"Who handles the jerseys" is `isJerseyManager`, one per team at most.**
+  It is NOT a decision maker (decisions are usually a group). Only
+  `planJerseyManager` writes it: *This person* flags the contact and clears
+  the rest of the team; *Someone else* flags a linked contact or creates a
+  new linked row (`contactFromPerson`) and clears the others. The server
+  applies those moves as `extraPatches` in the same `addCallLog` call.
+- **A `CallSession` is a row, not a timer.** The calling view starts one when
+  it opens (closing any the list left open), stamps every `CallLog.sessionId`,
+  and ends it from the back link. A tab closed mid-session stays open until
+  the next start; the list page shows it as ended at its last call. The
+  footer tally is per session, not per day.
+- **`/sales/[id]/contacts/[contactId]` is read-only.** Every contact link on
+  the list page goes there; only *Start call* (and the Start calling button)
+  enters the calling view. Opening a contact must never start a session.
 - **Write order on Supabase**: list before contacts; log before contact patch
-  before referral. Read the comments in `supabase-store.ts` before reordering.
-- **Drafts live in `localStorage`** per contact until saved; the session
-  timer in `sessionStorage` per list. Both are per-device conveniences.
+  before the other team members' patches before the new contact. Read the
+  comments in `supabase-store.ts` before reordering.
+- **Drafts live in `localStorage`** per contact until saved; the session id
+  in `sessionStorage` per list so a refresh keeps counting. Both are
+  per-device conveniences.
+- **Sales pages get the wide layout** (`.sales-wide` in `sales/layout.tsx`,
+  rule in `globals.css`): 120rem instead of 72rem. Orders stay narrow.
 - **The template and the importer share one column map** (`sales/columns.ts`)
   and one pick-list file (`sales/picklists.json`). Change either, run
   `npm run build:template`, commit the regenerated `.xlsx`.
