@@ -72,7 +72,8 @@ export function DiscoveryPanel({
   jerseyManager: JerseyManagerAnswer;
   onJerseyManager: (p: Partial<JerseyManagerAnswer>) => void;
   discovery: Discovery;
-  onDiscovery: (p: Partial<Discovery>) => void;
+  /** A patch, or a function of the latest answers — so two taps in one tick can't overwrite each other. */
+  onDiscovery: (p: Partial<Discovery> | ((d: Discovery) => Partial<Discovery>)) => void;
   answers: Record<string, string>;
   onAnswer: (id: string, value: string) => void;
   checklist: string[];
@@ -84,11 +85,11 @@ export function DiscoveryPanel({
   const d = discovery;
   const dim = disabled ? 'pointer-events-none opacity-60' : '';
 
-  const tapPriority = (p: SupplierPriority) => {
-    if (d.primaryPriority === p) { onDiscovery({ primaryPriority: '', alsoPriorities: [] }); return; }
-    if (!d.primaryPriority) { onDiscovery({ primaryPriority: p }); return; }
-    onDiscovery({ alsoPriorities: d.alsoPriorities.includes(p) ? d.alsoPriorities.filter((x) => x !== p) : [...d.alsoPriorities, p] });
-  };
+  const tapPriority = (p: SupplierPriority) => onDiscovery((cur) => {
+    if (cur.primaryPriority === p) return { primaryPriority: '', alsoPriorities: [] };
+    if (!cur.primaryPriority) return { primaryPriority: p };
+    return { alsoPriorities: cur.alsoPriorities.includes(p) ? cur.alsoPriorities.filter((x) => x !== p) : [...cur.alsoPriorities, p] };
+  });
 
   return (
     <div className="space-y-5">
@@ -133,7 +134,7 @@ export function DiscoveryPanel({
           </div>
           <div className="mt-2 flex gap-2">
             {(['home', 'away'] as const).map((k) => (
-              <button key={k} type="button" aria-pressed={d[k]} onClick={() => onDiscovery({ [k]: !d[k] })} className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${d[k] ? ACTIVE : INACTIVE}`}>
+              <button key={k} type="button" aria-pressed={d[k]} onClick={() => onDiscovery((cur) => ({ [k]: !cur[k] }))} className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${d[k] ? ACTIVE : INACTIVE}`}>
                 {d[k] ? '✓ ' : ''}{k === 'home' ? 'Home' : 'Away'}
               </button>
             ))}

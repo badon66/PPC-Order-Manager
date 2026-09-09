@@ -107,11 +107,13 @@ export function useDraft(contactId: string | null) {
   }, [draft, contactId]);
 
   const patch = useCallback((p: Partial<CallDraft>) => setDraft((d) => ({ ...d, ...p })), []);
+  /** For nested fields (discovery, answers…): reads the latest draft, so two taps in one tick can't overwrite each other. */
+  const update = useCallback((fn: (d: CallDraft) => CallDraft) => setDraft(fn), []);
   const replace = useCallback((d: CallDraft) => setDraft(d), []);
   const clear = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     if (contactId) { try { localStorage.removeItem(KEY(contactId)); } catch { /* ignore */ } }
   }, [contactId]);
 
-  return { draft, patch, replace, clear };
+  return { draft, patch, update, replace, clear };
 }

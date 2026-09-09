@@ -76,7 +76,10 @@ export function CallView(props: CallViewProps) {
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   const session = useCallSession(list.id, props.callerDefault);
-  const { draft, patch, replace, clear } = useDraft(currentId);
+  const { draft, patch, update, replace, clear } = useDraft(currentId);
+  // Nested fields go through `update` so a burst of taps never reads a stale draft.
+  const tick = (id: string, on: boolean) => update((d) => ({ ...d, checklist: on ? [...new Set([...d.checklist, id])] : d.checklist.filter((x) => x !== id) }));
+  const answer = (id: string, v: string) => update((d) => ({ ...d, answers: { ...d.answers, [id]: v } }));
   const elapsed = useElapsedSince(currentId ? draft.startedAt : null);
 
   const current = currentId ? contacts[currentId] : null;
@@ -209,7 +212,7 @@ export function CallView(props: CallViewProps) {
   const onScriptSaved = (s: CallList['script']) => setList((l) => ({ ...l, script: s }));
 
   return (
-    <div data-testid="call-screen" className="flex min-h-0 flex-1 flex-col gap-3 pb-4 min-[1600px]:pb-0">
+    <div data-testid="call-screen" className="flex min-h-0 flex-1 flex-col gap-3 pb-4 wide:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-3 text-[15px]">
         <Link href={`/sales/${list.id}`} onClick={() => { void session.end(); }} className="text-muted hover:text-ppc-gold">← {list.name}</Link>
         <div className="flex items-center gap-5 tabular-nums text-muted">
@@ -224,7 +227,7 @@ export function CallView(props: CallViewProps) {
       {help && (
         <div className="rounded-xl border border-line bg-surface p-4 text-[15px]">
           <div className="mb-2 flex items-center justify-between"><span className="font-bold uppercase tracking-wide text-ppc-gold">Keyboard</span><button type="button" onClick={() => setHelp(false)} className="text-muted hover:text-ppc-gold">close</button></div>
-          <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2 min-[1600px]:grid-cols-4">
+          <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2 wide:grid-cols-4">
             {SHORTCUTS.map(([k, v]) => <div key={k} className="flex gap-3"><dt className="w-28 shrink-0 font-mono text-[13px] text-ppc-gold">{k}</dt><dd className="text-muted">{v}</dd></div>)}
           </dl>
         </div>
@@ -236,7 +239,7 @@ export function CallView(props: CallViewProps) {
           hint={`${waitingOnDate} contact${waitingOnDate === 1 ? ' is' : 's are'} waiting on a future date. Open the contacts table to pick someone directly.`}
         />
       ) : (
-        <div data-testid="call-columns" className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2 min-[1600px]:grid-cols-[440px_minmax(0,9fr)_minmax(0,7fr)_600px]">
+        <div data-testid="call-columns" className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2 wide:grid-cols-[440px_minmax(0,9fr)_minmax(0,7fr)_600px] wide:grid-rows-[minmax(0,1fr)]">
           {/* Column 1 — who they are, plus the facts you get asked for */}
           <section data-testid="col-contact" className="flex min-h-0 flex-col gap-3">
             <div className={`${COLUMN} flex-1`}>
@@ -256,7 +259,7 @@ export function CallView(props: CallViewProps) {
               items={opening}
               rawScript={list.script}
               checklist={draft.checklist}
-              onTick={(id, on) => patch({ checklist: on ? [...new Set([...draft.checklist, id])] : draft.checklist.filter((x) => x !== id) })}
+              onTick={tick}
               open={openingOpen}
               onToggle={() => setOpeningOpen((o) => !o)}
               onScriptSaved={onScriptSaved}
@@ -266,19 +269,19 @@ export function CallView(props: CallViewProps) {
               items={discoveryItems}
               linked={linked}
               jerseyManager={draft.jerseyManager}
-              onJerseyManager={(p) => patch({ jerseyManager: { ...draft.jerseyManager, ...p } })}
+              onJerseyManager={(p) => update((d) => ({ ...d, jerseyManager: { ...d.jerseyManager, ...p } }))}
               discovery={draft.discovery}
-              onDiscovery={(p) => patch({ discovery: { ...draft.discovery, ...p } })}
+              onDiscovery={(p) => update((d) => ({ ...d, discovery: { ...d.discovery, ...(typeof p === 'function' ? p(d.discovery) : p) } }))}
               answers={draft.answers}
-              onAnswer={(id, v) => patch({ answers: { ...draft.answers, [id]: v } })}
+              onAnswer={answer}
               checklist={draft.checklist}
-              onTick={(id, on) => patch({ checklist: on ? [...new Set([...draft.checklist, id])] : draft.checklist.filter((x) => x !== id) })}
+              onTick={tick}
               disabled={disabledInputs}
             />
             <ClosePanel
               items={closeItems}
               checklist={draft.checklist}
-              onTick={(id, on) => patch({ checklist: on ? [...new Set([...draft.checklist, id])] : draft.checklist.filter((x) => x !== id) })}
+              onTick={tick}
               disabled={disabledInputs}
             />
           </section>

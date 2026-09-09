@@ -49,11 +49,14 @@ body:has(.sales-wide) :is(header > div, main) { max-width: 120rem; }
 @media (min-width: 1600px) {
   body:has(.call-screen) { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
   body:has(.call-screen) > header { flex: none; }
-  body:has(.call-screen) header > div { max-width: none; }
+  /* Same selector shape as the .sales-wide rule above, so this one wins by source order. */
+  body:has(.call-screen) :is(header > div, main) { max-width: none; }
   body:has(.call-screen) main {
-    flex: 1 1 auto; min-height: 0; max-width: none; width: 100%;
+    flex: 1 1 auto; min-height: 0; width: 100%;
     display: flex; flex-direction: column; padding: 0.75rem 1rem;
   }
+  /* The sales layout's wrapper sits between main and the screen; it has to pass the height down too. */
+  body:has(.call-screen) .sales-wide { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 }
 
 /* Comfortable tap targets on a phone — this gets used at a rink. */
@@ -89,4 +92,9 @@ input[type="checkbox"], input[type="radio"] {
   min-height: 0;
   accent-color: var(--gold);
   cursor: pointer;
+}
+
+/* The calling screen switches to four full-height columns here (docs/call-view-prompt.md). */
+@theme {
+  --breakpoint-wide: 100rem;
 }

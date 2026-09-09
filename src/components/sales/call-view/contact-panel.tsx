@@ -52,7 +52,7 @@ export function ContactPanel({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold leading-tight min-[1600px]:text-[30px]">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
+        <h2 className="text-2xl font-bold leading-tight wide:text-[30px]">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
         <p className="text-sm text-muted">{[c.role, orgLine].filter(Boolean).join(' — ')}</p>
         <p className="mt-1 flex flex-wrap gap-2 text-xs">
           {c.isJerseyManager && <ManagerBadge />}

@@ -262,6 +262,41 @@ master lists (named lists, repeat uploads, duplicate matching):
   edit* writes only `QUICK_EDIT_FIELDS` (`quickEditPatch`); *Delete* removes
   the contact and its logs (`repo.deleteContact`, logs first) after a
   confirm. Desktop table only — the phone cards keep single-tap.
+- **The calling screen is built for a 3440×1440 monitor**
+  (`docs/call-view-prompt.md`, spec `2026-09-09-call-screen-ultrawide-design.md`).
+  From the `wide` breakpoint (1600px, `--breakpoint-wide` in `globals.css`)
+  it is four full-height columns and **the page never scrolls** — the
+  `body:has(.call-screen)` rules turn body, `main` and the sales layout's
+  `.sales-wide` wrapper into a flex column and every column scrolls inside
+  itself. Below 1600px it stacks and the page scrolls; don't invest there.
+  Sizes are explicit (`text-[20px]` for anything read aloud, 16px questions,
+  13px labels) — never a root font change.
+- **Discovery is typed.** `CallLog.discovery` (`Discovery` in `types.ts`:
+  last redone, satisfaction + change-one-thing, looking at + home/away,
+  primary + also priorities) and the same shape on `Contact.discovery`,
+  merged by `applyCallLog` through `mergeDiscovery` (answered fields
+  overwrite, blank ones keep what was known). Q1 stays `jerseyManager`.
+  `satisfaction` is their opinion of their jerseys; `leadRating` is ours —
+  don't merge them. The CSV carries eight discovery columns after *Linked
+  Contacts*. The default script no longer has discovery questions beyond
+  team size; the five typed ones are the UI.
+- **The list's script is edited on the calling screen** (opening lines,
+  objections) through `saveListScript` → `validateScript` (valid section
+  and kind, non-empty text, `MAX_OBJECTIONS` 8, `withScriptIds` keeps ids so
+  past answers still resolve). `pickupLine` and `quickFacts` are one text
+  each per list (`updateListText`). The sheet's Script tab still replaces
+  the script on upload.
+- **The outcome board is permanent, never a dialog.** No answer and
+  Voicemail log on the click (`isImmediate`); every other outcome opens a
+  strip with only its own fields and logs on Enter / Log / Ctrl+Enter. The
+  contacts table's *Change status* dialog still uses `outcome-panel.tsx`.
+- **Nested draft fields go through `update((d) => …)`**, never
+  `patch({ discovery: { ...draft.discovery } })`: two taps in one tick would
+  read the same stale draft and the second would erase the first.
+- **E2E:** `npm run build && npm run test:e2e` runs Playwright at 3440×1440
+  (`tests/e2e/call-screen.spec.ts`) against `next start` on port 3010 with
+  Supabase blanked and `PPC_DATA_DIR` in a temp folder, so it can never
+  touch live or local data. First time: `npx playwright install chromium`.
 - **Call state on a contact is written only by `applyCallLog` / `applySkip`**
   in `sales-logic.ts`. Never patch `lastOutcome`, `callCount`, `nextCallDate`
   by hand — the queue is computed from them.
