@@ -132,5 +132,6 @@ test('one outcome click logs the call and advances the queue', async ({ page }) 
   await expect(page.getByTestId('outcome-strip')).toHaveCount(0);
   await expect(page.locator('main h2').first()).not.toHaveText(name!);
   await expect(page.getByTestId('queue-position')).not.toHaveText(position!);
-  await expect(page.getByTestId('col-outcome')).toContainText('Calls');
+  // The session tally in the footer counted it.
+  await expect(page.getByTestId('footer-tally')).toContainText(/Calls\s*[1-9]/);
 });

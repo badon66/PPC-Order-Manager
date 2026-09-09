@@ -49,47 +49,47 @@ Discovery {
 
 ### Task 1: Discovery model, heal, merge, export
 
-- [ ] `types.ts`: the enums and `Discovery` above; `CallLog.discovery`, `Contact.discovery`, `CallList.pickupLine`, `CallList.quickFacts`.
-- [ ] `constants.ts`: `LAST_REDONE_LABELS`, `LOOKING_AT_LABELS`, `SUPPLIER_PRIORITY_LABELS` (`Record<…, string>`).
-- [ ] `sales-logic.ts`: `blankDiscovery()`; `blankContact` and `blankCallLogInput` include it; `blankCallList` includes `pickupLine: ''`, `quickFacts: ''`; `healCallList` fills both; `healCallLog` fills `discovery` (and `discovery.alsoPriorities ??= []`); `mergeDiscovery(base, next)`; `applyCallLog` adds `discovery: mergeDiscovery(contact.discovery, log.discovery)`; `validateCallLog` blocks a bad `lastRedone` / `lookingAt` / priority value.
-- [ ] `export.ts`: eight columns after *Linked Contacts* from `c.discovery`.
-- [ ] Test `tests/sales/discovery.test.ts` (merge semantics, applyCallLog, heal, validation). Fix `tests/sales/export.test.ts` header expectations if any index moved (none should — columns are appended).
-- [ ] Commit: `Sales: typed discovery answers on calls and contacts`.
+- [x] `types.ts`: the enums and `Discovery` above; `CallLog.discovery`, `Contact.discovery`, `CallList.pickupLine`, `CallList.quickFacts`.
+- [x] `constants.ts`: `LAST_REDONE_LABELS`, `LOOKING_AT_LABELS`, `SUPPLIER_PRIORITY_LABELS` (`Record<…, string>`).
+- [x] `sales-logic.ts`: `blankDiscovery()`; `blankContact` and `blankCallLogInput` include it; `blankCallList` includes `pickupLine: ''`, `quickFacts: ''`; `healCallList` fills both; `healCallLog` fills `discovery` (and `discovery.alsoPriorities ??= []`); `mergeDiscovery(base, next)`; `applyCallLog` adds `discovery: mergeDiscovery(contact.discovery, log.discovery)`; `validateCallLog` blocks a bad `lastRedone` / `lookingAt` / priority value.
+- [x] `export.ts`: eight columns after *Linked Contacts* from `c.discovery`.
+- [x] Test `tests/sales/discovery.test.ts` (merge semantics, applyCallLog, heal, validation). Fix `tests/sales/export.test.ts` header expectations if any index moved (none should — columns are appended).
+- [x] Commit: `Sales: typed discovery answers on calls and contacts`.
 
 ### Task 2: Script editing rules and actions
 
-- [ ] `sales-logic.ts`: `MAX_OBJECTIONS = 8`; `withScriptIds(items)` — keeps ids, assigns `s<n>` after the current max to rows with `id === ''`; `validateScript(items): { ok: true; items } | { ok: false; error }` — section in `SCRIPT_SECTIONS`, kind in `SCRIPT_KINDS`, non-empty text, objections ≤ 8, `options`/`response`/`showWhen` defaulted.
-- [ ] `actions.ts`: `saveListScript(listId, items)` → validate → `repo.updateCallList({ ...list, script, updatedAt })` → revalidate → `{ ok: true; script }`; `updateListText(listId, patch: { pickupLine?: string; quickFacts?: string })` → `{ ok: true; list }`.
-- [ ] `json-store.ts`: `const DATA_DIR = process.env.PPC_DATA_DIR || path.join(process.cwd(), 'data')`.
-- [ ] `default-script.json`: remove the four overlapping discovery questions; `npm run build:template` + fixtures; update `tests/sales/import.test.ts` counts (script length 16; `script[7]` is now the free-text "Roughly how many teams" question) and `export.test.ts` if it depends on them.
-- [ ] Test `tests/sales/script-edit.test.ts`.
-- [ ] Commit: `Sales: script editing rules and actions; default script trimmed`.
+- [x] `sales-logic.ts`: `MAX_OBJECTIONS = 8`; `withScriptIds(items)` — keeps ids, assigns `s<n>` after the current max to rows with `id === ''`; `validateScript(items): { ok: true; items } | { ok: false; error }` — section in `SCRIPT_SECTIONS`, kind in `SCRIPT_KINDS`, non-empty text, objections ≤ 8, `options`/`response`/`showWhen` defaulted.
+- [x] `actions.ts`: `saveListScript(listId, items)` → validate → `repo.updateCallList({ ...list, script, updatedAt })` → revalidate → `{ ok: true; script }`; `updateListText(listId, patch: { pickupLine?: string; quickFacts?: string })` → `{ ok: true; list }`.
+- [x] `json-store.ts`: `const DATA_DIR = process.env.PPC_DATA_DIR || path.join(process.cwd(), 'data')`.
+- [x] `default-script.json`: remove the four overlapping discovery questions; `npm run build:template` + fixtures; update `tests/sales/import.test.ts` counts (script length 16; `script[7]` is now the free-text "Roughly how many teams" question) and `export.test.ts` if it depends on them.
+- [x] Test `tests/sales/script-edit.test.ts`.
+- [x] Commit: `Sales: script editing rules and actions; default script trimmed`.
 
 ### Task 3: Draft, keyboard, footer, contact panel, history
 
-- [ ] `use-draft.ts`: `CallDraft.discovery`, `blankDraft`, `inputFromDraft`, `draftFromLog`.
-- [ ] `use-keyboard.ts`: rename `onFinish` → `onLog` (Ctrl+Enter); everything else unchanged.
-- [ ] `footer-bar.tsx`: drop the finish button and the `fixed` positioning; props `canPrevious/onPrevious/canSkip/onSkip/tally/onHelp`.
-- [ ] `contact-panel.tsx`: `showHistory?: boolean` (default true); name at `text-3xl` on wide screens.
-- [ ] `history.tsx`: a one-line discovery summary per entry (only answered fields).
-- [ ] tsc will fail in `index.tsx` until Task 5 — that's expected; commit anyway: `Sales call view: draft, keys, footer, history for the new screen`.
+- [x] `use-draft.ts`: `CallDraft.discovery`, `blankDraft`, `inputFromDraft`, `draftFromLog`.
+- [x] `use-keyboard.ts`: rename `onFinish` → `onLog` (Ctrl+Enter); everything else unchanged.
+- [x] `footer-bar.tsx`: drop the finish button and the `fixed` positioning; props `canPrevious/onPrevious/canSkip/onSkip/tally/onHelp`.
+- [x] `contact-panel.tsx`: `showHistory?: boolean` (default true); name at `text-3xl` on wide screens.
+- [x] `history.tsx`: a one-line discovery summary per entry (only answered fields).
+- [x] tsc will fail in `index.tsx` until Task 5 — that's expected; commit anyway: `Sales call view: draft, keys, footer, history for the new screen`.
 
 ### Task 4: The panels
 
-- [ ] `inline-edit.tsx`: `InlineEdit({ title, editing, onEdit, onCancel, onSave, saving, error, children, view })` — header row with the section title, a pencil (or Save / Cancel while editing), the error line.
-- [ ] `pickup-line.tsx`: view at 28px; edit = one input; `updateListText`.
-- [ ] `quick-facts.tsx`: view `whitespace-pre-wrap` with `- ` bullets; edit = textarea; `updateListText`.
-- [ ] `opening-panel.tsx`: props `items` (opening rows, filled), `rawItems` (unfilled, for editing), `checklist`, `onTick`, `open`, `onToggle`, `onSaveScript(items)`; collapsed header shows ✓ + preview; edit mode: rows with kind select (read / reminder) + textarea, add / remove / up / down.
-- [ ] `jersey-manager-question.tsx`: moved verbatim from `script-panel.tsx`.
-- [ ] `discovery-panel.tsx`: Q1 (`JerseyManagerQuestion`), Q2 track, Q3 stars + text, Q4 choices + Home/Away, Q5 chips; then remaining sheet rows (`question` → `ChoiceGroup` / input, `reminder` → `Toggle`); props `discovery`, `onDiscovery(patch)`, `answers`, `onAnswer`, `checklist`, `onTick`, `jerseyManager`, `onJerseyManager`, `linked`, `extras`, `disabled`.
-- [ ] `close-panel.tsx`: the close rows, small.
-- [ ] `objections-panel.tsx`: chips / response / edit modes; `onSaveScript`.
-- [ ] `outcome-board.tsx`: stars; two rows; strip with the per-outcome fields (copied from `outcome-panel.tsx` so the table dialog keeps its own); `Log & next` / `Update`; props `draft, onChange, contact, today, disabled, errors, warnings, missing, saving, error, logged, onLog, onClear, onEdit, editing`.
-- [ ] Commit: `Sales call view: panels for the ultrawide screen`.
+- [x] `inline-edit.tsx`: `InlineEdit({ title, editing, onEdit, onCancel, onSave, saving, error, children, view })` — header row with the section title, a pencil (or Save / Cancel while editing), the error line.
+- [x] `pickup-line.tsx`: view at 28px; edit = one input; `updateListText`.
+- [x] `quick-facts.tsx`: view `whitespace-pre-wrap` with `- ` bullets; edit = textarea; `updateListText`.
+- [x] `opening-panel.tsx`: props `items` (opening rows, filled), `rawItems` (unfilled, for editing), `checklist`, `onTick`, `open`, `onToggle`, `onSaveScript(items)`; collapsed header shows ✓ + preview; edit mode: rows with kind select (read / reminder) + textarea, add / remove / up / down.
+- [x] `jersey-manager-question.tsx`: moved verbatim from `script-panel.tsx`.
+- [x] `discovery-panel.tsx`: Q1 (`JerseyManagerQuestion`), Q2 track, Q3 stars + text, Q4 choices + Home/Away, Q5 chips; then remaining sheet rows (`question` → `ChoiceGroup` / input, `reminder` → `Toggle`); props `discovery`, `onDiscovery(patch)`, `answers`, `onAnswer`, `checklist`, `onTick`, `jerseyManager`, `onJerseyManager`, `linked`, `extras`, `disabled`.
+- [x] `close-panel.tsx`: the close rows, small.
+- [x] `objections-panel.tsx`: chips / response / edit modes; `onSaveScript`.
+- [x] `outcome-board.tsx`: stars; two rows; strip with the per-outcome fields (copied from `outcome-panel.tsx` so the table dialog keeps its own); `Log & next` / `Update`; props `draft, onChange, contact, today, disabled, errors, warnings, missing, saving, error, logged, onLog, onClear, onEdit, editing`.
+- [x] Commit: `Sales call view: panels for the ultrawide screen`.
 
 ### Task 5: Layout and orchestration
 
-- [ ] `globals.css`:
+- [x] `globals.css`:
   ```css
   @media (min-width: 1600px) {
     body:has(.call-screen) { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
@@ -98,20 +98,20 @@ Discovery {
     body:has(.call-screen) header > div { max-width: none; }
   }
   ```
-- [ ] `call/page.tsx`: wrap `<CallView>` in `<div className="call-screen contents">`? No — the wrapper must be the flex child: `<div className="call-screen flex min-h-0 flex-1 flex-col">`.
-- [ ] `index.tsx` rewrite: state as today minus `finishOpen`; add `list` state (script edits apply locally), `openingOpen` (reset per contact), `objectionId`; grid `min-[1600px]:grid min-[1600px]:grid-cols-[440px_minmax(0,1fr)_700px_600px] min-[1600px]:grid-rows-[auto_minmax(0,1fr)_auto]`; stacked below. Save flow unchanged; `onOutcome(i)`: no_answer / voicemail → set outcome and `save()` at once; others → `patch(seedForOutcome(...))`.
-- [ ] Delete `finish-dialog.tsx`, `call-summary.tsx`, `script-panel.tsx`.
-- [ ] tsc, lint, `npm test`; browser at 3440×1440 (resize tool) for the seven checks; commit `Sales: the calling screen rebuilt for the ultrawide`.
+- [x] `call/page.tsx`: wrap `<CallView>` in `<div className="call-screen contents">`? No — the wrapper must be the flex child: `<div className="call-screen flex min-h-0 flex-1 flex-col">`.
+- [x] `index.tsx` rewrite: state as today minus `finishOpen`; add `list` state (script edits apply locally), `openingOpen` (reset per contact), `objectionId`; grid `min-[1600px]:grid min-[1600px]:grid-cols-[440px_minmax(0,1fr)_700px_600px] min-[1600px]:grid-rows-[auto_minmax(0,1fr)_auto]`; stacked below. Save flow unchanged; `onOutcome(i)`: no_answer / voicemail → set outcome and `save()` at once; others → `patch(seedForOutcome(...))`.
+- [x] Delete `finish-dialog.tsx`, `call-summary.tsx`, `script-panel.tsx`.
+- [x] tsc, lint, `npm test`; browser at 3440×1440 (resize tool) for the seven checks; commit `Sales: the calling screen rebuilt for the ultrawide`.
 
 ### Task 6: Playwright
 
-- [ ] `npm i -D @playwright/test`, `npx playwright install chromium`.
-- [ ] `playwright.config.ts`: viewport 3440×1440, `baseURL` `http://localhost:3010`, `webServer` = `npx next start -p 3010` with env `SUPABASE_URL=''`, `SUPABASE_SERVICE_ROLE_KEY=''`, `PPC_DATA_DIR=<tmp>`; `reuseExistingServer: false`.
-- [ ] `tests/e2e/call-screen.spec.ts`: unlock with the code from `admin-code.txt` (or `ADMIN_ACCESS_CODE`), create a list, upload `tests/sales/fixtures/sample-list.xlsx`, open the calling view, run the seven checks.
-- [ ] `package.json`: `"test:e2e": "playwright test"`; `.gitignore`: `test-results/`, `playwright-report/`.
-- [ ] `npm run build && npm run test:e2e` green. Commit `E2E: the calling screen at 3440×1440`.
+- [x] `npm i -D @playwright/test`, `npx playwright install chromium`.
+- [x] `playwright.config.ts`: viewport 3440×1440, `baseURL` `http://localhost:3010`, `webServer` = `npx next start -p 3010` with env `SUPABASE_URL=''`, `SUPABASE_SERVICE_ROLE_KEY=''`, `PPC_DATA_DIR=<tmp>`; `reuseExistingServer: false`.
+- [x] `tests/e2e/call-screen.spec.ts`: unlock with the code from `admin-code.txt` (or `ADMIN_ACCESS_CODE`), create a list, upload `tests/sales/fixtures/sample-list.xlsx`, open the calling view, run the seven checks.
+- [x] `package.json`: `"test:e2e": "playwright test"`; `.gitignore`: `test-results/`, `playwright-report/`.
+- [x] `npm run build && npm run test:e2e` green. Commit `E2E: the calling screen at 3440×1440`.
 
 ### Task 7: Docs and finish
 
-- [ ] CLAUDE.md Sales section: discovery fields, script editing, the fixed-height screen rule, how to run e2e.
-- [ ] Full verification, then finishing-a-development-branch → merge to local main.
+- [x] CLAUDE.md Sales section: discovery fields, script editing, the fixed-height screen rule, how to run e2e.
+- [x] Full verification, then finishing-a-development-branch → merge to local main.

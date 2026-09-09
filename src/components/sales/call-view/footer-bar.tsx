@@ -17,7 +17,7 @@ export function FooterBar({
         <button type="button" disabled={!canPrevious} onClick={onPrevious} title="Ctrl+←" className="rounded-lg border border-line bg-surface-2 px-4 py-2 text-[15px] font-semibold hover:border-ppc-gold/60 disabled:opacity-30">← Previous</button>
         <button type="button" disabled={!canSkip} onClick={onSkip} title="Ctrl+→" className="rounded-lg border border-line bg-surface-2 px-4 py-2 text-[15px] font-semibold hover:border-ppc-gold/60 disabled:opacity-30">Skip →</button>
       </div>
-      <div className="flex items-center gap-4 text-[13px] tabular-nums text-muted">
+      <div data-testid="footer-tally" className="flex items-center gap-4 text-[13px] tabular-nums text-muted">
         <span>Calls <b className="text-foreground">{tally.calls}</b></span>
         <span>Reached <b className="text-foreground">{tally.reached}</b></span>
         <span>Voicemails <b className="text-foreground">{tally.voicemails}</b></span>
