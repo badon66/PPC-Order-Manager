@@ -4,16 +4,16 @@ import { useEffect } from 'react';
 import { OUTCOME_HOTKEYS } from '@/lib/constants';
 
 export interface CallKeyHandlers {
-  /** An outcome hotkey: selects it and opens the finish dialog. */
+  /** An outcome hotkey: the same as clicking that button on the board. */
   onOutcome: (index: number) => void;
   onRating: (n: 1 | 2 | 3 | 4 | 5) => void;
-  /** Ctrl+Enter: open the finish dialog, or save when it is open. */
-  onFinish: () => void;
+  /** Ctrl+Enter: log the call with the chosen outcome. */
+  onLog: () => void;
   onSkip: () => void;
   onPrevious: () => void;
   onFocusNotes: () => void;
   onHelp: () => void;
-  /** Esc outside a text box: close the dialog or the help sheet. */
+  /** Esc outside a text box: clear the chosen outcome, close the help sheet. */
   onEscape: () => void;
 }
 
@@ -30,7 +30,7 @@ export function useCallKeys(h: CallKeyHandlers, enabled: boolean) {
       const t = e.target as HTMLElement | null;
       const typing = !!t && (TYPING.has(t.tagName) || t.isContentEditable);
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'Enter') { e.preventDefault(); h.onFinish(); }
+        if (e.key === 'Enter') { e.preventDefault(); h.onLog(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); h.onSkip(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); h.onPrevious(); }
         return;

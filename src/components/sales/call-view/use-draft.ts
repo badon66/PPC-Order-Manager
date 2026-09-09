@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CallLog, CallOutcome, FollowUp, JerseyManagerAnswer, LeadRating, Referral } from '@/lib/types';
-import { blankJerseyManager, type CallLogInput } from '@/lib/data/sales-logic';
+import type { CallLog, CallOutcome, Discovery, FollowUp, JerseyManagerAnswer, LeadRating, Referral } from '@/lib/types';
+import { blankDiscovery, blankJerseyManager, type CallLogInput } from '@/lib/data/sales-logic';
 
 /** Everything typed during a call, before the outcome is saved. */
 export interface CallDraft {
@@ -18,6 +18,7 @@ export interface CallDraft {
   referral: Referral;
   newPhone: string;
   jerseyManager: JerseyManagerAnswer;
+  discovery: Discovery;
 }
 
 export function blankDraft(startedAt: string): CallDraft {
@@ -26,6 +27,7 @@ export function blankDraft(startedAt: string): CallDraft {
     followUp: { date: null, time: '', note: '' }, email: '', reason: '',
     referral: { name: '', role: '', phone: '', email: '' }, newPhone: '',
     jerseyManager: blankJerseyManager(),
+    discovery: blankDiscovery(),
   };
 }
 
@@ -49,6 +51,7 @@ export function inputFromDraft(d: CallDraft, callerName: string, now: string, se
     newPhone: d.newPhone,
     sessionId,
     jerseyManager: d.jerseyManager,
+    discovery: d.discovery,
   };
 }
 
@@ -60,6 +63,7 @@ export function draftFromLog(g: CallLog): CallDraft {
     checklist: [...g.checklist], followUp: { ...g.followUp }, email: g.email, reason: g.reason,
     referral: { ...g.referral }, newPhone: g.newPhone,
     jerseyManager: { ...g.jerseyManager, person: { ...g.jerseyManager.person } },
+    discovery: { ...blankDiscovery(), ...g.discovery, alsoPriorities: [...(g.discovery?.alsoPriorities ?? [])] },
   };
 }
 
@@ -81,8 +85,12 @@ export function useDraft(contactId: string | null) {
     let restored: CallDraft | null = null;
     try {
       const raw = localStorage.getItem(KEY(contactId));
-      // A draft saved before the jersey-manager field existed gets the blank answer.
-      if (raw) restored = { ...blankDraft(new Date().toISOString()), ...(JSON.parse(raw) as Partial<CallDraft>) };
+      // A draft saved before a field existed gets that field's blank value.
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<CallDraft>;
+        const blank = blankDraft(new Date().toISOString());
+        restored = { ...blank, ...parsed, discovery: { ...blank.discovery, ...(parsed.discovery ?? {}) } };
+      }
     } catch { /* ignore */ }
     loadedFor.current = contactId;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading the per-contact draft only after the contact id changes; a lazy useState initializer can't read the current contactId prop

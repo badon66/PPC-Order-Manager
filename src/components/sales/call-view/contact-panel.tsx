@@ -28,7 +28,7 @@ export function ManagerBadge() {
 }
 
 export function ContactPanel({
-  contact: c, logs, script, linked, listId, sessionsById = {}, alsoIn = [],
+  contact: c, logs, script, linked, listId, sessionsById = {}, alsoIn = [], showHistory = true,
 }: {
   contact: Contact;
   logs: CallLog[];
@@ -39,6 +39,8 @@ export function ContactPanel({
   sessionsById?: Record<string, CallSession>;
   /** The same person (phone or email) in other lists. */
   alsoIn?: AlsoIn[];
+  /** The calling screen shows history in its own column; the contact page keeps it here. */
+  showHistory?: boolean;
 }) {
   const now = useNow(60_000);
   const local = localTimeFor(c, now);
@@ -50,7 +52,7 @@ export function ContactPanel({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold leading-tight">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
+        <h2 className="text-2xl font-bold leading-tight min-[1600px]:text-[30px]">{c.contactName || <span className="text-muted">No contact name</span>}</h2>
         <p className="text-sm text-muted">{[c.role, orgLine].filter(Boolean).join(' — ')}</p>
         <p className="mt-1 flex flex-wrap gap-2 text-xs">
           {c.isJerseyManager && <ManagerBadge />}
@@ -116,10 +118,12 @@ export function ContactPanel({
         {extra.map(([h, v]) => <Row key={h} label={h}>{v}</Row>)}
       </dl>
 
-      <div>
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-ppc-gold">History <span className="ml-1 text-muted">{logs.length}</span></h3>
-        <CallHistory contact={c} logs={logs} script={script} sessionsById={sessionsById} />
-      </div>
+      {showHistory && (
+        <div>
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-ppc-gold">History <span className="ml-1 text-muted">{logs.length}</span></h3>
+          <CallHistory contact={c} logs={logs} script={script} sessionsById={sessionsById} />
+        </div>
+      )}
     </div>
   );
 }
