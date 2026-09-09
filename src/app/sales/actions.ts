@@ -6,11 +6,11 @@ import { currentActor, requireRole } from '@/lib/auth';
 import { newId } from '@/lib/order-utils';
 import { today } from '@/lib/dates';
 import { BUSINESS_TIMEZONE } from '@/lib/constants';
-import type { CallLog, CallSession, Contact } from '@/lib/types';
+import type { CallList, CallLog, CallSession, Contact, ScriptItem } from '@/lib/types';
 import { parseSheet } from '@/lib/sales/import';
 import {
   applyCallLog, applySkip, blankCallList, blankCallSession, linkedContacts, planImport, planJerseyManager,
-  quickEditPatch, quickLogInput, referralContactFrom, sessionEnd, validateCallLog, type CallLogInput,
+  quickEditPatch, quickLogInput, referralContactFrom, sessionEnd, validateCallLog, validateScript, type CallLogInput,
 } from '@/lib/data/sales-logic';
 
 /*
@@ -198,6 +198,39 @@ export async function deleteContact(listId: string, contactId: string): Promise<
   revalidatePath('/sales');
   revalidatePath(`/sales/${listId}`);
   return { ok: true };
+}
+
+/** The whole script, edited on the calling screen. The sheet's Script tab still replaces it on upload. */
+export async function saveListScript(listId: string, items: unknown): Promise<{ ok: true; script: ScriptItem[] } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const bundle = await repo.getCallList(listId);
+  if (!bundle) return { ok: false, error: 'That list is gone' };
+  const v = validateScript(items);
+  if (!v.ok) return v;
+  await repo.updateCallList({ ...bundle.list, script: v.items, updatedAt: new Date().toISOString() }, actor);
+  revalidatePath(`/sales/${listId}`);
+  revalidatePath(`/sales/${listId}/call`);
+  return { ok: true, script: v.items };
+}
+
+/** The pickup line and the quick facts: one text each, per list. */
+export async function updateListText(
+  listId: string, patch: { pickupLine?: string; quickFacts?: string },
+): Promise<{ ok: true; list: CallList } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const bundle = await repo.getCallList(listId);
+  if (!bundle) return { ok: false, error: 'That list is gone' };
+  const list: CallList = {
+    ...bundle.list,
+    pickupLine: patch.pickupLine === undefined ? bundle.list.pickupLine : String(patch.pickupLine).trim().slice(0, 500),
+    quickFacts: patch.quickFacts === undefined ? bundle.list.quickFacts : String(patch.quickFacts).replace(/\r\n/g, '\n').trimEnd().slice(0, 5000),
+    updatedAt: new Date().toISOString(),
+  };
+  await repo.updateCallList(list, actor);
+  revalidatePath(`/sales/${listId}/call`);
+  return { ok: true, list };
 }
 
 export async function startSession(listId: string, callerName: string): Promise<SessionResult> {

@@ -39,7 +39,8 @@ export interface Database {
   callSessions: CallSession[];
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+/** PPC_DATA_DIR lets the e2e run point at a throwaway directory instead of data/. */
+const DATA_DIR = process.env.PPC_DATA_DIR || path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
 
 /**

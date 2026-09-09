@@ -59,13 +59,13 @@ test('xlsx carries the script; csv has none', async () => {
   if (!x.ok || !c.ok) return;
   assert.ok(x.script);
   if (!x.script) return;
-  assert.equal(x.script.length, 20);
+  assert.equal(x.script.length, 16);
   assert.equal(x.script[0].id, 's1');
   assert.equal(x.script[0].kind, 'reminder');
   assert.equal(x.script[6].kind, 'jersey_manager');
   assert.equal(x.script[6].options.length, 0);
   assert.equal(x.script[7].kind, 'question');
-  assert.equal(x.script[7].options.length, 4);
+  assert.equal(x.script[7].options.length, 0, 'the team-size question is free text; the typed five replaced the rest');
   assert.equal(x.script[4].showWhen, 'Org Type = Minor Hockey Association');
   assert.equal(x.script[12].response.length > 20, true);
   assert.equal(c.script, null);

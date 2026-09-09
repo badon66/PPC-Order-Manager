@@ -13,7 +13,7 @@ import { addDays, isCalendarDate, timestampDay } from '@/lib/dates';
 import type {
   CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, Discovery, ImportRecord, JerseyManagerAnswer, ScriptItem,
 } from '@/lib/types';
-import { CALL_OUTCOMES, LAST_REDONE_OPTIONS, LOOKING_AT_OPTIONS, SUPPLIER_PRIORITIES } from '@/lib/types';
+import { CALL_OUTCOMES, LAST_REDONE_OPTIONS, LOOKING_AT_OPTIONS, SCRIPT_KINDS, SCRIPT_SECTIONS, SUPPLIER_PRIORITIES } from '@/lib/types';
 import { BUSINESS_TIMEZONE, PRIORITY_RANK } from '@/lib/constants';
 import { isNorthAmerican } from '@/lib/sales/phone';
 import { findMatch } from '@/lib/sales/match';
@@ -190,6 +190,49 @@ export function quickEditPatch(raw: Record<string, unknown>): { ok: true; patch:
 /** A status set from the table: the same log as a call, with no time on the line and no session. */
 export function quickLogInput(input: CallLogInput, callerName: string, now: string): CallLogInput {
   return { ...input, startedAt: now, endedAt: now, durationSeconds: 0, callerName, sessionId: null };
+}
+
+/* ------------------------------------------------------------------ *
+ * Script editing from the calling screen
+ * ------------------------------------------------------------------ */
+
+/** Objections are a grid you scan mid-sentence, never a list you scroll. */
+export const MAX_OBJECTIONS = 8;
+
+/** Existing ids stay (answers are keyed by them); rows with no id get the next `s<n>` after the current max. */
+export function withScriptIds(items: ScriptItem[]): ScriptItem[] {
+  let max = 0;
+  for (const i of items) {
+    const m = /^s(\d+)$/.exec(i.id ?? '');
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return items.map((i) => (i.id ? i : { ...i, id: `s${++max}` }));
+}
+
+export function validateScript(input: unknown): { ok: true; items: ScriptItem[] } | { ok: false; error: string } {
+  if (!Array.isArray(input)) return { ok: false, error: 'Script must be a list of lines' };
+  const items: ScriptItem[] = [];
+  for (const [n, raw] of input.entries()) {
+    const r = (raw ?? {}) as Partial<ScriptItem>;
+    const section = String(r.section ?? '');
+    const kind = String(r.kind ?? '');
+    const text = String(r.text ?? '').trim();
+    if (!(SCRIPT_SECTIONS as readonly string[]).includes(section)) return { ok: false, error: `Line ${n + 1}: unknown section "${section}"` };
+    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) return { ok: false, error: `Line ${n + 1}: unknown kind "${kind}"` };
+    if (!text) return { ok: false, error: `Line ${n + 1}: the text is blank` };
+    items.push({
+      id: String(r.id ?? ''),
+      section: section as ScriptItem['section'],
+      kind: kind as ScriptItem['kind'],
+      text,
+      response: String(r.response ?? '').trim(),
+      options: Array.isArray(r.options) ? r.options.map((o) => String(o).trim()).filter(Boolean) : [],
+      showWhen: String(r.showWhen ?? '').trim(),
+    });
+  }
+  const objections = items.filter((i) => i.kind === 'objection').length;
+  if (objections > MAX_OBJECTIONS) return { ok: false, error: `At most ${MAX_OBJECTIONS} objections — you have ${objections}` };
+  return { ok: true, items: withScriptIds(items) };
 }
 
 /*
