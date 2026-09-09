@@ -3,7 +3,6 @@
 import type { Contact, Discovery, JerseyManagerAnswer, LeadRating, ScriptItem, SupplierPriority } from '@/lib/types';
 import { LAST_REDONE_OPTIONS, LOOKING_AT_OPTIONS, SUPPLIER_PRIORITIES } from '@/lib/types';
 import { LAST_REDONE_LABELS, LOOKING_AT_LABELS, SUPPLIER_PRIORITY_LABELS } from '@/lib/constants';
-import { ChoiceGroup, Toggle } from '@/components/order-form/fields';
 import { StarRating } from '../star-rating';
 import { JerseyManagerQuestion } from './jersey-manager-question';
 
@@ -59,14 +58,15 @@ function LastRedoneTrack({ value, onChange, disabled }: { value: Discovery['last
 }
 
 /**
- * ② Discovery: the five typed questions (Q1 is the jersey-manager answer,
- * Q2–Q5 live on `discovery`), then any other question or reminder the
- * list's sheet carries in this section. Every answer is one tap.
+ * ② Discovery: exactly five questions. Q1 is the jersey-manager answer
+ * (its wording comes from the sheet's jersey_manager line when there is
+ * one), Q2–Q5 live on `discovery`. Nothing else renders here — the sheet's
+ * other discovery rows are ignored on screen. Every answer is one tap.
  */
 export function DiscoveryPanel({
-  items, linked, jerseyManager, onJerseyManager, discovery, onDiscovery, answers, onAnswer, checklist, onTick, disabled,
+  items, linked, jerseyManager, onJerseyManager, discovery, onDiscovery, onAnswer, disabled,
 }: {
-  /** Discovery rows that apply to this contact, placeholders filled. */
+  /** Discovery rows that apply to this contact, placeholders filled — only the jersey_manager line is read. */
   items: ScriptItem[];
   linked: Contact[];
   jerseyManager: JerseyManagerAnswer;
@@ -74,14 +74,10 @@ export function DiscoveryPanel({
   discovery: Discovery;
   /** A patch, or a function of the latest answers — so two taps in one tick can't overwrite each other. */
   onDiscovery: (p: Partial<Discovery> | ((d: Discovery) => Partial<Discovery>)) => void;
-  answers: Record<string, string>;
   onAnswer: (id: string, value: string) => void;
-  checklist: string[];
-  onTick: (id: string, on: boolean) => void;
   disabled: boolean;
 }) {
   const managerItem = items.find((i) => i.kind === 'jersey_manager');
-  const extras = items.filter((i) => i.kind !== 'jersey_manager');
   const d = discovery;
   const dim = disabled ? 'pointer-events-none opacity-60' : '';
 
@@ -164,30 +160,6 @@ export function DiscoveryPanel({
         </div>
         <p className="mt-1 text-[13px] text-muted">First tap = what matters most. More taps = also mentioned.</p>
       </Q>
-
-      {extras.map((r) => {
-        if (r.kind === 'reminder') {
-          return (
-            <div key={r.id} className={`text-[16px] ${dim}`}>
-              <Toggle label={r.text} checked={checklist.includes(r.id)} onChange={(on) => onTick(r.id, on)} />
-            </div>
-          );
-        }
-        if (r.kind === 'question') {
-          return r.options.length > 0 ? (
-            <div key={r.id} className={dim}>
-              <ChoiceGroup label={r.text} choices={r.options.map((o) => ({ value: o, label: o }))} value={answers[r.id] ?? null} onChange={(v) => onAnswer(r.id, v ?? '')} columns={3} allowClear />
-            </div>
-          ) : (
-            <label key={r.id} className="block text-[16px]">
-              <span className="font-medium">{r.text}</span>
-              <input className="mt-1 text-[15px]" value={answers[r.id] ?? ''} disabled={disabled} placeholder="Answer" onChange={(e) => onAnswer(r.id, e.target.value)} />
-            </label>
-          );
-        }
-        if (r.kind === 'read') return <p key={r.id} className="max-w-[75ch] rounded-lg border-l-4 border-ppc-gold/70 bg-surface-2 px-4 py-3 text-[20px] leading-relaxed">{r.text}</p>;
-        return null;
-      })}
     </div>
   );
 }

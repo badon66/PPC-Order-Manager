@@ -278,14 +278,20 @@ master lists (named lists, repeat uploads, duplicate matching):
   overwrite, blank ones keep what was known). Q1 stays `jerseyManager`.
   `satisfaction` is their opinion of their jerseys; `leadRating` is ours —
   don't merge them. The CSV carries eight discovery columns after *Linked
-  Contacts*. The default script no longer has discovery questions beyond
-  team size; the five typed ones are the UI.
+  Contacts*. **Discovery on screen is exactly those five** — the sheet's
+  other discovery rows are ignored there (only its `jersey_manager` line is
+  read, for Q1's wording); the default script carries no other discovery
+  question.
 - **The list's script is edited on the calling screen** (opening lines,
   objections) through `saveListScript` → `validateScript` (valid section
   and kind, non-empty text, `MAX_OBJECTIONS` 8, `withScriptIds` keeps ids so
-  past answers still resolve). `pickupLine` and `quickFacts` are one text
-  each per list (`updateListText`). The sheet's Script tab still replaces
-  the script on upload.
+  past answers still resolve). The sheet's Script tab still replaces the
+  script on upload. **The pickup line and the voicemail message live in
+  Settings** (⚙ in the calling screen's top bar → `call-settings.tsx`,
+  `CallList.pickupLine` / `voicemailScript`, saved by `updateListText`);
+  the pickup line on screen is view-only. `quickFacts` keeps its in-place
+  pencil. *Went to voicemail* (in the expanded Opening) shows the voicemail
+  message and logs Voicemail in one click through the same `pick()`.
 - **The outcome board is permanent, never a dialog.** No answer and
   Voicemail log on the click (`isImmediate`); every other outcome opens a
   strip with only its own fields and logs on Enter / Log / Ctrl+Enter. The

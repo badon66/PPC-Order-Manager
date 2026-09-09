@@ -46,8 +46,10 @@ test('heal fills discovery on old rows and the new list fields', () => {
   const oldList = blankCallList('l', 'L', 'K', NOW);
   delete (oldList as Partial<typeof oldList>).pickupLine;
   delete (oldList as Partial<typeof oldList>).quickFacts;
+  delete (oldList as Partial<typeof oldList>).voicemailScript;
   const healed = healCallList(oldList);
   assert.equal(healed.pickupLine, '');
+  assert.equal(healed.voicemailScript, '');
   assert.equal(healed.quickFacts, '');
 });
 

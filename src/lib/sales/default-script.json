@@ -6,7 +6,6 @@
   { "section": "opening", "kind": "reminder", "text": "Ask when their AGM or budget meeting is.", "response": "", "options": [], "showWhen": "Org Type = Minor Hockey Association" },
   { "section": "opening", "kind": "reminder", "text": "Ask whether a sponsor covers the jerseys.", "response": "", "options": [], "showWhen": "Org Type = Adult Team, Adult League (organiser)" },
   { "section": "discovery", "kind": "jersey_manager", "text": "Who handles the jerseys for [Org] — is that you, or someone else?", "response": "", "options": [], "showWhen": "" },
-  { "section": "discovery", "kind": "question", "text": "Roughly how many teams and players are we talking?", "response": "", "options": [], "showWhen": "" },
   { "section": "objections", "kind": "objection", "text": "We already have a supplier.", "response": "Makes sense — most teams we work with did too. What do you like about them, and if you could change one thing, what would it be? Would a second quote on the next order be useful as a comparison?", "options": [], "showWhen": "" },
   { "section": "objections", "kind": "objection", "text": "There's no budget for that.", "response": "Understood. When does the next budget get set — the AGM, or the team meeting in the fall? I'll make sure you have something to table for it.", "options": [], "showWhen": "" },
   { "section": "objections", "kind": "objection", "text": "The board decides.", "response": "Who usually brings the proposal to the board, and when's the next meeting? I can send a one-pager they can table.", "options": [], "showWhen": "" },

@@ -234,3 +234,30 @@ loses the finish button and is no longer fixed; it is the grid's last row
 AI summary (§7), a phone layout for this screen, filtering the contacts
 table by discovery answers (the data is now there for it), editing the
 Discovery or Close sections in the browser.
+
+## Revision, 2026-09-09 — after Keenan tried it
+
+Three changes from his review:
+
+1. **Discovery is exactly the five questions.** Nothing from the sheet
+   renders under them any more (`DiscoveryPanel` reads only the sheet's
+   `jersey_manager` line, for its wording). The default script drops its
+   last discovery question; a sheet may still carry extra discovery rows —
+   they are ignored on screen and still exported as columns.
+2. **The pickup line is set in Settings, not in place.** A ⚙ *Settings*
+   button in the top bar (and next to the pickup line) opens a side sheet
+   (`call-settings.tsx`) with two texts per list: the pickup line and the
+   **voicemail message** (new `CallList.voicemailScript`, healed to `''`,
+   saved by `updateListText`). The pickup line on screen is view-only.
+   Opening lines, objections and quick facts keep their in-place pencils.
+3. **"Went to voicemail" in the expanded Opening.** A button under the
+   opening lines; pressing it shows the voicemail message at read-aloud
+   size (placeholders filled) with two buttons: *Left the message — log
+   Voicemail & next* (the same one-click Voicemail log as the board) and
+   *They picked up after all*. The Opening panel is keyed by contact so the
+   prompt closes when the contact changes.
+
+Playwright gains two checks: Settings sets both texts (the pickup line
+renders at 28px with placeholders filled), and Went to voicemail shows the
+message and logs Voicemail on one click. The "five questions" check now
+also asserts there are exactly five.

@@ -16,7 +16,7 @@ const KINDS = [['read', 'Say'], ['reminder', 'Remind me']] as const;
  * opening section of the list's script and leaves the other sections alone.
  */
 export function OpeningPanel({
-  listId, items, rawScript, checklist, onTick, open, onToggle, onScriptSaved, disabled,
+  listId, items, rawScript, checklist, onTick, open, onToggle, onScriptSaved, disabled, voicemailScript, onVoicemail, onOpenSettings,
 }: {
   listId: string;
   /** The opening rows that apply to this contact, placeholders filled. */
@@ -29,9 +29,15 @@ export function OpeningPanel({
   onToggle: () => void;
   onScriptSaved: (script: ScriptItem[]) => void;
   disabled: boolean;
+  /** The list's voicemail message, placeholders filled. Shown by "Went to voicemail". */
+  voicemailScript: string;
+  /** Logs the Voicemail outcome and moves on. */
+  onVoicemail: () => void;
+  onOpenSettings: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<ScriptItem[]>([]);
+  const [voicemailOpen, setVoicemailOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, start] = useTransition();
 
@@ -95,6 +101,34 @@ export function OpeningPanel({
           ) : (
             <p key={r.id} className="max-w-[75ch] rounded-lg border-l-4 border-ppc-gold/70 bg-surface-2 px-4 py-3 text-[20px] leading-relaxed">{r.text}</p>
           ))}
+
+          {/* It rang out: show what to say on the machine, then log it in one click. */}
+          {!voicemailOpen ? (
+            <button
+              type="button"
+              data-testid="went-to-voicemail"
+              disabled={disabled}
+              onClick={() => setVoicemailOpen(true)}
+              className="rounded-lg border border-sky-500/60 bg-sky-500/10 px-4 py-2.5 text-[15px] font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-40"
+            >
+              📼 Went to voicemail
+            </button>
+          ) : (
+            <div data-testid="voicemail-prompt" className="space-y-3 rounded-lg border border-sky-500/40 bg-sky-500/5 p-3">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-sky-300">Voicemail — say this</p>
+              {voicemailScript ? (
+                <p className="max-w-[75ch] whitespace-pre-wrap text-[20px] leading-relaxed">{voicemailScript}</p>
+              ) : (
+                <button type="button" onClick={onOpenSettings} className="text-left text-[16px] text-muted hover:text-ppc-gold">No voicemail message yet — write it in Settings →</button>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" data-testid="log-voicemail" disabled={disabled} onClick={onVoicemail} className="rounded-lg bg-ppc-gold px-4 py-2 text-[15px] font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-40">
+                  Left the message — log Voicemail & next →
+                </button>
+                <button type="button" onClick={() => setVoicemailOpen(false)} className="rounded-lg border border-line px-3 py-2 text-[13px] hover:border-ppc-gold/60">They picked up after all</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

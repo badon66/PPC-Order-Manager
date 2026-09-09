@@ -44,7 +44,7 @@ export function blankContact(listId: string, sortOrder: number, now: string): Co
 }
 
 export function blankCallList(id: string, name: string, createdBy: string, now: string): CallList {
-  return { id, name, script: [], pickupLine: '', quickFacts: '', imports: [], createdBy, createdAt: now, updatedAt: now, deletedAt: null };
+  return { id, name, script: [], pickupLine: '', voicemailScript: '', quickFacts: '', imports: [], createdBy, createdAt: now, updatedAt: now, deletedAt: null };
 }
 
 export function blankJerseyManager(): JerseyManagerAnswer {
@@ -261,6 +261,7 @@ export function healCallList(l: CallList): CallList {
   l.createdBy ??= '';
   l.deletedAt ??= null;
   l.pickupLine ??= '';
+  l.voicemailScript ??= '';
   l.quickFacts ??= '';
   const legacy = l as unknown as {
     importReport?: { imported: number; skipped: ImportRecord['skipped']; warnings: ImportRecord['warnings'] };

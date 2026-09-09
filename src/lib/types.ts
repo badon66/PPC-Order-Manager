@@ -661,8 +661,10 @@ export interface CallList {
   id: string;
   name: string;
   script: ScriptItem[];
-  /** The sentence said when they answer. Per list, edited on the calling screen. */
+  /** The sentence said when they answer. Per list, edited in the calling screen's Settings. */
   pickupLine: string;
+  /** What to say when it goes to voicemail. Per list, edited in Settings; shown by "Went to voicemail". */
+  voicemailScript: string;
   /** Lead times, minimums, shipping, sizing link — the things asked mid-sentence. Free text, per list. */
   quickFacts: string;
   imports: ImportRecord[];

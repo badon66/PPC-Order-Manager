@@ -89,6 +89,9 @@ test('an objection chip expands its response and collapses again', async ({ page
 test('each of the five questions records against the call log', async ({ page }) => {
   await openCall(page);
   const name = await page.locator('main h2').first().textContent();
+  // Exactly five: nothing from the sheet renders under them.
+  await expect(page.locator('[data-testid^="discovery-q"]')).toHaveCount(5);
+  await expect(page.getByTestId('col-script')).not.toContainText('Roughly how many teams');
   await page.getByTestId('discovery-q1').getByRole('button', { name: 'Them' }).click();
   await page.getByTestId('discovery-q2').getByRole('radio', { name: '1–2 yrs' }).click();
   await page.getByTestId('discovery-q3').getByRole('radio', { name: '4 stars' }).click();
@@ -134,4 +137,34 @@ test('one outcome click logs the call and advances the queue', async ({ page }) 
   await expect(page.getByTestId('queue-position')).not.toHaveText(position!);
   // The session tally in the footer counted it.
   await expect(page.getByTestId('footer-tally')).toContainText(/Calls\s*[1-9]/);
+});
+
+test('Settings sets the pickup line and the voicemail message', async ({ page }) => {
+  await openCall(page);
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  const sheet = page.getByTestId('call-settings');
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel(/Pickup line/).fill("Hi [Name], it's [Rep] from Powerplay Customs — got thirty seconds?");
+  await sheet.getByLabel(/Voicemail/).fill("Hi [Name], [Rep] from Powerplay Customs about [Org]'s jerseys — I'll try again later this week.");
+  await sheet.getByRole('button', { name: 'Save' }).click();
+  await expect(sheet).toBeHidden();
+  const pickup = page.getByTestId('pickup-line');
+  await expect(pickup).toContainText('from Powerplay Customs — got thirty seconds?');
+  await expect(pickup).not.toContainText('[Name]');
+  expect(await pickup.evaluate((el) => getComputedStyle(el).fontSize)).toBe('28px');
+});
+
+test('Went to voicemail shows the message, and one click logs it', async ({ page }) => {
+  await openCall(page);
+  const name = await page.locator('main h2').first().textContent();
+  await expect(page.getByTestId('voicemail-prompt')).toHaveCount(0);
+  await page.getByTestId('went-to-voicemail').click();
+  const prompt = page.getByTestId('voicemail-prompt');
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText("from Powerplay Customs about");
+  await expect(prompt).not.toContainText('[Org]');
+  await page.getByTestId('log-voicemail').click();
+  await expect(page.locator('main h2').first()).not.toHaveText(name!);
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await expect(page.getByTestId('outcome-board')).toContainText('Left Voicemail');
 });

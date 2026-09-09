@@ -214,9 +214,9 @@ export async function saveListScript(listId: string, items: unknown): Promise<{ 
   return { ok: true, script: v.items };
 }
 
-/** The pickup line and the quick facts: one text each, per list. */
+/** The pickup line, the voicemail message and the quick facts: one text each, per list. */
 export async function updateListText(
-  listId: string, patch: { pickupLine?: string; quickFacts?: string },
+  listId: string, patch: { pickupLine?: string; voicemailScript?: string; quickFacts?: string },
 ): Promise<{ ok: true; list: CallList } | { ok: false; error: string }> {
   await requireRole('staff');
   const actor = await currentActor();
@@ -225,6 +225,7 @@ export async function updateListText(
   const list: CallList = {
     ...bundle.list,
     pickupLine: patch.pickupLine === undefined ? bundle.list.pickupLine : String(patch.pickupLine).trim().slice(0, 500),
+    voicemailScript: patch.voicemailScript === undefined ? bundle.list.voicemailScript : String(patch.voicemailScript).replace(/\r\n/g, '\n').trim().slice(0, 2000),
     quickFacts: patch.quickFacts === undefined ? bundle.list.quickFacts : String(patch.quickFacts).replace(/\r\n/g, '\n').trimEnd().slice(0, 5000),
     updatedAt: new Date().toISOString(),
   };

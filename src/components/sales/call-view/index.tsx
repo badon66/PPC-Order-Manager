@@ -21,6 +21,7 @@ import { DiscoveryPanel } from './discovery-panel';
 import { ClosePanel } from './close-panel';
 import { ObjectionsPanel } from './objections-panel';
 import { QuickFacts } from './quick-facts';
+import { CallSettings } from './call-settings';
 import { FooterBar, type SaveState } from './footer-bar';
 import { useCallKeys } from './use-keyboard';
 import { draftFromLog, inputFromDraft, useDraft, type CallDraft } from './use-draft';
@@ -73,6 +74,7 @@ export function CallView(props: CallViewProps) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [help, setHelp] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   const session = useCallSession(list.id, props.callerDefault);
@@ -220,8 +222,11 @@ export function CallView(props: CallViewProps) {
           <span>⏱ calling for <span className="font-semibold text-foreground">{formatClock(session.seconds)}</span></span>
           {current && <span><span className="font-semibold text-foreground">{formatClock(elapsed)}</span> here</span>}
           <button type="button" onClick={() => setHelp((h) => !h)} className="rounded border border-line px-1.5 text-[12px] hover:text-ppc-gold" title="Keyboard shortcuts">?</button>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="rounded border border-line px-2 py-0.5 text-[13px] hover:border-ppc-gold/60 hover:text-ppc-gold" title="Pickup line and voicemail message">⚙ Settings</button>
         </div>
       </div>
+
+      {settingsOpen && <CallSettings list={list} onClose={() => setSettingsOpen(false)} onSaved={(l) => { setList(l); setSettingsOpen(false); }} />}
 
       {notice && <Warning>{notice}</Warning>}
       {help && (
@@ -253,8 +258,9 @@ export function CallView(props: CallViewProps) {
 
           {/* Column 2 — what to say and what to ask */}
           <section data-testid="col-script" className={`${COLUMN} space-y-6`}>
-            <PickupLine listId={list.id} value={list.pickupLine} contact={current} callerName={callerName} onSaved={setList} />
+            <PickupLine value={list.pickupLine} contact={current} callerName={callerName} onOpenSettings={() => setSettingsOpen(true)} />
             <OpeningPanel
+              key={current.id}
               listId={list.id}
               items={opening}
               rawScript={list.script}
@@ -264,6 +270,9 @@ export function CallView(props: CallViewProps) {
               onToggle={() => setOpeningOpen((o) => !o)}
               onScriptSaved={onScriptSaved}
               disabled={disabledInputs}
+              voicemailScript={fillPlaceholders(list.voicemailScript, current, callerName)}
+              onVoicemail={() => pick('voicemail')}
+              onOpenSettings={() => setSettingsOpen(true)}
             />
             <DiscoveryPanel
               items={discoveryItems}
@@ -272,10 +281,7 @@ export function CallView(props: CallViewProps) {
               onJerseyManager={(p) => update((d) => ({ ...d, jerseyManager: { ...d.jerseyManager, ...p } }))}
               discovery={draft.discovery}
               onDiscovery={(p) => update((d) => ({ ...d, discovery: { ...d.discovery, ...(typeof p === 'function' ? p(d.discovery) : p) } }))}
-              answers={draft.answers}
               onAnswer={answer}
-              checklist={draft.checklist}
-              onTick={tick}
               disabled={disabledInputs}
             />
             <ClosePanel
