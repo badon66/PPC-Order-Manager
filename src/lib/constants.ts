@@ -1,4 +1,4 @@
-import type { AssetRole, Captaincy, CaptainPatchStyle, CallOutcome, JerseyTier, JerseyType, LacesStyle, LeadPriority, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ScriptKind, ShoulderCut, SockType } from './types';
+import type { AssetRole, Captaincy, CaptainPatchStyle, CallOutcome, JerseyTier, JerseyType, LacesStyle, LastRedone, LeadPriority, LookingAt, NameStyle, Order, OrderMode, OrderStatus, PantShellType, ScriptKind, ShoulderCut, SockType, SupplierPriority } from './types';
 import picklists from './sales/picklists.json';
 
 /* ------------------------------------------------------------------ *
@@ -519,6 +519,17 @@ export const TALKED_OUTCOMES = CALL_OUTCOME_OPTIONS.filter((o) => CALL_OUTCOME_M
 
 /** Keyboard keys for the eleven outcomes, in CALL_OUTCOME_OPTIONS order. */
 export const OUTCOME_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'] as const;
+
+/* Discovery answers, as shown on screen and in the CSV. */
+export const LAST_REDONE_LABELS: Record<Exclude<LastRedone, ''>, string> = {
+  under_1: 'Under 1 yr', '1_2': '1–2 yrs', '2_3': '2–3 yrs', '3_5': '3–5 yrs', '5_plus': '5+ yrs', never: "Never / don't know",
+};
+export const LOOKING_AT_LABELS: Record<Exclude<LookingAt, ''>, string> = {
+  jersey_only: 'Jersey only', jerseys_socks: 'Jerseys + socks', full_set: 'Full set', replacement: 'Replacement jerseys',
+};
+export const SUPPLIER_PRIORITY_LABELS: Record<SupplierPriority, string> = {
+  turnaround: 'Turnaround', durability: 'Durability', design_help: 'Design help', low_minimums: 'Low minimums', price: 'Price',
+};
 
 export const NOT_INTERESTED_REASONS: readonly string[] = picklists.notInterestedReason;
 

@@ -11,9 +11,9 @@ import type {
 } from '@/lib/dates';
 import { addDays, isCalendarDate, timestampDay } from '@/lib/dates';
 import type {
-  CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, ImportRecord, JerseyManagerAnswer, ScriptItem,
+  CallList, CallLog, CallOutcome, CallSession, Contact, ContactBucket, Discovery, ImportRecord, JerseyManagerAnswer, ScriptItem,
 } from '@/lib/types';
-import { CALL_OUTCOMES } from '@/lib/types';
+import { CALL_OUTCOMES, LAST_REDONE_OPTIONS, LOOKING_AT_OPTIONS, SUPPLIER_PRIORITIES } from '@/lib/types';
 import { BUSINESS_TIMEZONE, PRIORITY_RANK } from '@/lib/constants';
 import { isNorthAmerican } from '@/lib/sales/phone';
 import { findMatch } from '@/lib/sales/match';
@@ -36,7 +36,7 @@ export function blankContact(listId: string, sortOrder: number, now: string): Co
     city: '', province: '', timezoneOverride: '', league: '', ageDivisions: '', teams: null,
     players: null, seasonStartMonth: '', orderingMonth: '', currentSupplier: '', lastOrderedYear: '',
     colours: '', website: '', social: '', leadSource: '', priority: '', bestTimeToCall: '',
-    doNotCall: false, notes: '', raw: {}, isJerseyManager: false,
+    doNotCall: false, notes: '', raw: {}, isJerseyManager: false, discovery: blankDiscovery(),
     lastOutcome: null, lastCalledAt: null, callCount: 0, skipCount: 0, lastSkippedAt: null,
     nextCallDate: null, leadRating: null,
     createdAt: now, updatedAt: now,
@@ -44,11 +44,30 @@ export function blankContact(listId: string, sortOrder: number, now: string): Co
 }
 
 export function blankCallList(id: string, name: string, createdBy: string, now: string): CallList {
-  return { id, name, script: [], imports: [], createdBy, createdAt: now, updatedAt: now, deletedAt: null };
+  return { id, name, script: [], pickupLine: '', quickFacts: '', imports: [], createdBy, createdAt: now, updatedAt: now, deletedAt: null };
 }
 
 export function blankJerseyManager(): JerseyManagerAnswer {
   return { answer: '', existingContactId: '', person: { name: '', role: '', phone: '', email: '', note: '' } };
+}
+
+export function blankDiscovery(): Discovery {
+  return { lastRedone: '', satisfaction: null, changeOneThing: '', lookingAt: '', home: false, away: false, primaryPriority: '', alsoPriorities: [] };
+}
+
+/**
+ * The contact's standing answers after a call: every question answered on
+ * this call overwrites, every question left blank keeps what was known.
+ * Q4's Home/Away and Q5's "also" list travel with their question.
+ */
+export function mergeDiscovery(base: Discovery, next: Discovery): Discovery {
+  const out: Discovery = { ...base, alsoPriorities: [...base.alsoPriorities] };
+  if (next.lastRedone) out.lastRedone = next.lastRedone;
+  if (next.satisfaction !== null) out.satisfaction = next.satisfaction;
+  if (next.changeOneThing.trim()) out.changeOneThing = next.changeOneThing.trim();
+  if (next.lookingAt) { out.lookingAt = next.lookingAt; out.home = next.home; out.away = next.away; }
+  if (next.primaryPriority) { out.primaryPriority = next.primaryPriority; out.alsoPriorities = [...next.alsoPriorities]; }
+  return out;
 }
 
 export function blankCallLogInput(startedAt: string): CallLogInput {
@@ -57,7 +76,7 @@ export function blankCallLogInput(startedAt: string): CallLogInput {
     startedAt, endedAt: startedAt, durationSeconds: 0, callerName: '',
     followUp: { date: null, time: '', note: '' }, email: '', reason: '',
     referral: { name: '', role: '', phone: '', email: '' }, newPhone: '',
-    sessionId: null, jerseyManager: blankJerseyManager(),
+    sessionId: null, jerseyManager: blankJerseyManager(), discovery: blankDiscovery(),
   };
 }
 
@@ -198,6 +217,8 @@ export function healCallList(l: CallList): CallList {
   l.script.forEach((s: ScriptItem) => { s.options ??= []; s.response ??= ''; s.showWhen ??= ''; });
   l.createdBy ??= '';
   l.deletedAt ??= null;
+  l.pickupLine ??= '';
+  l.quickFacts ??= '';
   const legacy = l as unknown as {
     importReport?: { imported: number; skipped: ImportRecord['skipped']; warnings: ImportRecord['warnings'] };
     sourceFileName?: string;
@@ -222,6 +243,8 @@ export function healCallLog(g: CallLog): CallLog {
     if (g[k] === undefined) (g as unknown as Record<string, unknown>)[k] = b[k];
   }
   if (!g.jerseyManager.person) g.jerseyManager.person = blankJerseyManager().person;
+  g.discovery = { ...blankDiscovery(), ...(g.discovery ?? {}) };
+  g.discovery.alsoPriorities ??= [];
   return g;
 }
 
@@ -281,6 +304,7 @@ export function applyCallLog(contact: Contact, log: CallLog, today: CalendarDate
     patch.lastCalledAt = log.endedAt;
   }
   if (log.leadRating) patch.leadRating = log.leadRating;
+  patch.discovery = mergeDiscovery(contact.discovery ?? blankDiscovery(), log.discovery ?? blankDiscovery());
   if ((log.outcome === 'send_info' || log.outcome === 'interested') && log.email.trim()) patch.email = log.email.trim();
   if (log.outcome === 'bad_number' && log.newPhone.trim()) {
     patch.phone = log.newPhone.trim();
@@ -464,6 +488,12 @@ export function validateCallLog(
   if (input.sessionId && opts.sessionIds && !opts.sessionIds.includes(input.sessionId)) {
     blocking.sessionId = 'That calling session does not belong to this list';
   }
+  const d = input.discovery;
+  if (d.lastRedone && !(LAST_REDONE_OPTIONS as readonly string[]).includes(d.lastRedone)) blocking.discovery = 'Bad "last redone" answer';
+  if (d.lookingAt && !(LOOKING_AT_OPTIONS as readonly string[]).includes(d.lookingAt)) blocking.discovery = 'Bad "looking at" answer';
+  if (d.satisfaction !== null && !(Number.isInteger(d.satisfaction) && d.satisfaction >= 1 && d.satisfaction <= 5)) blocking.discovery = 'Satisfaction must be 1–5';
+  const prios = (SUPPLIER_PRIORITIES as readonly string[]);
+  if ((d.primaryPriority && !prios.includes(d.primaryPriority)) || d.alsoPriorities.some((p) => !prios.includes(p))) blocking.discovery = 'Bad supplier priority';
 
   if (input.email.trim() && !EMAIL_RE.test(input.email.trim())) warnings.email = "That doesn't look like an email";
   if (input.outcome === 'interested' && !input.email.trim()) warnings.email = 'No email captured — follow-up will be harder';

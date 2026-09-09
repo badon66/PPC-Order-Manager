@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Contact, ScriptItem } from '@/lib/types';
 import { parseShowWhen, showWhenMatches, applicableItems, fillPlaceholders } from '@/lib/sales/script';
+import { blankDiscovery } from '@/lib/data/sales-logic';
 
 function contact(over: Partial<Contact> = {}): Contact {
   return {
@@ -12,7 +13,7 @@ function contact(over: Partial<Contact> = {}): Contact {
     players: 210, seasonStartMonth: 'Sep', orderingMonth: 'Jun', currentSupplier: 'XYZ Sports',
     lastOrderedYear: '2023', colours: 'navy/gold', website: '', social: '', leadSource: 'Web research',
     priority: 'A', bestTimeToCall: 'Weekday evening', doNotCall: false, notes: '',
-    raw: { 'Rink': 'Ennismore CC' }, isJerseyManager: false,
+    raw: { 'Rink': 'Ennismore CC' }, isJerseyManager: false, discovery: blankDiscovery(),
     lastOutcome: null, lastCalledAt: null, callCount: 0, skipCount: 0, lastSkippedAt: null,
     nextCallDate: null, leadRating: null, createdAt: '2026-09-06T00:00:00.000Z', updatedAt: '2026-09-06T00:00:00.000Z',
     ...over,

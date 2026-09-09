@@ -661,6 +661,10 @@ export interface CallList {
   id: string;
   name: string;
   script: ScriptItem[];
+  /** The sentence said when they answer. Per list, edited on the calling screen. */
+  pickupLine: string;
+  /** Lead times, minimums, shipping, sizing link — the things asked mid-sentence. Free text, per list. */
+  quickFacts: string;
   imports: ImportRecord[];
   createdBy: string;
   createdAt: string;
@@ -710,6 +714,8 @@ export interface Contact {
    * at most one contact per linked team (same orgName) carries it.
    */
   isJerseyManager: boolean;
+  /** The latest answers to the discovery questions, merged from calls by applyCallLog. */
+  discovery: Discovery;
 
   /* Call state. Written only by applyCallLog / applySkip in data/sales-logic.ts. */
   lastOutcome: CallOutcome | null;
@@ -759,6 +765,30 @@ export interface CallSession {
   updatedAt: string;
 }
 
+/* Discovery — the five questions asked on every call that reaches someone. */
+export const LAST_REDONE_OPTIONS = ['under_1', '1_2', '2_3', '3_5', '5_plus', 'never'] as const;
+export type LastRedone = '' | (typeof LAST_REDONE_OPTIONS)[number];
+export const LOOKING_AT_OPTIONS = ['jersey_only', 'jerseys_socks', 'full_set', 'replacement'] as const;
+export type LookingAt = '' | (typeof LOOKING_AT_OPTIONS)[number];
+export const SUPPLIER_PRIORITIES = ['turnaround', 'durability', 'design_help', 'low_minimums', 'price'] as const;
+export type SupplierPriority = (typeof SUPPLIER_PRIORITIES)[number];
+
+export interface Discovery {
+  /** Q2 — when the jerseys were last redone. '' = not asked. */
+  lastRedone: LastRedone;
+  /** Q3 — how happy they are with the current set. Their opinion, NOT leadRating. */
+  satisfaction: LeadRating | null;
+  /** Q3 — "if you could change one thing…" */
+  changeOneThing: string;
+  /** Q4 — what they'd be looking at. */
+  lookingAt: LookingAt;
+  home: boolean;
+  away: boolean;
+  /** Q5 — first tap is the primary, further taps are "also mentioned". */
+  primaryPriority: SupplierPriority | '';
+  alsoPriorities: SupplierPriority[];
+}
+
 export interface CallLog {
   id: string;
   listId: string;
@@ -785,6 +815,8 @@ export interface CallLog {
   /** The session this call was made in; null for calls logged outside one. */
   sessionId: string | null;
   jerseyManager: JerseyManagerAnswer;
+  /** The five discovery questions, typed — so lists can be queried later. */
+  discovery: Discovery;
   createdAt: string;
   updatedAt: string;
 }
