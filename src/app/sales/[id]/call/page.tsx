@@ -37,6 +37,7 @@ export default async function CallPage({
   }
 
   return (
+    <div className="call-screen flex min-h-0 flex-1 flex-col">
     <CallView
       list={bundle.list}
       contacts={bundle.contacts}
@@ -48,5 +49,6 @@ export default async function CallPage({
       callerDefault={user?.name ?? ''}
       today={day}
     />
+    </div>
   );
 }
