@@ -6,7 +6,7 @@ import {
   ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META,
   UNFINALIZED_STATUSES, statusBucket,
 } from '@/lib/constants';
-import { Button, Card, EmptyState, StatusBadge } from '@/components/ui';
+import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
 import type { Order, OrderStatus, RosterEntry } from '@/lib/types';
 
@@ -68,7 +68,10 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
     <Card className="flex flex-col p-4 transition-colors hover:border-ppc-gold/50">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold leading-tight">{order.teamName || 'Untitled order'}</h3>
-        <StatusBadge status={order.status} />
+        <div className="flex items-center gap-1.5">
+          {order.source === 'website' && <WebsiteBadge />}
+          <StatusBadge status={order.status} />
+        </div>
       </div>
 
       <dl className="mt-3 space-y-1.5 text-sm">

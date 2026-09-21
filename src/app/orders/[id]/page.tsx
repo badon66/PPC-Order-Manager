@@ -12,7 +12,8 @@ import { resolveAll } from '@/lib/storage';
 import { asDownload, downloadName } from '@/lib/download';
 import { baseUrl, isLocalUrl } from '@/lib/base-url';
 import { ArtworkGallery } from '@/components/artwork-gallery';
-import { Button, Card, Field, Section, Stat, StatusBadge, Warning, YesNo } from '@/components/ui';
+import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge, YesNo } from '@/components/ui';
+import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { SubmissionReview } from '@/components/submission-review';
 import { SignatureProof } from '@/components/signature-proof';
@@ -85,6 +86,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <p className="text-sm text-muted">Order Details</p>
         </div>
         <div className="flex items-center gap-2">
+          {order.source === 'website' && <WebsiteBadge size="lg" />}
           <StatusBadge status={order.status} size="lg" />
           <Button href={`/orders/${order.id}/edit`} variant="primary">
             Edit Order
@@ -98,6 +100,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <CopyButton label="Copy Client Form Link" value={rosterLink} />
         <Button href={`/api/orders/${order.id}/roster.csv`}>Download CSV Roster</Button>
       </div>
+
+      {order.enquiry && <EnquiryCard enquiry={order.enquiry} />}
 
       {/*
         * Only ever appears on a laptop. A localhost link works perfectly for

@@ -17,6 +17,19 @@ export function StatusBadge({ status, size = 'sm' }: { status: OrderStatus; size
   );
 }
 
+/** Marks an order that arrived from the website's enquiry form. */
+export function WebsiteBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border border-ppc-gold/60 bg-ppc-gold/10 font-semibold whitespace-nowrap text-ppc-gold ${
+        size === 'lg' ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'
+      }`}
+    >
+      Website
+    </span>
+  );
+}
+
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
