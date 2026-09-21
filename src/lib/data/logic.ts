@@ -8,6 +8,8 @@ import {
   extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
 import type { Actor, PublicOrderView } from './repository';
+import type { RouteVariant } from '@/lib/types';
+import { variantOf } from './intake-logic';
 
 /**
  * Store-agnostic rules.
@@ -619,6 +621,8 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   /** True once the order is in production or beyond — the form goes read-only. */
   locked: boolean;
   sections: ClientLinkSections;
+  /** Which website route made this order, for the customer page's wording. null = made by hand. */
+  variant: RouteVariant | null;
   orderMode: Order['orderMode'];
   /** Whether to ask for sock / pant shell sizes at all. */
   includesSocks: boolean;
@@ -652,6 +656,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     status: o.status,
     locked: clientEditingLocked(o.status),
     sections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
+    variant: variantOf(o.enquiry?.startingPoint),
     orderMode: o.orderMode,
     includesSocks: orderIncludesSocks(o),
     includesPantShells: orderIncludesPantShells(o),

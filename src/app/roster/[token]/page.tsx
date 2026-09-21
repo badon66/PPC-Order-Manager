@@ -3,6 +3,7 @@ import { repo } from '@/lib/data';
 import { resolveAll } from '@/lib/storage';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { ClientForm } from './client-form';
+import { ROUTE_COPY } from '@/lib/route-copy';
 import { ApproveBlock } from '@/app/share/[token]/approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { formatLong } from '@/lib/dates';
@@ -51,6 +52,11 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
               anything that needs changing and send it again, right up until your order goes
               into production. We&apos;ll see exactly what you updated.
             </p>
+          ) : link.variant ? (
+            <>
+              <p className="mt-2 text-base font-semibold text-fg">{ROUTE_COPY[link.variant].title}</p>
+              <p className="mt-1 text-sm text-muted">{ROUTE_COPY[link.variant].intro}</p>
+            </>
           ) : (
             <p className="mt-2 text-sm text-muted">
               We need a few things from you to get this order moving:{' '}
@@ -96,6 +102,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
           token={token}
           teamName={link.teamName}
           sections={link.sections}
+          variant={link.variant}
           existingRosterCount={link.existingRosterCount}
           includesSocks={link.includesSocks}
           includesPantShells={link.includesPantShells}

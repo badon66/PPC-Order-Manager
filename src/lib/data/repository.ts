@@ -1,6 +1,6 @@
 import type {
   AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Contact,
-  Order, OrderAsset, RosterEntry,
+  Order, OrderAsset, RosterEntry, RouteVariant,
 } from '@/lib/types';
 
 /**
@@ -163,6 +163,7 @@ export interface Repository {
      */
     locked: boolean;
     sections: ClientLinkSections;
+    variant: RouteVariant | null;
     orderMode: Order['orderMode'];
     /** Whether the order actually includes socks / pant shells. */
     includesSocks: boolean;

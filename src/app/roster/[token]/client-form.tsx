@@ -7,6 +7,8 @@ import type {
 } from '@/lib/types';
 import { CaptaincyPicker } from '@/components/captaincy';
 import { submitClientForm } from './actions';
+import { ROUTE_COPY } from '@/lib/route-copy';
+import type { RouteVariant } from '@/lib/types';
 
 /**
  * The customer's form. Written for a team manager on their phone at 10pm the
@@ -31,6 +33,7 @@ type Props = {
   token: string;
   teamName: string;
   sections: ClientLinkSections;
+  variant: RouteVariant | null;
   existingRosterCount: number;
   includesSocks: boolean;
   includesPantShells: boolean;
@@ -132,7 +135,7 @@ function sizeOptions(options: readonly string[], current: string) {
 
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
-  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews,
+  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant,
 }: Props) {
   /*
    * Spares are their own list, not extra roster rows.
@@ -236,7 +239,7 @@ export function ClientForm({
   return (
     <div className="space-y-5">
       {sections.logos && (
-        <Step n={stepNums.logos} title="Logos" hint="Team logo, sponsor logos, crest files. The higher the resolution, the better it prints.">
+        <Step n={stepNums.logos} title="Logos" hint={variant ? ROUTE_COPY[variant].logosHint : 'Team logo, sponsor logos, crest files. The higher the resolution, the better it prints.'}>
           <FileList<SubmittedLogo>
             previews={previews}
             onPreview={addPreview}
@@ -261,7 +264,7 @@ export function ClientForm({
       )}
 
       {sections.inspiration && (
-        <Step n={stepNums.inspiration} title="Design Inspiration" hint="Pictures of looks you like — other jerseys, colour combos, anything. Tell us what you like about each one.">
+        <Step n={stepNums.inspiration} title="Design Inspiration" hint={variant ? ROUTE_COPY[variant].inspirationHint : 'Pictures of looks you like — other jerseys, colour combos, anything. Tell us what you like about each one.'}>
           <FileList<SubmittedInspiration>
             previews={previews}
             onPreview={addPreview}
