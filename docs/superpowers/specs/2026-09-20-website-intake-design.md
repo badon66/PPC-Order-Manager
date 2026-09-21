@@ -106,7 +106,7 @@ roster and personal-details sections keep their current wording.
 - **Honeypot** field `website` (rendered hidden on the page). Filled → pretend success, write nothing.
 - **Size and shape.** Body over 16 KB → `413`. Each field trimmed and capped at 2,000 characters; `email` must match a plain email pattern.
 - **Rate limit.** Ten intakes per IP per ten minutes, in-memory token bucket per server instance (best effort; Vercel may run several). Enough to stop a loop, not a security boundary.
-- **Dedupe.** Same `email` + `teamName` (case-insensitive, trimmed) as a live order with `source: 'website'` created in the last 24 hours → update that order's `enquiry` in place, log "Enquiry updated from the website", and return its existing links. Nothing else about the order is overwritten.
+- **Dedupe.** Same `email` + `teamName` (case-insensitive, trimmed) as a **Draft** with `source: 'website'` created in the last 24 hours → update that Draft's `enquiry` and give it the newly generated roster token (the newest link the customer holds is the one that works), log it under the website actor, and return its links. Nothing else about the order is overwritten. A Draft Keenan has already promoted is left alone and a new Draft is made.
 
 ### In the manager UI
 
@@ -120,13 +120,20 @@ roster and personal-details sections keep their current wording.
 
 One change to `changes/2026-09-20-contact-only/start-your-order.html` in the Website repo:
 
-- The submit listener (already there for dropping empty fields) becomes: prevent the default,
-  build the intake body from the form, `fetch('https://orders.powerplaycustoms.ca/api/intake', …)`
-  with a 4-second `AbortController`, then on `{ok:true}` append hidden inputs
-  `contact[Upload link]` and `contact[Order manager]` and set `return_to` to
-  `/pages/<handle>?sent=1&roster=<token>`; on any failure or timeout change nothing. Then
-  `form.requestSubmit()` with a guard flag so the listener does not run twice. Shopify's own
-  form-protection script still handles the second submit, as it does today.
+- The submit listener (already there for dropping empty fields) does not wait for the manager.
+  Shopify's form protection only completes a submission that started from a real click, so the
+  page cannot pause the submit for a network call. Instead the page **generates the roster token
+  itself** (64 hex characters from `crypto.getRandomValues`), sends it in the intake body with a
+  `keepalive` fetch that survives the navigation, writes the token into `return_to`
+  (`/pages/<handle>?sent=1&roster=<token>`) and into two hidden fields, `contact[Upload link]`
+  and `contact[Order manager]`, and lets the native submit go. The manager creates the Draft with
+  that token (validated as 64 hex, refused with 409 if another order already holds it).
+- The success panel asks `GET /api/intake/<token>` whether the Draft exists (up to four tries,
+  two seconds apart) and only then shows the upload button. If the manager never answers, the
+  panel is what it is today.
+- `contact[Order manager]` is the order list searched for the team
+  (`/orders?search=<team>`), because the order id is minted by the manager after the email is
+  already on its way.
 - The success panel reads `roster` from the URL and, when present, shows the upload button under
   the existing text. Without it, the panel is unchanged.
 - No-JavaScript visitors: the Shopify submit works exactly as today; no intake, no link. Keenan

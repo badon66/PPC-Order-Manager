@@ -143,6 +143,44 @@ export const DEFAULT_CLIENT_LINK_SECTIONS: ClientLinkSections = {
 };
 
 /* ------------------------------------------------------------------ *
+ * Website intake
+ *
+ * The website's order page offers three starting points. The one the
+ * customer picked decides how their client-link page opens (see
+ * src/lib/route-copy.ts) and which sections it asks for.
+ * ------------------------------------------------------------------ */
+
+export const STARTING_POINTS = ['Design ready', 'Starting from scratch', 'Ordered before'] as const;
+export type StartingPoint = (typeof STARTING_POINTS)[number];
+
+/** The customer page's flavour, derived from the starting point. `null` = an order Keenan made by hand. */
+export type RouteVariant = 'ready' | 'scratch' | 'reorder';
+
+export const ORDER_SOURCES = ['manual', 'website'] as const;
+export type OrderSource = (typeof ORDER_SOURCES)[number];
+
+/**
+ * What the team typed on the website, word for word. Team name, contact and
+ * jersey tier are also mapped into their normal Order fields; this keeps the
+ * rest, so nothing they wrote is lost to a mapping.
+ */
+export interface WebsiteEnquiry {
+  startingPoint: StartingPoint;
+  league: string;
+  quantity: string;
+  timeline: string;
+  jerseyStyle: string;
+  items: string[];
+  artworkStatus: string;
+  colours: string;
+  inspiration: string;
+  extraDetails: string;
+  previousOrder: string;
+  /** ISO instant the enquiry arrived. A timestamp, not a calendar date. */
+  receivedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
  * Entities
  * ------------------------------------------------------------------ */
 
@@ -361,6 +399,9 @@ export interface Order {
   /** Missing from the old admin form entirely. Now load-bearing for the Gmail link. */
   contactEmail: string;
   contactPhone: string;
+  /** Where the order came from. Website orders carry the enquiry below. */
+  source: OrderSource;
+  enquiry: WebsiteEnquiry | null;
   shippingStreet: string;
   shippingSecondary: string;
   shippingCity: string;

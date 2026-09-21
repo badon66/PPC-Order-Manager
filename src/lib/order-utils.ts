@@ -417,6 +417,9 @@ export function blankOrder(): Order {
     approvedDate: null,
     deliveryConcern: '',
 
+    source: 'manual',
+    enquiry: null,
+
     shareToken: newToken(),
     rosterToken: newToken(),
 

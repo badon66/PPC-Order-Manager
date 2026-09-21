@@ -52,6 +52,8 @@ export function healOrder(o: Order): Order {
   o.extraJerseyDetails ??= [];
   o.approvalRecord ??= null;
   o.deletedAt ??= null;
+  o.source ??= 'manual';
+  o.enquiry ??= null;
   for (const set of (o.sets ??= [])) {
     set.extraJerseys ??= 0;
     set.extraSockPairs ??= 0;
