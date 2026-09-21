@@ -27,6 +27,14 @@ flag on purpose: a hosted app pointed at a JSON file writes to a disk that
 disappears on the next deploy, and a laptop pointed at Supabase edits live
 customer data.
 
+**The website posts enquiries in.** `POST /api/intake` (public by Origin, not by
+session — see `src/proxy.ts`) creates a Draft with `source: 'website'`, the raw
+words in `order.enquiry`, and the client link on. The allowed origins are the
+two site origins unless `INTAKE_ALLOWED_ORIGINS` (comma-separated) says
+otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
+`src/lib/data/intake.ts`, the per-route customer-page copy in
+`src/lib/route-copy.ts`.
+
 ## Non-negotiables
 
 - **No pricing, money, or invoicing anywhere.** Not a dollar field, not a

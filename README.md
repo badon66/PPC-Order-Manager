@@ -43,6 +43,8 @@ src/app/roster/[token]/   Customer-facing roster submission form
 - CSV roster export and import (round-trip safe)
 - Change history recorded on every mutation, with an approval snapshot
 - Totals reconciliation between roster and declared set quantities
+- Website intake: `POST /api/intake` turns an enquiry from the website's order page into a Draft
+  with the client link on and shaped for the route the team picked (`src/lib/data/intake-logic.ts`)
 
 ## Not built yet
 
