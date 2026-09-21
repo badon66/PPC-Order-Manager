@@ -1,6 +1,6 @@
 import type { Order } from '@/lib/types';
 import type { Repository } from './repository';
-import { draftPatch, enquiryOf, findDuplicate, INTAKE_ACTOR, type IntakeInput } from './intake-logic';
+import { draftPatch, enquiryOf, findDuplicate, INTAKE_ACTOR, sectionsForRoute, type IntakeInput } from './intake-logic';
 
 export type IntakeRepo = Pick<Repository, 'listOrders' | 'createOrder' | 'updateOrder' | 'getByRosterToken'>;
 
@@ -30,7 +30,8 @@ export async function intakeOrder(
   if (dup) {
     const order = await repo.updateOrder(
       dup.id,
-      { enquiry: enquiryOf(input, receivedAt), rosterToken: input.rosterToken },
+      // The route may have changed between the two enquiries, so the page's sections follow it.
+      { enquiry: enquiryOf(input, receivedAt), rosterToken: input.rosterToken, clientLinkSections: sectionsForRoute(input.startingPoint) },
       INTAKE_ACTOR,
     );
     return { order, created: false };
