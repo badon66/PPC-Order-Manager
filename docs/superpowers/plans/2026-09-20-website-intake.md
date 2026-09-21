@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router (`src/`), TypeScript, Tailwind v4, Supabase JSONB store (and the JSON file store locally), `node --test` unit tests via tsx, Vercel deploy on `git push`. Website side: plain HTML/JS in a Shopify page (`K:\PP Customs\Website\changes\2026-09-20-contact-only\start-your-order.html`).
 
-**Spec:** `docs/superpowers/specs/2026-09-20-website-intake-design.md`. Three deviations from it, made while planning against the code, are recorded in Task 1 and folded into the spec there.
+**Spec:** `docs/superpowers/specs/2026-09-20-website-intake-design.md`. **Status 2026-09-20:** Tasks 1–7 done and live (manager d536a20, website #118); two things learned in Task 7 are in the Website repo build log (never disable Shopify's `h-captcha-response`; set the page editor's CodeMirror document through `view.dispatch`). Three deviations from it, made while planning against the code, are recorded in Task 1 and folded into the spec there.
 
 ## Global Constraints
 
@@ -64,7 +64,7 @@ Website (`K:\PP Customs\Website`):
 **Interfaces:**
 - Produces: `STARTING_POINTS`, `StartingPoint`, `RouteVariant = 'ready' | 'scratch' | 'reorder'`, `OrderSource = 'manual' | 'website'`, `WebsiteEnquiry`, `Order.source: OrderSource`, `Order.enquiry: WebsiteEnquiry | null`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/intake/logic.test.ts`:
 
@@ -91,12 +91,12 @@ test('blankOrder is a manual order with no enquiry', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, expect failure**
+- [x] **Step 2: Run it, expect failure**
 
 Run: `cd C:\Apps\powerplay-order-manager && npm test`
 Expected: the two new tests FAIL (`source` is `undefined`).
 
-- [ ] **Step 3: Add the types**
+- [x] **Step 3: Add the types**
 
 In `src/lib/types.ts`, directly after the `DEFAULT_CLIENT_LINK_SECTIONS` constant:
 
@@ -148,7 +148,7 @@ In `interface Order`, after `contactPhone: string;`:
   enquiry: WebsiteEnquiry | null;
 ```
 
-- [ ] **Step 4: Defaults**
+- [x] **Step 4: Defaults**
 
 In `src/lib/order-utils.ts` `blankOrder()`, after `contactPhone: '',` (or wherever the contact fields sit), add:
 
@@ -164,12 +164,12 @@ In `src/lib/data/logic.ts` `healOrder`, after `o.deletedAt ??= null;`:
   o.enquiry ??= null;
 ```
 
-- [ ] **Step 5: Run the tests, expect pass**
+- [x] **Step 5: Run the tests, expect pass**
 
 Run: `npm test`
 Expected: PASS (the two new tests and everything that was already green).
 
-- [ ] **Step 6: Fold the three planning deviations into the spec**
+- [x] **Step 6: Fold the three planning deviations into the spec**
 
 Edit `docs/superpowers/specs/2026-09-20-website-intake-design.md`, section "The website side", replacing its first bullet with:
 
@@ -196,7 +196,7 @@ And in "Guards", replace the Dedupe bullet with:
 - **Dedupe.** Same `email` + `teamName` (case-insensitive, trimmed) as a **Draft** with `source: 'website'` created in the last 24 hours → update that Draft's `enquiry` and give it the newly generated roster token (the newest link the customer holds is the one that works), log it under the website actor, and return its links. Nothing else about the order is overwritten. A Draft Keenan has already promoted is left alone and a new Draft is made.
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/types.ts src/lib/order-utils.ts src/lib/data/logic.ts tests/intake/logic.test.ts docs/superpowers/specs/2026-09-20-website-intake-design.md
@@ -227,7 +227,7 @@ git commit -m "Intake: order source and website enquiry fields"
   - `class RateLimiter { constructor(limit = 10, windowMs = 600_000); allow(key: string, now?: number): boolean }`
   - constants `INTAKE_ACTOR`, `INTAKE_MAX_BODY_BYTES = 16384`, `INTAKE_MAX_FIELD = 2000`, `DEDUPE_WINDOW_MS`, `TOKEN_RE = /^[0-9a-f]{64}$/`
 
-- [ ] **Step 1: Write the failing tests** (append to `tests/intake/logic.test.ts`)
+- [x] **Step 1: Write the failing tests** (append to `tests/intake/logic.test.ts`)
 
 ```ts
 import {
@@ -343,12 +343,12 @@ test('origins and the rate limiter', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect failure**
+- [x] **Step 2: Run, expect failure**
 
 Run: `npm test`
 Expected: FAIL — cannot find module `@/lib/data/intake-logic`.
 
-- [ ] **Step 3: Write `src/lib/data/intake-logic.ts`**
+- [x] **Step 3: Write `src/lib/data/intake-logic.ts`**
 
 ```ts
 import {
@@ -556,12 +556,12 @@ export class RateLimiter {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/data/intake-logic.ts tests/intake/logic.test.ts
@@ -583,7 +583,7 @@ git commit -m "Intake: parsing, tier lookup, route sections, dedupe, origin and 
 - Consumes: Task 2's functions; `Repository.listOrders/createOrder/updateOrder/getByRosterToken`; `baseUrl()` from `src/lib/base-url.ts`.
 - Produces: `intakeOrder(input: IntakeInput, repo: IntakeRepo, now?: Date): Promise<{ order: Order; created: boolean }>` where `IntakeRepo = Pick<Repository, 'listOrders' | 'createOrder' | 'updateOrder' | 'getByRosterToken'>`; HTTP `POST /api/intake` → `200 { ok, orderId, rosterUrl, managerUrl }` / `400` / `403` / `409` / `413` / `429`; `GET /api/intake/<token>` → `200 { ok: true, ready: boolean }`.
 
-- [ ] **Step 1: Write the failing test** — `tests/intake/intake.test.ts`
+- [x] **Step 1: Write the failing test** — `tests/intake/intake.test.ts`
 
 ```ts
 import { test } from 'node:test';
@@ -643,11 +643,11 @@ test('a token already used by another order is refused', async () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect failure**
+- [x] **Step 2: Run, expect failure**
 
 Run: `npm test` → FAIL, cannot find `@/lib/data/intake`.
 
-- [ ] **Step 3: Write `src/lib/data/intake.ts`**
+- [x] **Step 3: Write `src/lib/data/intake.ts`**
 
 ```ts
 import type { Order } from '@/lib/types';
@@ -686,9 +686,9 @@ export async function intakeOrder(input: IntakeInput, repo: IntakeRepo, now = ne
 }
 ```
 
-- [ ] **Step 4: Run, expect pass** — `npm test` → PASS.
+- [x] **Step 4: Run, expect pass** — `npm test` → PASS.
 
-- [ ] **Step 5: The POST route** — `src/app/api/intake/route.ts`
+- [x] **Step 5: The POST route** — `src/app/api/intake/route.ts`
 
 ```ts
 import { NextResponse } from 'next/server';
@@ -762,7 +762,7 @@ export async function POST(req: Request) {
 }
 ```
 
-- [ ] **Step 6: The existence check** — `src/app/api/intake/[token]/route.ts`
+- [x] **Step 6: The existence check** — `src/app/api/intake/[token]/route.ts`
 
 ```ts
 import { NextResponse } from 'next/server';
@@ -804,19 +804,19 @@ export function originOf(req: Request): string | null { /* as above */ }
 ```
 and delete the two definitions from `route.ts`.
 
-- [ ] **Step 7: Open the front door for it** — `src/proxy.ts`
+- [x] **Step 7: Open the front door for it** — `src/proxy.ts`
 
 ```ts
 const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake'];
 ```
 and add to the comment block: `/api/intake           website enquiries in (origin-gated, see intake-logic.ts)`.
 
-- [ ] **Step 8: Build and lint**
+- [x] **Step 8: Build and lint**
 
 Run: `npm run lint && npm run build`
 Expected: no errors. (If lint flags the unused `req` in `OPTIONS`, keep it — the signature is what Next expects — or prefix with `_`.)
 
-- [ ] **Step 9: Local smoke test with the JSON store**
+- [x] **Step 9: Local smoke test with the JSON store**
 
 Run `npm run dev` in one terminal (no Supabase env → `data/db.json`), then:
 ```bash
@@ -827,7 +827,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3000/api/intak
 ```
 Expected: `{"ok":true,"orderId":…,"rosterUrl":"http://localhost:3000/roster/<T>",…}`, then `{"ok":true,"ready":true}`, then `403`. Open the rosterUrl in a browser: the page renders (the variant copy comes in Task 4). Stop the dev server; `data/db.json` is gitignored.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/lib/data/intake.ts src/lib/intake-http.ts src/app/api/intake src/proxy.ts tests/intake/intake.test.ts
@@ -849,7 +849,7 @@ git commit -m "Intake: POST /api/intake creates or updates a website Draft; GET 
 **Interfaces:**
 - Produces: `ROUTE_COPY: Record<RouteVariant, { title: string; intro: string; logosHint: string; inspirationHint: string }>`; `rosterLinkView(...).variant`; `ClientForm` prop `variant: RouteVariant | null`.
 
-- [ ] **Step 1: Failing test** — `tests/intake/route-copy.test.ts`
+- [x] **Step 1: Failing test** — `tests/intake/route-copy.test.ts`
 
 ```ts
 import { test } from 'node:test';
@@ -874,9 +874,9 @@ test('rosterLinkView carries the variant from the enquiry', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect failure** — `npm test` → FAIL (no `@/lib/route-copy`; `variant` undefined).
+- [x] **Step 2: Run, expect failure** — `npm test` → FAIL (no `@/lib/route-copy`; `variant` undefined).
 
-- [ ] **Step 3: `src/lib/route-copy.ts`**
+- [x] **Step 3: `src/lib/route-copy.ts`**
 
 ```ts
 import type { RouteVariant } from '@/lib/types';
@@ -907,11 +907,11 @@ export const ROUTE_COPY: Record<RouteVariant, { title: string; intro: string; lo
 };
 ```
 
-- [ ] **Step 4: `rosterLinkView` gains `variant`**
+- [x] **Step 4: `rosterLinkView` gains `variant`**
 
 In `src/lib/data/logic.ts`: import `variantOf` from `./intake-logic` and `type RouteVariant` from `@/lib/types`; add `variant: RouteVariant | null;` to the return type (after `sections`) and `variant: variantOf(o.enquiry?.startingPoint),` to the object. In `src/lib/data/repository.ts` add the same line to the `getByRosterToken` return type after `sections: ClientLinkSections;`.
 
-- [ ] **Step 5: The page and the form**
+- [x] **Step 5: The page and the form**
 
 `src/app/roster/[token]/page.tsx`: import `ROUTE_COPY` from `@/lib/route-copy`; where the "We need a few things from you…" paragraph is rendered (the `previous ? … : …` branch), replace the non-`previous` branch with:
 
@@ -941,9 +941,9 @@ and pass `variant={link.variant}` to `<ClientForm …>`.
 
 Check `text-fg` exists as a Tailwind colour in this project (`grep -rn "text-fg" src | head -1`); if not, use `text-white`.
 
-- [ ] **Step 6: Tests, lint, build** — `npm test && npm run lint && npm run build` → all pass. Local look: `npm run dev`, open the rosterUrl from Task 3 step 9 → the "Send us your design files" intro shows; open a hand-made order's client link → old wording.
+- [x] **Step 6: Tests, lint, build** — `npm test && npm run lint && npm run build` → all pass. Local look: `npm run dev`, open the rosterUrl from Task 3 step 9 → the "Send us your design files" intro shows; open a hand-made order's client link → old wording.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/route-copy.ts src/lib/data/logic.ts src/lib/data/repository.ts src/app/roster tests/intake/route-copy.test.ts
@@ -960,7 +960,7 @@ git commit -m "Customer page: intro and hints follow the route chosen on the web
 - Modify: `src/app/orders/page.tsx` (the card header, next to `<StatusBadge status={order.status} />`)
 - Modify: `src/app/orders/[id]/page.tsx` (header badge; the card after the CopyButton row)
 
-- [ ] **Step 1: `WebsiteBadge`** — append to `src/components/ui.tsx`:
+- [x] **Step 1: `WebsiteBadge`** — append to `src/components/ui.tsx`:
 
 ```tsx
 /** Marks an order that arrived from the website's enquiry form. */
@@ -977,7 +977,7 @@ export function WebsiteBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
 }
 ```
 
-- [ ] **Step 2: `src/components/enquiry-card.tsx`**
+- [x] **Step 2: `src/components/enquiry-card.tsx`**
 
 ```tsx
 import { Field, Section } from '@/components/ui';
@@ -1016,7 +1016,7 @@ export function EnquiryCard({ enquiry }: { enquiry: WebsiteEnquiry }) {
 }
 ```
 
-- [ ] **Step 3: Wire it in**
+- [x] **Step 3: Wire it in**
 
 `src/app/orders/page.tsx`: import `WebsiteBadge` from `@/components/ui`; change the card header to
 
@@ -1029,9 +1029,9 @@ export function EnquiryCard({ enquiry }: { enquiry: WebsiteEnquiry }) {
 
 `src/app/orders/[id]/page.tsx`: import `WebsiteBadge` and `EnquiryCard`; in the header `div.flex.items-center.gap-2` add `{order.source === 'website' && <WebsiteBadge size="lg" />}` before the `StatusBadge`; after the `<div className="flex flex-wrap gap-2">…CopyButton…</div>` block add `{order.enquiry && <EnquiryCard enquiry={order.enquiry} />}`.
 
-- [ ] **Step 4: Lint, build, look once** — `npm run lint && npm run build`; `npm run dev`, unlock with the code from `admin-code.txt`, open `/orders` with Drafts shown → the "Local Test" order carries the Website badge; open it → the enquiry card lists Starting point and Received. Stop the server.
+- [x] **Step 4: Lint, build, look once** — `npm run lint && npm run build`; `npm run dev`, unlock with the code from `admin-code.txt`, open `/orders` with Drafts shown → the "Local Test" order carries the Website badge; open it → the enquiry card lists Starting point and Received. Stop the server.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/ui.tsx src/components/enquiry-card.tsx src/app/orders/page.tsx "src/app/orders/[id]/page.tsx"
@@ -1045,11 +1045,11 @@ git commit -m "Orders: Website badge and the enquiry card"
 **Files:**
 - Modify: `README.md` ("Built so far": add `- Website intake — POST /api/intake creates a Draft from the website's order page, with the client link on and shaped for the route`), `CLAUDE.md` (a paragraph under storage: `INTAKE_ALLOWED_ORIGINS` env var, default the two site origins; `/api/intake` is public by origin, like `/api/public-upload`).
 
-- [ ] **Step 1: Full check** — `npm test && npm run lint && npm run build` → green. Commit the docs: `git commit -am "Docs: website intake"`.
+- [x] **Step 1: Full check** — `npm test && npm run lint && npm run build` → green. Commit the docs: `git commit -am "Docs: website intake"`.
 
-- [ ] **Step 2: Tell Keenan, then push** — say in chat that the manager deploy is going out, then `git push origin main`. Watch Vercel finish (about two minutes): `curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS https://orders.powerplaycustoms.ca/api/intake -H "Origin: https://www.powerplaycustoms.ca"` → `204` once live (it is `307` to `/unlock` on the old build).
+- [x] **Step 2: Tell Keenan, then push** — say in chat that the manager deploy is going out, then `git push origin main`. Watch Vercel finish (about two minutes): `curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS https://orders.powerplaycustoms.ca/api/intake -H "Origin: https://www.powerplaycustoms.ca"` → `204` once live (it is `307` to `/unlock` on the old build).
 
-- [ ] **Step 3: Live smoke test**
+- [x] **Step 3: Live smoke test**
 
 ```bash
 T=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
@@ -1072,11 +1072,11 @@ Expected: `ok:true` with `rosterUrl` on the live host; `ready:true`; `403`; the 
 **Interfaces:**
 - Consumes: `POST https://orders.powerplaycustoms.ca/api/intake` (body per Task 2's `IntakeInput`, plus `website`), `GET https://orders.powerplaycustoms.ca/api/intake/<token>` → `{ready}`.
 
-- [ ] **Step 1: Update the checks first** (`check-page.js`)
+- [x] **Step 1: Update the checks first** (`check-page.js`)
 
 Change: `check("two forms", forms.length === 2 …)` → three; the per-form loop's `tag` becomes `["ready","scratch","reorder"][i]` and the Starting Point expectation `["Design ready","Starting from scratch","Ordered before"][i]`; add per form `check(tag + ": honeypot", /name="website"/.test(f))`; add `check("reorder form has Previous Order and What's Changed, others do not", /contact\[Previous Order\]/.test(forms[2]||"") && /contact\[What's Changed\]/.test(forms[2]||"") && !/contact\[Previous Order\]/.test(forms[0]||"") && !/contact\[Previous Order\]/.test(forms[1]||""))`; "what happens next" counts become `=== 3`; add `check("hand-off present", /orders\.powerplaycustoms\.ca\/api\/intake/.test(h) && /keepalive/.test(h))`; add `check("upload button present but hidden by default", /id="ppo-upload"/.test(h))`. Run it → FAIL against the current source (expected).
 
-- [ ] **Step 2: The third card and form** (`start-your-order.html`)
+- [x] **Step 2: The third card and form** (`start-your-order.html`)
 
 Cards: change `.ppo .ppo-cards{grid-template-columns:1fr 1fr` → `repeat(3,1fr)` and add a tablet rule `@media screen and (max-width:989px){.ppo .ppo-cards{grid-template-columns:1fr}}`; add after the second card:
 
@@ -1110,7 +1110,7 @@ Success panel: after its `<p>` add
 ```
 (the same gold button style; `hidden` until the Draft is confirmed.)
 
-- [ ] **Step 3: The hand-off** — replace the existing `submit` listener block with:
+- [x] **Step 3: The hand-off** — replace the existing `submit` listener block with:
 
 ```js
   var INTAKE = 'https://orders.powerplaycustoms.ca/api/intake';
@@ -1181,15 +1181,15 @@ And in the `is-sent` branch, after `root.classList.add('is-sent')`:
 
 Note `form.dataset.handoff` guards against Shopify's protection script re-dispatching submit: the second pass skips the hand-off (token already minted, fields already added) and just lets it through. The `?jersey=` preselect and the mirror code stay as they are.
 
-- [ ] **Step 4: Static checks** — `node check-page.js start-your-order.html` → `PASS: 3 forms …`. Commit both files: `git -C "K:/PP Customs/Website" commit -am "Order page: third route, honeypots, hand-off to the order manager"`.
+- [x] **Step 4: Static checks** — `node check-page.js start-your-order.html` → `PASS: 3 forms …`. Commit both files: `git -C "K:/PP Customs/Website" commit -am "Order page: third route, honeypots, hand-off to the order manager"`.
 
-- [ ] **Step 5: Paste and save** (the routine from the earlier plan): clipboard via PowerShell `Get-Content -Raw -Encoding utf8 … | Set-Clipboard`; admin page 98227552465; click the toolbar's Show HTML via JS (`[...document.querySelectorAll('button')].find(b=>/show html/i.test(b.getAttribute('aria-label')||''))`), focus the CodeMirror view (`document.querySelector('.cm-content').cmView.view.focus()`), `ctrl+a`, `ctrl+v`, verify `view.state.doc.length` equals the file's character count, click the *visible* Save button by JS, confirm the Discard button is gone. Then `curl` the live page and run `check-page.js live.html --live` → PASS.
+- [x] **Step 5: Paste and save** (the routine from the earlier plan): clipboard via PowerShell `Get-Content -Raw -Encoding utf8 … | Set-Clipboard`; admin page 98227552465; click the toolbar's Show HTML via JS (`[...document.querySelectorAll('button')].find(b=>/show html/i.test(b.getAttribute('aria-label')||''))`), focus the CodeMirror view (`document.querySelector('.cm-content').cmView.view.focus()`), `ctrl+a`, `ctrl+v`, verify `view.state.doc.length` equals the file's character count, click the *visible* Save button by JS, confirm the Discard button is gone. Then `curl` the live page and run `check-page.js live.html --live` → PASS.
 
-- [ ] **Step 6: The real test — a genuine click** — in Chrome on the live page: pick **We've ordered before**, fill name `TEST E — please ignore (Claude)`, email `info@powerplaycustoms.ca`, team `Test Team — ignore`, quantity `8`, previous order `test`, then a **real** click on Send. Expected: the page returns with `?sent=1&roster=<token>`, the success panel shows and within ~2 s the **Upload your logos and inspiration now →** button appears; clicking it opens the manager page titled "Same design, new season" asking for roster and details. Gmail shows the enquiry with `Upload link:` and `Order manager:` lines. Record the token and the outcome in the build log.
+- [x] **Step 6: The real test — a genuine click** — in Chrome on the live page: pick **We've ordered before**, fill name `TEST E — please ignore (Claude)`, email `info@powerplaycustoms.ca`, team `Test Team — ignore`, quantity `8`, previous order `test`, then a **real** click on Send. Expected: the page returns with `?sent=1&roster=<token>`, the success panel shows and within ~2 s the **Upload your logos and inspiration now →** button appears; clicking it opens the manager page titled "Same design, new season" asking for roster and details. Gmail shows the enquiry with `Upload link:` and `Order manager:` lines. Record the token and the outcome in the build log.
 
-- [ ] **Step 7: Phone width and contrast** — built-in browser pane at 375 × 812: three cards stack, no element past the right edge, the hidden honeypot is off-screen; the contrast script from the earlier plan (Task 3 step 4 there) → `[]`.
+- [x] **Step 7: Phone width and contrast** — built-in browser pane at 375 × 812: three cards stack, no element past the right edge, the hidden honeypot is off-screen; the contrast script from the earlier plan (Task 3 step 4 there) → `[]`.
 
-- [ ] **Step 8: Log** — CHANGELOG row `#118`: the third card and form, honeypots, hand-off, upload button; undo = re-paste commit 8f46612's source through the code view. STATUS line; build log. Commit.
+- [x] **Step 8: Log** — CHANGELOG row `#118`: the third card and form, honeypots, hand-off, upload button; undo = re-paste commit 8f46612's source through the code view. STATUS line; build log. Commit.
 
 ---
 
