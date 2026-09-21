@@ -2,7 +2,7 @@ import type { CalendarDate } from '@/lib/dates';
 import type {
   ApprovalRecord, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
-import { DEFAULT_CLIENT_LINK_SECTIONS } from '@/lib/types';
+import { DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
 import { STATUS_META, captaincyLabel } from '@/lib/constants';
 import {
   extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
@@ -67,6 +67,7 @@ export function healOrder(o: Order): Order {
 
 export function healSubmission(s: ClientRosterSubmission): ClientRosterSubmission {
   s.inspiration ??= [];
+  s.rosterFiles ??= [];
   s.extras ??= [];
   s.sections ??= { ...DEFAULT_CLIENT_LINK_SECTIONS };
   s.revision ??= 1;
@@ -260,6 +261,21 @@ export function diffSubmissions(
       from: String(prev.inspiration?.length ?? 0), to: String(next.inspiration.length),
     });
   }
+  if ((prev.rosterFiles?.length ?? 0) !== next.rosterFiles.length) {
+    out.push({
+      section: 'roster', label: 'Roster files',
+      from: String(prev.rosterFiles?.length ?? 0), to: String(next.rosterFiles.length),
+    });
+  }
+  // "Not yet" turning into a typed list is the change Keenan is waiting for,
+  // so it gets its own line rather than hiding behind the player rows.
+  if ((prev.rosterAnswer ?? '') !== (next.rosterAnswer ?? '')) {
+    out.push({
+      section: 'roster', label: 'Roster',
+      from: prev.rosterAnswer ? ROSTER_ANSWER_LABELS[prev.rosterAnswer] : '—',
+      to: next.rosterAnswer ? ROSTER_ANSWER_LABELS[next.rosterAnswer] : '—',
+    });
+  }
 
   const pc = prev.contact, nc = next.contact;
   if (pc || nc) {
@@ -312,6 +328,8 @@ export function submissionLogEntries(
   if (created.revision === 1) {
     const parts: string[] = [];
     if (created.players.length) parts.push(`${created.players.length} player(s)`);
+    if (created.rosterFiles.length) parts.push(`${created.rosterFiles.length} roster file(s)`);
+    if (created.rosterAnswer === 'later') parts.push('roster not ready yet');
     if (created.logos.length) parts.push(`${created.logos.length} logo(s)`);
     if (created.inspiration.length) parts.push(`${created.inspiration.length} inspiration image(s)`);
     if (created.contact) parts.push('contact details');
@@ -452,6 +470,12 @@ export function planAcceptance(
     });
   }
   if (submission.players.length) parts.push(`${submission.players.length} player(s) added to roster`);
+  // A roster file is never merged: nobody's name goes on a jersey off a
+  // spreadsheet we haven't read. It stays on the submission and under Player
+  // Roster on the order page for Keenan to type up (a CSV imports straight in).
+  if (submission.rosterFiles?.length) {
+    parts.push(`${submission.rosterFiles.length} roster file(s) kept for typing up`);
+  }
 
   const logoSlots = existingAssets.filter((a) => a.role === 'additional_logo').length;
   submission.logos.forEach((l, i) => {

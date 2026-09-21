@@ -127,7 +127,7 @@ export const CLIENT_LINK_SECTION_META: Record<
   },
   roster: {
     label: 'Roster',
-    blurb: 'Player names as printed, numbers, jersey and sock sizes',
+    blurb: 'Player names as printed, numbers, jersey and sock sizes — typed in, or a file they upload',
   },
   personalDetails: {
     label: 'Personal Details',
@@ -552,6 +552,27 @@ export interface SubmittedInspiration {
   notes: string;
 }
 
+/**
+ * How the team answered "Is your roster ready?" on their page.
+ *   typed  — they filled in the player rows
+ *   file   — they uploaded the list they already had (a spreadsheet, a photo of the sheet)
+ *   later  — not ready yet; they come back to the same link
+ */
+export type RosterAnswer = 'typed' | 'file' | 'later';
+
+export const ROSTER_ANSWER_LABELS: Record<RosterAnswer, string> = {
+  typed: 'typed in',
+  file: 'sent as a file',
+  later: 'not ready yet',
+};
+
+export interface SubmittedRosterFile {
+  fileUrl: string;
+  fileName: string;
+  /** "Sizes are on the second tab", "the two crossed out have left" — anything about reading it. */
+  notes: string;
+}
+
 export interface SubmittedContact {
   firstName: string;
   lastName: string;
@@ -588,6 +609,10 @@ export interface ClientRosterSubmission {
   /** Snapshot of which sections were asked for at the time — so a review reads right later. */
   sections: ClientLinkSections;
   players: SubmittedPlayer[];
+  /** Their answer to "Is your roster ready?". Absent on submissions from before it was asked. */
+  rosterAnswer?: RosterAnswer;
+  /** The list they uploaded instead of typing it in. Never merged onto the roster; Keenan types it up. */
+  rosterFiles: SubmittedRosterFile[];
   /** Numbers and sizes for the spare jerseys — no names, so not roster rows. */
   extras: ExtraJersey[];
   logos: SubmittedLogo[];

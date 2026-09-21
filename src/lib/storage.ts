@@ -32,6 +32,33 @@ const ALLOWED = new Set([
   'application/octet-stream', // some browsers send this for .ttf/.otf
 ]);
 
+/**
+ * What a file is being uploaded as. Artwork has the strict list above; a
+ * roster is whatever the team already has the list in — a spreadsheet, a Word
+ * file, a CSV export from a league site, a photo of the sheet — so it gets its
+ * own allow-list rather than a loosened artwork one.
+ */
+export type UploadPurpose = 'artwork' | 'roster';
+
+const ROSTER_ALLOWED = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+  'application/pdf',
+  'text/csv', 'text/plain', 'text/tab-separated-values',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.apple.numbers',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf',
+  'application/octet-stream', // .numbers and .csv often arrive as this
+]);
+
+export function asUploadPurpose(v: unknown): UploadPurpose {
+  return v === 'roster' ? 'roster' : 'artwork';
+}
+
 /*
  * 50 MB.
  *
@@ -58,14 +85,22 @@ export interface StoredFile {
   bytes: number;
 }
 
-function checkAllowed(file: { size: number; type: string; name: string }): void {
+function checkAllowed(
+  file: { size: number; type: string; name: string },
+  purpose: UploadPurpose = 'artwork',
+): void {
   if (file.size > MAX_BYTES) {
     throw new Error(
       `"${file.name}" is ${(file.size / 1_048_576).toFixed(1)} MB — the limit is ${MAX_BYTES / 1_048_576} MB.`,
     );
   }
-  if (file.type && !ALLOWED.has(file.type)) {
-    throw new Error(`"${file.name}" is a ${file.type} file. Upload an image, PDF, or font file.`);
+  const allowed = purpose === 'roster' ? ROSTER_ALLOWED : ALLOWED;
+  if (file.type && !allowed.has(file.type)) {
+    throw new Error(
+      purpose === 'roster'
+        ? `"${file.name}" is a ${file.type} file. Upload a spreadsheet, a PDF, a Word file, or a photo of the list.`
+        : `"${file.name}" is a ${file.type} file. Upload an image, PDF, or font file.`,
+    );
   }
 }
 
@@ -102,9 +137,10 @@ function keyFor(name: string): string {
  */
 export async function createUploadUrl(
   file: { name: string; size: number; type: string },
+  purpose: UploadPurpose = 'artwork',
 ): Promise<{ uploadUrl: string; fileUrl: string; fileName: string }> {
   if (!isSupabaseConfigured()) throw new Error('Direct upload needs Supabase storage.');
-  checkAllowed(file);
+  checkAllowed(file, purpose);
 
   const key = keyFor(file.name);
   const { data, error } = await supabase()
@@ -117,8 +153,8 @@ export async function createUploadUrl(
   return { uploadUrl: data.signedUrl, fileUrl: `${ARTWORK_BUCKET}/${key}`, fileName: file.name };
 }
 
-export async function putFile(file: File): Promise<StoredFile> {
-  checkAllowed(file);
+export async function putFile(file: File, purpose: UploadPurpose = 'artwork'): Promise<StoredFile> {
+  checkAllowed(file, purpose);
   const key = keyFor(file.name);
   const bytes = Buffer.from(await file.arrayBuffer());
 

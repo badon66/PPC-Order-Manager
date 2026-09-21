@@ -73,7 +73,7 @@ test('routes map to variants and section sets', () => {
   assert.equal(variantOf('Starting from scratch'), 'scratch');
   assert.equal(variantOf('Ordered before'), 'reorder');
   assert.equal(variantOf(null), null);
-  assert.deepEqual(sectionsForRoute('Design ready'), { logos: true, inspiration: true, roster: false, personalDetails: false });
+  assert.deepEqual(sectionsForRoute('Design ready'), { logos: true, inspiration: true, roster: true, personalDetails: false });
   assert.deepEqual(sectionsForRoute('Ordered before'), { logos: false, inspiration: false, roster: true, personalDetails: true });
 });
 
@@ -98,7 +98,7 @@ test('draftPatch builds a website Draft with the link on', () => {
   assert.equal(p.jerseyTier, 'elite');
   assert.equal(p.jerseyType, 'embroidered');
   assert.equal(p.requestClientDetails, true);
-  assert.deepEqual(p.clientLinkSections, { logos: true, inspiration: true, roster: false, personalDetails: false });
+  assert.deepEqual(p.clientLinkSections, { logos: true, inspiration: true, roster: true, personalDetails: false });
   assert.equal(p.enquiry?.startingPoint, 'Starting from scratch');
   assert.equal(p.enquiry?.receivedAt, '2026-09-20T18:00:00.000Z');
   assert.equal('specialNotes' in p, false);

@@ -1,5 +1,5 @@
 import { repo } from '@/lib/data';
-import { createUploadUrl, isBucketKey, putFile, resolveFileUrl } from '@/lib/storage';
+import { asUploadPurpose, createUploadUrl, isBucketKey, putFile, resolveFileUrl } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 /**
@@ -42,13 +42,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ token:
   } catch {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
-  const { name, size, type } = (body ?? {}) as { name?: unknown; size?: unknown; type?: unknown };
+  const { name, size, type, purpose } = (body ?? {}) as {
+    name?: unknown; size?: unknown; type?: unknown; purpose?: unknown;
+  };
   if (typeof name !== 'string' || typeof size !== 'number' || typeof type !== 'string') {
     return Response.json({ error: 'Expected { name, size, type }.' }, { status: 400 });
   }
 
   try {
-    return Response.json(await createUploadUrl({ name, size, type }));
+    // purpose 'roster' widens the allowed types to spreadsheets and documents:
+    // the roster section takes the list in whatever form the team has it.
+    return Response.json(await createUploadUrl({ name, size, type }, asUploadPurpose(purpose)));
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }
@@ -87,7 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   try {
-    const stored = await putFile(file);
+    const stored = await putFile(file, asUploadPurpose(form.get('purpose')));
     /*
      * `fileUrl` is what gets stored — a key in the private bucket. The browser
      * can't load that, so hand back a signed link too for the thumbnail it

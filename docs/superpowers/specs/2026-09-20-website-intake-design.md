@@ -21,9 +21,11 @@ already on, and the customer is handed that link the moment they press send.
 
 **Customer:** fills in the order page on the website, presses *Send to our team*. The page hands
 the enquiry to the manager first (four-second budget), then submits to Shopify as it does today.
-The "Got it. We're on it." panel gains one button — **Upload your logos and inspiration now →** —
-which is their own `/roster/<token>` link. If the manager did not answer in time, the panel is
-exactly what it is today and nothing is lost.
+The "Got it. We're on it." panel gains one button — **Upload your logos and inspiration now →**
+(**Fill in your roster and details now →** for a returning team) — which is their own
+`/roster/<token>` link, and a line saying they can email the files instead. The page never
+navigates on its own: the customer goes to their page when they press the button. If the manager
+did not answer in time, the panel is the text and the email line, and nothing is lost.
 
 **Keenan:** gets the same Shopify email as now, plus two lines at the bottom: `Order manager:
 https://orders.powerplaycustoms.ca/orders/<id>` and `Upload link: https://orders.powerplaycustoms.ca/roster/<token>`.
@@ -84,8 +86,8 @@ and the page's copy is keyed on it. `null` (an order Keenan made by hand) keeps 
 
 | Route (website card) | `startingPoint` | Sections on | The page opens with |
 |---|---|---|---|
-| We've got our design | `Design ready` | logos ✓ inspiration ✓ roster ✗ details ✗ | **Send us your design files.** "Logos, crest, any artwork you have — vector or the highest resolution you've got. Anything you'd like us to match goes under inspiration. Mockup back today." |
-| We're starting from scratch | `Starting from scratch` | logos ✓ inspiration ✓ roster ✗ details ✗ | **Show us what you like.** "Any logo you already have goes first. Then pictures of looks you like — other jerseys, colour combos — and a line on what you like about each. We build the design from these." |
+| We've got our design | `Design ready` | logos ✓ inspiration ✓ roster ✓ (asked "ready?") details ✗ | **Send us your design files.** "Logos, crest, any artwork you have — vector or the highest resolution you've got. Anything you'd like us to match goes under inspiration. Mockup back today." |
+| We're starting from scratch | `Starting from scratch` | logos ✓ inspiration ✓ roster ✓ (asked "ready?") details ✗ | **Show us what you like.** "Any logo you already have goes first. Then pictures of looks you like — other jerseys, colour combos — and a line on what you like about each. We build the design from these." |
 | We've ordered before | `Ordered before` | logos ✗ inspiration ✗ roster ✓ details ✓ | **Same design, new season.** "Tell us who's getting what — names as printed, numbers, sizes — and check the shipping details. Leave anything you don't know yet; you can come back to this link." |
 
 The third route is my addition, on Keenan's invitation: returning teams are the easiest sale
@@ -159,7 +161,7 @@ One change to `changes/2026-09-20-contact-only/start-your-order.html` in the Web
 - A separate Enquiries inbox (Keenan chose Drafts).
 - A fourth route. Three is the most the chooser can carry on a phone without scrolling past it.
 - Moving the intake page itself onto the manager (a possible phase two).
-- Roster or personal-details sections on by default for website leads.
+- Personal-details section on by default for design-first website leads (it comes at proof time). *2026-09-21: the roster section is now on for every route — see the addendum.*
 
 ## Risks
 
@@ -167,3 +169,31 @@ One change to `changes/2026-09-20-contact-only/start-your-order.html` in the Web
 - **Two writers of the same enquiry** (dedupe window) — handled by updating in place; nothing on the order outside `enquiry` is touched.
 - **The roster token appears in the website URL and the email.** It is the same capability link the customer is meant to hold; nothing new is exposed.
 - **Vercel cold starts** can push the intake past four seconds on the first request of a quiet day. The page then falls back to the plain email; the Draft may still be created a moment later, without the customer having seen the link — Keenan's email will still carry it if the intake finished before the Shopify post, otherwise he pastes it as today.
+
+## Addendum 2026-09-21 — "Is your roster ready?"
+
+Keenan's review of the first live version asked for three things, all built:
+
+1. **No automatic hand-over.** The thank-you panel had briefly moved the customer to their page on a
+   timer; it now only ever offers the button. The route rides along on the return path
+   (`&route=ready|scratch|reorder`) so the button reads right for a returning team.
+2. **Email as an option.** The panel says the files can be emailed to info@powerplaycustoms.ca
+   instead, with the team name in the subject — always visible, whether or not the manager answered.
+3. **A roster section that starts with a question.** Every route's page now carries the roster
+   section, and it opens with *Is your roster ready?* — **Yes, I'll type it in** (the rows as before),
+   **Yes, I have a file** (an upload: spreadsheet, PDF, Word file, or a photo of the list), or
+   **Not yet** (a note; the link stays open). A returning team and a hand-made order land on the
+   rows; the two design-first routes land on the question.
+
+   - `ClientRosterSubmission` gains `rosterAnswer?: 'typed' | 'file' | 'later'` and
+     `rosterFiles: SubmittedRosterFile[]` (JSON column, no migration). `cleanSubmission`
+     (`src/lib/data/submission-logic.ts`, pure, tested) keeps the roster in the shape the answer says:
+     rows for typed, files for file, neither for later; "not yet" alone is a valid submission.
+   - Uploads carry a `purpose`: `'roster'` widens the allowed types to spreadsheets and documents
+     (`ROSTER_ALLOWED` in `storage.ts`); artwork keeps its strict list. The bucket itself has no
+     MIME rule, only the 50 MB size limit.
+   - **A roster file is never merged onto the roster.** Accepting the submission keeps it; it is
+     listed under *Player Roster* on the order page ("Roster files from the team", newest first,
+     one entry per file) and in the submission card, with a reminder that a CSV imports straight
+     into the roster table and anything else gets typed up. The history line says "1 roster file(s)"
+     or "roster not ready yet", and a revisit that changes the answer logs the change.

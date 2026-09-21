@@ -33,6 +33,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
       await resolveAll([
         ...(previous?.logos ?? []).map((l) => ({ fileUrl: l.fileUrl })),
         ...(previous?.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
+        ...(previous?.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
       ])
     ).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
@@ -115,6 +116,8 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
               ? {
                   revision: previous.revision,
                   players: previous.players,
+                  rosterAnswer: previous.rosterAnswer,
+                  rosterFiles: previous.rosterFiles ?? [],
                   logos: previous.logos,
                   inspiration: previous.inspiration ?? [],
                   contact: previous.contact,

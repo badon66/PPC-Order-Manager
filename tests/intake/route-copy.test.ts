@@ -5,10 +5,11 @@ import { rosterLinkView } from '@/lib/data/logic';
 import { blankOrder } from '@/lib/order-utils';
 import type { Order } from '@/lib/types';
 
-test('every variant has a title, intro and both hints', () => {
+test('every variant has a title, intro and the three hints', () => {
   for (const v of ['ready', 'scratch', 'reorder'] as const) {
     const c = ROUTE_COPY[v];
     assert.ok(c.title.length > 5 && c.intro.length > 20 && c.logosHint.length > 10 && c.inspirationHint.length > 10, v);
+    assert.ok(c.rosterHint.length > 10, v + ' roster hint');
   }
   assert.equal(ROUTE_COPY.reorder.title, 'Same design, new season');
 });

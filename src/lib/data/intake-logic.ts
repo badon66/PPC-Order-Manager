@@ -115,9 +115,12 @@ export function variantOf(sp: StartingPoint | null | undefined): RouteVariant | 
  * design we already have.
  */
 export function sectionsForRoute(sp: StartingPoint): ClientLinkSections {
+  // The roster is asked for on every route. The page opens it with "Is your
+  // roster ready?", so a design-first team can say "not yet" in one tap and a
+  // team that already has the list can send it on day one.
   return variantOf(sp) === 'reorder'
     ? { logos: false, inspiration: false, roster: true, personalDetails: true }
-    : { logos: true, inspiration: true, roster: false, personalDetails: false };
+    : { logos: true, inspiration: true, roster: true, personalDetails: false };
 }
 
 export function splitName(full: string): { first: string; last: string } {

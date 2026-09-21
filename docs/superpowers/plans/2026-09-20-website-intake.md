@@ -1200,6 +1200,19 @@ Note `form.dataset.handoff` guards against Shopify's protection script re-dispat
 
 ---
 
+### Task 9: "Is your roster ready?" (2026-09-21, done — manager and website)
+
+Built after Keenan's review of the live flow; the design is the spec's addendum of the same date.
+
+- [x] Types: `RosterAnswer`, `ROSTER_ANSWER_LABELS`, `SubmittedRosterFile`, `rosterAnswer?` / `rosterFiles` on the submission; `healSubmission` defaults the list.
+- [x] `cleanSubmission` in `src/lib/data/submission-logic.ts` (the action's sanitising, moved out so it can be tested); the action calls it.
+- [x] `storage.ts`: `UploadPurpose`, `ROSTER_ALLOWED`, `asUploadPurpose`; `PATCH`/`POST /api/public-upload/[token]` read `purpose`.
+- [x] Customer form: `RosterQuestion` (three answers), the rows only under "typed", a `FileList` with `purpose="roster"` and a document `accept` under "file", a note under "not yet"; default answer by route; the page passes the previous answer and files back.
+- [x] Admin: submission card shows the roster file(s) or "not ready yet"; order page lists "Roster files from the team" under Player Roster; `planAcceptance` and the history lines mention them.
+- [x] `sectionsForRoute`: roster on for every route; `ROUTE_COPY.*.rosterHint`.
+- [x] Tests: `tests/intake/roster-answer.test.ts` (ten cases) plus the updated expectations; 94 pass.
+- [x] Website: thank-you panel never navigates on its own, says the files can be emailed, and the button reads "Fill in your roster and details now →" for a returning team (`&route=` on the return path). Website CHANGELOG #125.
+
 ## Self-review
 
 - **Spec coverage.** Endpoint + fields → Tasks 2–3; `enquiry` / `source` + `healOrder` → Task 1; guards (origin, honeypot, size, rate, dedupe) → Tasks 2–3; three routes / three pages → Task 4; badge + enquiry card, nothing on the share page → Task 5 (no `publicViewOf` change); website side (third card, honeypot, hand-off, success button, no-JS unchanged) → Task 7; success criteria 1–7 → Tasks 6–7 verification steps and the test files.

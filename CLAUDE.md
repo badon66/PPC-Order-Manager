@@ -78,6 +78,10 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   customers. The old multipart POST survives only as the no-Supabase local
   path, which those endpoints announce with a 409. Don't "simplify" this back
   into a single upload route.
+- **Uploads carry a purpose.** `createUploadUrl`/`putFile` take `'artwork'` (default,
+  the strict image/PDF/font list) or `'roster'` (spreadsheets, documents, photos too), and
+  the customer endpoint reads it from the request. Don't widen the artwork list to let a
+  spreadsheet through — that is what the purpose is for.
 - **MAX_BYTES in storage.ts and the bucket's `file_size_limit` must match**
   (both 50 MB — migration `0003`). App limit higher than the bucket means the
   browser sends the whole file and Supabase rejects it at the very end.

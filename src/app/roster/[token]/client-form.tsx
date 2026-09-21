@@ -3,8 +3,11 @@
 import { useRef, useState } from 'react';
 import { PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import type {
-  ClientLinkSections, ExtraJersey, SubmittedContact, SubmittedInspiration, SubmittedLogo, SubmittedPlayer,
+  ClientLinkSections, ExtraJersey, RosterAnswer, SubmittedContact, SubmittedInspiration, SubmittedLogo,
+  SubmittedPlayer, SubmittedRosterFile,
 } from '@/lib/types';
+// Type-only, so nothing of the server-side storage module reaches the browser bundle.
+import type { UploadPurpose } from '@/lib/storage';
 import { CaptaincyPicker } from '@/components/captaincy';
 import { submitClientForm } from './actions';
 import { ROUTE_COPY } from '@/lib/route-copy';
@@ -22,6 +25,8 @@ import type { RouteVariant } from '@/lib/types';
 export interface PreviousSubmission {
   revision: number;
   players: SubmittedPlayer[];
+  rosterAnswer?: RosterAnswer;
+  rosterFiles: SubmittedRosterFile[];
   extras?: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
@@ -55,6 +60,7 @@ const blankLogo = (): SubmittedLogo => ({
   fileUrl: '', fileName: '', logoName: '', placementNotes: '', description: '',
 });
 const blankInspiration = (): SubmittedInspiration => ({ fileUrl: '', fileName: '', notes: '' });
+const blankRosterFile = (): SubmittedRosterFile => ({ fileUrl: '', fileName: '', notes: '' });
 const blankContact = (): SubmittedContact => ({
   firstName: '', lastName: '', email: '', phone: '',
   street: '', secondary: '', city: '', province: '', postal: '',
@@ -73,14 +79,14 @@ type Uploaded = { fileUrl: string; fileName: string; previewUrl: string };
  * 409 means local dev with no bucket to sign against; the old POST still works
  * there and has no such limit.
  */
-async function upload(token: string, file: File): Promise<Uploaded> {
+async function upload(token: string, file: File, purpose: UploadPurpose): Promise<Uploaded> {
   const signed = await fetch(`/api/public-upload/${token}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type, purpose }),
   });
 
-  if (signed.status === 409) return uploadThroughServer(token, file);
+  if (signed.status === 409) return uploadThroughServer(token, file, purpose);
 
   const info = await signed.json();
   if (!signed.ok) throw new Error(info.error ?? 'Upload failed');
@@ -102,9 +108,10 @@ async function upload(token: string, file: File): Promise<Uploaded> {
   return { fileUrl: info.fileUrl, fileName: info.fileName, previewUrl };
 }
 
-async function uploadThroughServer(token: string, file: File): Promise<Uploaded> {
+async function uploadThroughServer(token: string, file: File, purpose: UploadPurpose): Promise<Uploaded> {
   const body = new FormData();
   body.append('file', file);
+  body.append('purpose', purpose);
   const res = await fetch(`/api/public-upload/${token}`, { method: 'POST', body });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? 'Upload failed');
@@ -176,6 +183,20 @@ export function ClientForm({
     return Array.from({ length: Math.max(1, jerseyCount) }, blankPlayer);
   });
 
+  /*
+   * "Is your roster ready?" — the answer decides which shape of roster the
+   * form collects. A team that ordered before (and an order Keenan set up by
+   * hand) lands on the rows, since the roster is the point of their visit; a
+   * design-first team gets the question first, because most of them don't
+   * have the names yet and shouldn't scroll past fifteen empty rows to say so.
+   */
+  const [rosterAnswer, setRosterAnswer] = useState<RosterAnswer | null>(() => {
+    if (previous?.rosterAnswer) return previous.rosterAnswer;
+    if (previous?.players.length) return 'typed';
+    return variant === 'ready' || variant === 'scratch' ? null : 'typed';
+  });
+  const [rosterFiles, setRosterFiles] = useState<SubmittedRosterFile[]>(previous?.rosterFiles ?? []);
+
   /** Which row is awaiting a "yes, remove it" — null when nothing is. */
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
 
@@ -210,7 +231,10 @@ export function ClientForm({
     setError(null);
     setBusy(true);
     const res = await submitClientForm(token, {
-      players, extras, logos, inspiration,
+      players: rosterAnswer === 'typed' ? players : [],
+      extras, logos, inspiration,
+      rosterAnswer: sections.roster ? rosterAnswer : undefined,
+      rosterFiles: rosterAnswer === 'file' ? rosterFiles : [],
       contact: sections.personalDetails ? contact : undefined,
       confirmed,
     });
@@ -289,9 +313,15 @@ export function ClientForm({
           hint={
             existingRosterCount > 0
               ? `We already have ${existingRosterCount} player${existingRosterCount === 1 ? '' : 's'} on file for this order. Add anyone who's missing — we'll sort out duplicates.`
-              : "Names exactly as they should be printed on the jersey. Double-check spelling — it's what goes on the back."
+              : variant
+                ? ROUTE_COPY[variant].rosterHint
+                : "Names exactly as they should be printed on the jersey. Double-check spelling — it's what goes on the back."
           }
         >
+          <RosterQuestion value={rosterAnswer} onChange={setRosterAnswer} />
+
+          {rosterAnswer === 'typed' && (
+          <div className="mt-4">
           <p className="mb-3 text-sm">
             <span className="text-muted">Don&apos;t know what size you guys need? </span>
             <a
@@ -496,6 +526,39 @@ export function ClientForm({
               </p>
             )}
           </div>
+          </div>
+          )}
+
+          {rosterAnswer === 'file' && (
+            <div className="mt-4 space-y-2">
+              <FileList<SubmittedRosterFile>
+                previews={previews}
+                onPreview={addPreview}
+                token={token}
+                purpose="roster"
+                accept=".csv,.xlsx,.xls,.numbers,.ods,.doc,.docx,.odt,.rtf,.txt,.pdf,image/*"
+                items={rosterFiles}
+                blank={blankRosterFile}
+                onChange={setRosterFiles}
+                addLabel="+ Upload the roster"
+                emptyHint="No file yet. A spreadsheet, a PDF, a Word file or a photo of the list all work."
+                render={(item, patch) => (
+                  <input placeholder="Anything we should know about reading it? (optional)"
+                    value={item.notes} onChange={(e) => patch({ notes: e.target.value })} />
+                )}
+              />
+              <p className="text-xs text-muted">
+                We&apos;ll type it up and send it back for you to check before anything is made.
+              </p>
+            </div>
+          )}
+
+          {rosterAnswer === 'later' && (
+            <p className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-sm text-muted">
+              No problem. Send the rest now — this link stays open until your order goes into
+              production, so come back with the names whenever you have them.
+            </p>
+          )}
         </Step>
       )}
 
@@ -521,7 +584,7 @@ export function ClientForm({
             onChange={(e) => setConfirmed(e.target.checked)} />
           <span className="min-w-0 flex-1 text-sm leading-relaxed">
             {previous ? "I've checked everything above and it's correct." : "I've checked everything above and it's correct."}
-            {sections.roster && ' Names, numbers, and sizes are what should go on the jerseys.'}
+            {sections.roster && rosterAnswer === 'typed' && ' Names, numbers, and sizes are what should go on the jerseys.'}
           </span>
         </label>
         {error && <p className="mt-3 text-sm font-semibold text-red-300">{error}</p>}
@@ -551,6 +614,43 @@ function Step({ n, title, hint, children }: { n: number; title: string; hint: st
   );
 }
 
+/**
+ * The one question the roster section opens with. Three answers, one tap
+ * each, so "we don't have the names yet" is as easy to say as sending them.
+ */
+function RosterQuestion({ value, onChange }: { value: RosterAnswer | null; onChange: (v: RosterAnswer) => void }) {
+  const options: Array<{ v: RosterAnswer; title: string; sub: string }> = [
+    { v: 'typed', title: "Yes — I'll type it in", sub: 'Names, numbers and sizes, one player at a time.' },
+    { v: 'file', title: 'Yes — I have a file', sub: 'A spreadsheet, a photo of the list, anything.' },
+    { v: 'later', title: 'Not yet', sub: 'Send the rest now and come back to this link.' },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Is your roster ready?">
+      <p className="text-sm font-semibold">Is your roster ready?</p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        {options.map((o) => {
+          const on = value === o.v;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(o.v)}
+              className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                on ? 'border-ppc-gold bg-ppc-gold/10' : 'border-line bg-surface-2 hover:border-ppc-gold/50'
+              }`}
+            >
+              <span className={`block text-sm font-semibold ${on ? 'text-ppc-gold' : ''}`}>{o.title}</span>
+              <span className="block text-xs text-muted">{o.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
@@ -562,8 +662,13 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 
 function FileList<T extends { fileUrl: string; fileName: string }>({
   token, items, blank, onChange, addLabel, emptyHint, render, previews, onPreview,
+  accept = 'image/*,.pdf,.svg', purpose = 'artwork',
 }: {
   token: string;
+  /** What the file picker offers; the server's allow-list is what actually decides. */
+  accept?: string;
+  /** Artwork by default; 'roster' lets spreadsheets and documents through. */
+  purpose?: UploadPurpose;
   items: T[];
   blank: () => T;
   onChange: (next: T[]) => void;
@@ -587,7 +692,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
     try {
       const added: T[] = [];
       for (const f of Array.from(files)) {
-        const stored = await upload(token, f);
+        const stored = await upload(token, f, purpose);
         onPreview(stored.fileUrl, stored.previewUrl);
         added.push({ ...blank(), fileUrl: stored.fileUrl, fileName: stored.fileName });
       }
@@ -615,7 +720,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
           </div>
         </div>
       ))}
-      <input ref={inputRef} type="file" multiple hidden accept="image/*,.pdf,.svg"
+      <input ref={inputRef} type="file" multiple hidden accept={accept}
         onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = ''; }} />
       <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
         className="w-full rounded-lg border border-dashed border-line py-3 text-sm font-semibold text-muted hover:border-ppc-gold/60 hover:text-ppc-gold disabled:opacity-40">

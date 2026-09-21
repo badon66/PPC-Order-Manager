@@ -198,6 +198,27 @@ function SubmissionCard({
         </div>
       )}
 
+      {s.rosterAnswer === 'later' && (
+        <p className="mt-3 text-sm text-muted">
+          Roster: not ready yet — they&apos;ll come back to their link with the names.
+        </p>
+      )}
+
+      {(s.rosterFiles?.length ?? 0) > 0 && (
+        <>
+          <FileGrid title={`${s.rosterFiles.length} roster file${s.rosterFiles.length === 1 ? '' : 's'}`}
+            items={s.rosterFiles.map((f) => ({
+              url: signedUrls[f.fileUrl] ?? f.fileUrl, name: f.fileName, caption: f.notes,
+            }))} />
+          {!done && (
+            <p className="mt-1 text-xs text-muted">
+              Accepting keeps the file on the order; the players still need typing into the roster
+              table (a CSV imports straight in).
+            </p>
+          )}
+        </>
+      )}
+
       {s.logos.length > 0 && (
         <FileGrid title={`${s.logos.length} logo${s.logos.length === 1 ? '' : 's'}`}
           items={s.logos.map((l) => ({

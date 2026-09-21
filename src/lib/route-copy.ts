@@ -6,7 +6,7 @@ import type { RouteVariant } from '@/lib/types';
  */
 export const ROUTE_COPY: Record<
   RouteVariant,
-  { title: string; intro: string; logosHint: string; inspirationHint: string }
+  { title: string; intro: string; logosHint: string; inspirationHint: string; rosterHint: string }
 > = {
   ready: {
     title: 'Send us your design files',
@@ -15,6 +15,8 @@ export const ROUTE_COPY: Record<
     logosHint: 'Vector (AI, EPS, SVG, PDF) is best. Otherwise the biggest PNG or JPG you have.',
     inspirationHint:
       "Optional. Anything you'd like the design to match — a photo of the old jerseys, a look you like.",
+    rosterHint:
+      'Only if you have it already. A spreadsheet or a photo of the list is fine, and so is "not yet".',
   },
   scratch: {
     title: 'Show us what you like',
@@ -23,6 +25,8 @@ export const ROUTE_COPY: Record<
     logosHint: 'If you have one. A team crest, a sponsor logo, even a sketch. No logo yet is fine — skip this.',
     inspirationHint:
       'Pictures of looks you like — other jerseys, colour combos, anything. Tell us what you like about each one.',
+    rosterHint:
+      'Only if you have it already. A spreadsheet or a photo of the list is fine, and so is "not yet".',
   },
   reorder: {
     title: 'Same design, new season',
@@ -30,5 +34,7 @@ export const ROUTE_COPY: Record<
       "Tell us who's getting what — names as printed, numbers, sizes — and check the shipping details. Leave anything you don't know yet; you can come back to this link.",
     logosHint: 'Only if something changed — a new sponsor, a new crest.',
     inspirationHint: 'Only if you want the look changed.',
+    rosterHint:
+      'Names exactly as they should be printed on the jersey. Type them in, or upload the list you already have.',
   },
 };

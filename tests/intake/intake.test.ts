@@ -60,7 +60,7 @@ test('a second enquiry inside a day updates the Draft and moves the link to the 
   await intakeOrder(input(T1), repo);
   const { order, created } = await intakeOrder({ ...input(T2), startingPoint: 'Design ready', colours: 'red' }, repo);
   assert.equal(created, false);
-  assert.deepEqual(order.clientLinkSections, { logos: true, inspiration: true, roster: false, personalDetails: false });
+  assert.deepEqual(order.clientLinkSections, { logos: true, inspiration: true, roster: true, personalDetails: false });
   assert.equal(repo.orders.length, 1);
   assert.equal(order.rosterToken, T2);
   assert.equal(order.enquiry?.colours, 'red');

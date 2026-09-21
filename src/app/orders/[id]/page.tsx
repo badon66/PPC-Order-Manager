@@ -49,10 +49,29 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const submittedFiles = submissions.flatMap((s) => [
     ...s.logos.map((l) => ({ fileUrl: l.fileUrl })),
     ...(s.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
+    ...(s.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
   ]);
   const signedUrls = Object.fromEntries(
     (await resolveAll(submittedFiles)).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
+  /*
+   * Roster files the team uploaded instead of typing the names — newest first,
+   * one entry per file even when a revisit re-sent the same list. Shown under
+   * Player Roster because that is where they get typed up; a file that only
+   * lived inside an accepted submission was, in practice, lost.
+   */
+  const rosterFilesFromTeam = (() => {
+    const seen = new Set<string>();
+    const out: Array<{ fileUrl: string; fileName: string; notes: string; submittedAt: string }> = [];
+    for (const s of [...submissions].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))) {
+      for (const f of s.rosterFiles ?? []) {
+        if (seen.has(f.fileUrl)) continue;
+        seen.add(f.fileUrl);
+        out.push({ ...f, submittedAt: s.submittedAt });
+      }
+    }
+    return out;
+  })();
   /*
    * The font is pulled out of the artwork gallery and shown up top.
    *
@@ -344,6 +363,30 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           order.extraJerseyDetails.length ? ` + ${order.extraJerseyDetails.length} spare` : ''
         }${order.extraJerseyDetails.length > 1 ? 's' : ''})`}
       >
+        {rosterFilesFromTeam.length > 0 && (
+          <div className="mb-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Roster files from the team</p>
+            <ul className="mt-1 space-y-1 text-sm">
+              {rosterFilesFromTeam.map((f) => (
+                <li key={f.fileUrl}>
+                  <a
+                    href={signedUrls[f.fileUrl] ?? f.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-ppc-gold hover:underline"
+                  >
+                    {f.fileName || 'Roster file'}
+                  </a>
+                  {f.notes && <span className="text-muted"> — {f.notes}</span>}
+                  <span className="text-muted"> · sent {formatShort(f.submittedAt.slice(0, 10))}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-muted">
+              A CSV imports straight into the roster table in the order form; anything else, type up from the file.
+            </p>
+          </div>
+        )}
         {roster.length === 0 && order.extraJerseyDetails.length === 0 ? (
           <p className="text-sm text-muted">No players added yet.</p>
         ) : (
