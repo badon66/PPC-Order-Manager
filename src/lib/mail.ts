@@ -59,9 +59,12 @@ export async function sendMail(m: MailMessage): Promise<SendResult> {
   if (!mailConfigured()) return { sent: false, reason: 'SMTP not configured' };
   const from = process.env.MAIL_FROM || `Powerplay Customs <${process.env.SMTP_USER}>`;
   const replyTo = m.replyTo || process.env.MAIL_REPLY_TO || 'info@powerplaycustoms.ca';
+  // Optional copy to the business mailbox: when the mail leaves through a provider
+  // rather than the mailbox itself, nothing lands in Sent, and this is the record.
+  const bcc = process.env.MAIL_BCC || undefined;
   try {
     const info = await withTimeout(
-      transporter().sendMail({ from, to: m.to, replyTo, subject: m.subject, text: m.text, html: m.html }),
+      transporter().sendMail({ from, to: m.to, replyTo, bcc, subject: m.subject, text: m.text, html: m.html }),
       SEND_TIMEOUT_MS,
     );
     return { sent: true, id: String(info.messageId ?? '') };
