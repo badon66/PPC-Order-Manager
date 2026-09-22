@@ -14,8 +14,9 @@ export const STATUS_META: Record<
   waiting_for_payment: { label: 'Waiting for Payment', emoji: '💰', order: 2, className: 'border-amber-500/60 text-amber-200 bg-amber-500/10' },
   waiting_for_approval:{ label: 'Waiting for Approval', emoji: '✍️', order: 3, className: 'border-orange-400/60 text-orange-200 bg-orange-500/10' },
   in_production:       { label: 'In Production',       emoji: '🟡', order: 4, className: 'border-ppc-gold/60 text-ppc-gold bg-ppc-gold/10' },
-  shipped:             { label: 'Shipped',             emoji: '📦', order: 5, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
-  completed:           { label: 'Completed',           emoji: '🟢', order: 6, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
+  waiting_for_final_approval: { label: 'Waiting for Final Approval', emoji: '📸', order: 5, className: 'border-violet-400/60 text-violet-200 bg-violet-500/10' },
+  shipped:             { label: 'Shipped',             emoji: '📦', order: 6, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
+  completed:           { label: 'Completed',           emoji: '🟢', order: 7, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
 };
 
 export const STATUS_OPTIONS = (Object.keys(STATUS_META) as OrderStatus[]).sort(
@@ -48,6 +49,7 @@ export const ACTIVE_STATUSES: OrderStatus[] = [
   'waiting_for_payment',
   'waiting_for_approval',
   'in_production',
+  'waiting_for_final_approval',
   'shipped',
 ];
 
