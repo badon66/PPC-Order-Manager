@@ -44,7 +44,8 @@ src/app/roster/[token]/   Customer-facing roster submission form
 - Change history recorded on every mutation, with an approval snapshot
 - Totals reconciliation between roster and declared set quantities
 - Website intake: `POST /api/intake` turns an enquiry from the website's order page into a Draft
-  with the client link on and shaped for the route the team picked (`src/lib/data/intake-logic.ts`)
+  with the client link on and shaped for the route the team picked (`src/lib/data/intake-logic.ts`),
+  and emails the team a confirmation with their page link once SMTP is configured (`src/lib/mail.ts`)
 
 ## Not built yet
 

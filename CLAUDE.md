@@ -78,6 +78,12 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   customers. The old multipart POST survives only as the no-Supabase local
   path, which those endpoints announce with a 409. Don't "simplify" this back
   into a single upload route.
+- **The customer confirmation email is best effort and SMTP-based.** `POST /api/intake`
+  awaits `confirmEnquiry` (`src/lib/intake-confirm.ts`) after the Draft is saved;
+  it composes from `src/lib/data/intake-mail.ts` (pure, tested) and sends through
+  `src/lib/mail.ts` (nodemailer over SMTP, off until `SMTP_USER`/`SMTP_PASS` exist).
+  It logs and never throws — a mailbox outage must not fail an enquiry. Don't
+  fire-and-forget it: a serverless function can be frozen once the response is out.
 - **Uploads carry a purpose.** `createUploadUrl`/`putFile` take `'artwork'` (default,
   the strict image/PDF/font list) or `'roster'` (spreadsheets, documents, photos too), and
   the customer endpoint reads it from the request. Don't widen the artwork list to let a

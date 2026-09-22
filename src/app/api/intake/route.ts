@@ -4,6 +4,7 @@ import { baseUrl } from '@/lib/base-url';
 import { intakeOrder, TokenTakenError } from '@/lib/data/intake';
 import { INTAKE_MAX_BODY_BYTES, parseIntake, RateLimiter } from '@/lib/data/intake-logic';
 import { corsHeaders, originOf } from '@/lib/intake-http';
+import { confirmEnquiry } from '@/lib/intake-confirm';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,13 +52,19 @@ export async function POST(req: Request) {
   if (parsed.honeypot) return NextResponse.json({ ok: true }, { headers: h });
 
   try {
-    const { order } = await intakeOrder(parsed.value, repo);
+    const { order, created } = await intakeOrder(parsed.value, repo);
     const base = await baseUrl();
+    const rosterUrl = `${base}/roster/${order.rosterToken}`;
+    // Awaited, not fired and forgotten: a serverless function may be frozen
+    // the moment the response goes out, and a send left in flight is lost.
+    // The page does not wait for this response (keepalive fetch), so the
+    // extra second costs the customer nothing. Never throws.
+    await confirmEnquiry(parsed.value, rosterUrl, created);
     return NextResponse.json(
       {
         ok: true,
         orderId: order.id,
-        rosterUrl: `${base}/roster/${order.rosterToken}`,
+        rosterUrl,
         managerUrl: `${base}/orders/${order.id}`,
       },
       { headers: h },
