@@ -18,6 +18,7 @@ export function EnquiryCard({ enquiry }: { enquiry: WebsiteEnquiry }) {
     ['Team colours', enquiry.colours],
     ['Inspiration', enquiry.inspiration],
     ['Previous order', enquiry.previousOrder],
+    ['Heard about us', enquiry.source],
     ['Anything else', enquiry.extraDetails],
   ];
   const received = new Date(enquiry.receivedAt).toLocaleString('en-CA', {

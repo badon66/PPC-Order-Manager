@@ -21,7 +21,7 @@ test('rosterLinkView carries the variant from the enquiry', () => {
     ...blankOrder(),
     enquiry: {
       startingPoint: 'Ordered before', league: '', quantity: '', timeline: '', jerseyStyle: '', items: [],
-      artworkStatus: '', colours: '', inspiration: '', extraDetails: '', previousOrder: '',
+      artworkStatus: '', colours: '', inspiration: '', extraDetails: '', previousOrder: '', source: '',
       receivedAt: '2026-09-20T18:00:00.000Z',
     },
   };

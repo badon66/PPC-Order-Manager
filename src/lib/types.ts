@@ -177,6 +177,8 @@ export interface WebsiteEnquiry {
   inspiration: string;
   extraDetails: string;
   previousOrder: string;
+  /** "How did you hear about us?" — one of the page's fixed answers, or empty. */
+  source: string;
   /** ISO instant the enquiry arrived. A timestamp, not a calendar date. */
   receivedAt: string;
 }

@@ -129,3 +129,11 @@ test('origins and the rate limiter', () => {
   assert.equal(rl.allow('ip', 1001), true);
   assert.equal(rl.allow('other', 2), true);
 });
+
+test('source passes through, trimmed, and is empty when the page did not send it', () => {
+  const withIt = parseIntake({ ...good, source: '  A friend or another team ' });
+  assert.ok(withIt.ok && !withIt.honeypot);
+  if (withIt.ok && !withIt.honeypot) assert.equal(withIt.value.source, 'A friend or another team');
+  const without = parseIntake({ ...good });
+  if (without.ok && !without.honeypot) assert.equal(without.value.source, '');
+});

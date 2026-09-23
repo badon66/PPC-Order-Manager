@@ -38,6 +38,7 @@ export interface IntakeInput {
   inspiration: string;
   extraDetails: string;
   previousOrder: string;
+  source: string;
 }
 
 export type ParseResult =
@@ -80,6 +81,7 @@ export function parseIntake(body: unknown): ParseResult {
       phone: str(b.phone), league: str(b.league), quantity: str(b.quantity), timeline: str(b.timeline),
       jerseyStyle: str(b.jerseyStyle), items, artworkStatus: str(b.artworkStatus), colours: str(b.colours),
       inspiration: str(b.inspiration), extraDetails: str(b.extraDetails), previousOrder: str(b.previousOrder),
+      source: str(b.source),
     },
   };
 }
@@ -160,6 +162,7 @@ export function enquiryOf(input: IntakeInput, receivedAt: string): WebsiteEnquir
     inspiration: input.inspiration,
     extraDetails: input.extraDetails,
     previousOrder: input.previousOrder,
+    source: input.source,
     receivedAt,
   };
 }
