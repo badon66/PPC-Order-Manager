@@ -44,6 +44,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Everything except Next's own assets and the favicon. Without this, the lock
-  // would also block the CSS and JS the unlock page needs to render.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/).*)'],
+  // would also block the CSS and JS the unlock page needs to render. /icons is
+  // public artwork the website loads (the other-sports icons on the home page).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/|icons/).*)'],
 };
