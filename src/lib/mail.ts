@@ -35,14 +35,18 @@ export function mailConfigured(): boolean {
 
 let cached: Transporter | null = null;
 
+function port(): number {
+  return Number(process.env.SMTP_PORT || 465);
+}
+
 function transporter(): Transporter {
   if (cached) return cached;
-  const port = Number(process.env.SMTP_PORT || 465);
+  const p = port();
   cached = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port,
+    port: p,
     // 465 is implicit TLS; 587 starts plain and upgrades. Either works with Google.
-    secure: (process.env.SMTP_SECURE ?? (port === 465 ? 'true' : 'false')) === 'true',
+    secure: (process.env.SMTP_SECURE ?? (p === 465 ? 'true' : 'false')) === 'true',
     auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
   });
   return cached;
@@ -69,6 +73,9 @@ export async function sendMail(m: MailMessage): Promise<SendResult> {
     );
     return { sent: true, id: String(info.messageId ?? '') };
   } catch (e) {
-    return { sent: false, reason: (e as Error).message };
+    // Name the route that failed (never the password) so the log line answers
+    // the first question: which server, which login.
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    return { sent: false, reason: `${(e as Error).message} (via ${host}:${port()} as ${process.env.SMTP_USER})` };
   }
 }
