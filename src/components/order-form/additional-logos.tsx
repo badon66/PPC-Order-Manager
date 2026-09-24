@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
+import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
@@ -145,6 +146,10 @@ function LogoCard({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const persisted = group.assets.length > 0;
+  const { max, stretched, stretch } = useStretchableMax(
+    MAX_FILES_PER_ADDITIONAL_LOGO,
+    group.assets.length,
+  );
 
   async function handleFiles(files: FileList) {
     setError(null);
@@ -152,8 +157,8 @@ function LogoCard({
     try {
       let slot = group.assets.length;
       for (const file of Array.from(files)) {
-        if (slot >= MAX_FILES_PER_ADDITIONAL_LOGO) {
-          setError(`Each logo holds up to ${MAX_FILES_PER_ADDITIONAL_LOGO} files.`);
+        if (slot >= max) {
+          setError(`Each logo holds up to ${max} files.`);
           break;
         }
         const stored = await uploadFile(file);
@@ -225,15 +230,18 @@ function LogoCard({
         />
         <button
           type="button"
-          disabled={busy || group.assets.length >= MAX_FILES_PER_ADDITIONAL_LOGO}
+          disabled={busy || group.assets.length >= max}
           onClick={() => inputRef.current?.click()}
           className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold hover:border-ppc-gold/60 disabled:opacity-40"
         >
           {busy ? 'Uploading…' : '+ Upload file'}
         </button>
-        <span className="text-xs text-muted">
-          {group.assets.length}/{MAX_FILES_PER_ADDITIONAL_LOGO}
-        </span>
+        <SlotCounter
+          used={group.assets.length}
+          max={max}
+          stretched={stretched}
+          onStretch={stretch}
+        />
       </div>
 
       {error && <p className="mt-2 text-xs font-semibold text-red-300">{error}</p>}

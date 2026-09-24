@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
+import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
@@ -100,7 +101,7 @@ export function AssetGroup({
   role,
   title,
   hint,
-  max = MAX_FILES_PER_REFERENCE_GROUP,
+  max: baseMax = MAX_FILES_PER_REFERENCE_GROUP,
   slotLabels,
   assets,
   notes,
@@ -109,6 +110,7 @@ export function AssetGroup({
   onRemove,
 }: AssetGroupProps) {
   const mine = assets.filter((a) => a.role === role).sort((a, b) => a.slot - b.slot);
+  const { max, stretched, stretch } = useStretchableMax(baseMax, mine.length);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -147,9 +149,13 @@ export function AssetGroup({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-sm font-semibold">{title}</span>
-          <span className="ml-2 text-xs text-muted">
-            {mine.length}/{max}
-          </span>
+          <SlotCounter
+            className="ml-2"
+            used={mine.length}
+            max={max}
+            stretched={stretched}
+            onStretch={stretch}
+          />
           {hint && <p className="text-xs text-muted">{hint}</p>}
         </div>
         <input
