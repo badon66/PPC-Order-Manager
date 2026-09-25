@@ -19,6 +19,11 @@ import { SubmissionReview } from '@/components/submission-review';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { ApproveBlock } from '@/app/share/[token]/approve';
+import { Timeline } from '@/components/timeline';
+import { SendUpdatePanel } from '@/components/send-update-panel';
+import { dueUpdates, recipientOf } from '@/lib/data/customer-updates-logic';
+import { timelineOf } from '@/lib/data/timeline';
+import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -84,6 +89,10 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
+  const settings = await repo.getSettings();
+  const timeline = timelineOf(order, history);
+  const due = dueUpdates(order, history);
+  const preview = mailInputFor(order, history, settings, BASE_URL, {});
   const pendingSubs = submissions.filter((s) => !s.acceptedAt);
   // Tracking only exists once there's a parcel. Same threshold the editable
   // control uses — see OperationalControls.
@@ -154,6 +163,16 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           jerseyType={order.jerseyType}
           trackingCode={order.trackingCode}
         />
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">What the customer sees</p>
+            <Timeline steps={timeline} compact />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">Customer emails</p>
+            <SendUpdatePanel orderId={order.id} to={recipientOf(order)} due={due} sent={order.customerEmails} preview={preview} />
+          </div>
+        </div>
       </Section>
 
       <Section title="Order Information">
