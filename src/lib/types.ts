@@ -7,6 +7,9 @@ import type { CalendarDate } from './dates';
 export const ORDER_STATUSES = [
   'incomplete',
   'draft',
+  'design_talk',
+  'finalizing_details',
+  'waiting_for_deposit',
   'waiting_for_payment',
   'waiting_for_approval',
   'in_production',
