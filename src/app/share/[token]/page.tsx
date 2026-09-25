@@ -6,11 +6,12 @@ import {
   JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS, PANT_SHELL_TYPE_LABELS,
   PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
 } from '@/lib/constants';
-import { Card, Field, Section, Stat, StatusBadge, YesNo } from '@/components/ui';
+import { Card, Field, Section, Stat, YesNo } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
+import { Timeline } from '@/components/timeline';
 import { resolveAll } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -67,8 +68,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           <h1 className="text-2xl font-bold text-ppc-gold">{view.teamName}</h1>
           <p className="text-sm text-muted">Shared Order Details</p>
         </div>
-        <StatusBadge status={view.status} size="lg" />
       </div>
+
+      <Section title="Where your order is">
+        <Timeline steps={view.timeline} />
+      </Section>
 
       <Section title="Order Information">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
