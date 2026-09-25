@@ -110,8 +110,8 @@ export function SendUpdatePanel({
                   <span className="text-muted">{formatTimestamp(r.sentAt)} · {r.to}</span>
                   {isMoney && (
                     <span className="flex items-center gap-1">
-                      <label htmlFor={`resend-amount-${r.stage}`} className="text-xs font-medium text-muted">Amount</label>
-                      <input id={`resend-amount-${r.stage}`} className="w-20 text-xs" placeholder="$250" value={amount[r.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [r.stage]: e.target.value }))} />
+                      <label htmlFor={`resend-amount-${r.stage}-${n}`} className="text-xs font-medium text-muted">Amount</label>
+                      <input id={`resend-amount-${r.stage}-${n}`} className="w-20 text-xs" placeholder="$250" value={amount[r.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [r.stage]: e.target.value }))} />
                     </span>
                   )}
                   <button type="button" disabled={resendDisabled} className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50" onClick={() => send(r.stage, true)}>Resend</button>
