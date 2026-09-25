@@ -135,12 +135,17 @@ ${mMuted(PROMISE)}
 ${tile(COMPARE_URL, IMAGES.compare, 'Compare the jerseys', 'Which of our five models is best for you.')}<div class="col col-gap" style="display:inline-block;width:20px;height:1px;vertical-align:top;"></div>${tile(FAQ_URL, IMAGES.faq, 'Common questions', 'Timelines, deposits, sizing and more.')}
 </td></tr>`;
 
+  const footerLine = mMuted(
+    `Prefer email? Send your files to <a href="mailto:${INFO_EMAIL}" style="color:#1c1c1c;font-weight:600;">${INFO_EMAIL}</a> with your team name in the subject. Questions? Reply to this email, or call or text <a href="tel:${PHONE_TEL}" style="color:#1c1c1c;font-weight:600;text-decoration:none;">${PHONE_DISPLAY}</a>.`,
+  );
+
   const html = mailShell({
     subject,
     preheader,
     hero: true,
     body,
     footerNote: "If this enquiry wasn't you, ignore this email.",
+    footerLine,
   });
 
   return { subject, text, html };

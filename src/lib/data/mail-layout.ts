@@ -4,7 +4,8 @@
  *
  * Table-based HTML with inline styles because that is what mail clients
  * render. 700px wide on a desktop, one column on a phone; the hero photo
- * swaps to a taller crop under 720px.
+ * swaps to a taller crop under 720px (Outlook ignores the swap and shows
+ * the desktop crop, which is fine).
  */
 export const INFO_EMAIL = 'info@powerplaycustoms.ca';
 export const PHONE_DISPLAY = '+1 (403) 895-9915';
@@ -63,7 +64,12 @@ export function textFooter(): string[] {
   ];
 }
 
-export function mailShell(o: { subject: string; preheader: string; hero: boolean; body: string; footerNote?: string }): string {
+/** The general footer line every update email uses: exactly what `mailShell` rendered before `footerLine` existed. */
+const DEFAULT_FOOTER_LINE = mMuted(
+  `Prefer email? Write to <a href="mailto:${INFO_EMAIL}" style="color:#1c1c1c;font-weight:600;">${INFO_EMAIL}</a> with your team name in the subject. Questions? Reply to this email, or call or text <a href="tel:${PHONE_TEL}" style="color:#1c1c1c;font-weight:600;text-decoration:none;">${PHONE_DISPLAY}</a>.`,
+);
+
+export function mailShell(o: { subject: string; preheader: string; hero: boolean; body: string; footerNote?: string; footerLine?: string }): string {
   const hero = o.hero
     ? `<tr><td style="background:#1c1c1c;">
 <div class="hero-desk"><img src="${esc(IMAGES.heroDesktop)}" width="700" height="300" alt="A team in their Powerplay Customs jerseys" style="width:100%;height:auto;max-width:700px;border:0;display:block;"></div>
@@ -96,7 +102,7 @@ export function mailShell(o: { subject: string; preheader: string; hero: boolean
 ${hero}
 ${o.body}
 <tr><td class="pad" style="background:#ffffff;border-top:1px solid #e6e6e6;border-radius:0 0 12px 12px;padding:20px 40px 24px;">
-${mMuted(`Prefer email? Write to <a href="mailto:${INFO_EMAIL}" style="color:#1c1c1c;font-weight:600;">${INFO_EMAIL}</a> with your team name in the subject. Questions? Reply to this email, or call or text <a href="tel:${PHONE_TEL}" style="color:#1c1c1c;font-weight:600;text-decoration:none;">${PHONE_DISPLAY}</a>.`)}
+${o.footerLine ?? DEFAULT_FOOTER_LINE}
 </td></tr>
 <tr><td class="pad" align="center" style="padding:20px 40px 0;">
 <p style="margin:0 0 4px;${MAIL_FF}font-size:12px;line-height:18px;color:#8a8a8a;">Powerplay Customs &middot; Calgary, Alberta &middot; <a href="${SITE_URL}" style="color:#8a8a8a;">powerplaycustoms.ca</a></p>
