@@ -55,12 +55,13 @@ export async function sendCustomerUpdate(
 
   const to = recipientOf(order);
   if (!to) return { sent: false, reason: 'No customer email on this order.' };
-  if (MONEY_STAGES.has(stage) && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
   if (!opts.force) {
     const due = dueUpdates(order, history).find((d) => d.stage === stage);
     if (!due) return { sent: false, reason: 'That email is not due for this order (already sent, or the order is at a different stage).' };
     if (due.blocked) return { sent: false, reason: due.blocked };
   }
+  if (MONEY_STAGES.has(stage) && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
+
 
   const settings = await repo.getSettings();
   const mail = composeUpdateMail(stage, mailInputFor(order, history, settings, await baseUrl(), opts));
