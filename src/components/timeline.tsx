@@ -7,7 +7,7 @@ import type { TimelineStep } from '@/lib/data/timeline';
  */
 export function Timeline({ steps, compact = false }: { steps: TimelineStep[]; compact?: boolean }) {
   return (
-    <ol className="space-y-0">
+    <ol>
       {steps.map((s, n) => {
         const last = n === steps.length - 1;
         const dot =
@@ -18,7 +18,7 @@ export function Timeline({ steps, compact = false }: { steps: TimelineStep[]; co
               : 'border border-line bg-surface text-muted';
         const rail = s.state === 'done' ? 'bg-ppc-gold/60' : 'bg-line';
         return (
-          <li key={s.key} className="relative flex gap-3">
+          <li key={s.key} className="relative flex gap-3" aria-current={s.state === 'current' ? 'step' : undefined}>
             <div className="flex w-6 shrink-0 flex-col items-center">
               <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${dot}`} aria-hidden>
                 {s.state === 'done' ? '✓' : s.state === 'current' ? '●' : ''}
