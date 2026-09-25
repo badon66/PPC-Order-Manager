@@ -19,6 +19,7 @@ export async function sendUpdateAction(
     revalidatePath(`/orders/${orderId}/history`);
     return r.sent ? { ok: true } : { ok: false, error: r.reason };
   } catch (e) {
+    console.error(`[updates] sendUpdateAction failed for ${orderId}/${stage}: ${(e as Error).message}`);
     return { ok: false, error: (e as Error).message };
   }
 }
