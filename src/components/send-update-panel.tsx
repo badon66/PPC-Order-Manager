@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
-import type { DueUpdate } from '@/lib/data/customer-updates-logic';
+import { MONEY_STAGES, type DueUpdate } from '@/lib/data/customer-updates-logic';
 import { UPDATE_STAGE_LABEL, type CustomerEmailRecord, type UpdateStage } from '@/lib/types';
 import { formatTimestamp } from '@/lib/dates';
 import { sendUpdateAction } from '@/app/orders/[id]/update-actions';
@@ -28,7 +28,7 @@ export function SendUpdatePanel({
 }) {
   const [hidden, setHidden] = useState<Set<UpdateStage>>(new Set());
   const [open, setOpen] = useState<UpdateStage | null>(null);
-  const [amount, setAmount] = useState<Record<string, string>>({});
+  const [amount, setAmount] = useState<Partial<Record<UpdateStage, string>>>({});
   const [howToPay, setHowToPay] = useState(preview.howToPay);
   const [msg, setMsg] = useState<{ stage: string; text: string; ok: boolean } | null>(null);
   const [pending, start] = useTransition();
@@ -58,13 +58,13 @@ export function SendUpdatePanel({
             {d.needsAmount && (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs font-medium text-muted">Amount, exactly as it should read</label>
-                  <input className="mt-1 w-full" placeholder="$250" value={amount[d.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [d.stage]: e.target.value }))} />
+                  <label htmlFor={`amount-${d.stage}`} className="text-xs font-medium text-muted">Amount, exactly as it should read</label>
+                  <input id={`amount-${d.stage}`} className="mt-1 w-full" placeholder="$250" value={amount[d.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [d.stage]: e.target.value }))} />
                   <p className="mt-1 text-xs text-muted">Goes into this email only. Not saved anywhere.</p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted">How to pay</label>
-                  <textarea className="mt-1 w-full" rows={3} value={howToPay} onChange={(e) => setHowToPay(e.target.value)} />
+                  <label htmlFor={`howtopay-${d.stage}`} className="text-xs font-medium text-muted">How to pay</label>
+                  <textarea id={`howtopay-${d.stage}`} className="mt-1 w-full" rows={3} value={howToPay} onChange={(e) => setHowToPay(e.target.value)} />
                 </div>
               </div>
             )}
@@ -79,7 +79,9 @@ export function SendUpdatePanel({
               <button type="button" className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-muted" onClick={() => setHidden((h) => new Set(h).add(d.stage))}>
                 Not now
               </button>
-              {msg?.stage === d.stage && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
+              <span aria-live="polite">
+                {msg?.stage === d.stage && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
+              </span>
             </div>
           </div>
         );
@@ -99,14 +101,26 @@ export function SendUpdatePanel({
         <div>
           <p className="text-xs font-medium text-muted">Sent to the customer</p>
           <ul className="mt-1 space-y-1 text-sm">
-            {[...sent].sort((a, b) => b.sentAt.localeCompare(a.sentAt)).map((r, n) => (
-              <li key={`${r.stage}-${r.sentAt}-${n}`} className="flex flex-wrap items-center gap-x-3">
-                <span className="font-semibold">{UPDATE_STAGE_LABEL[r.stage]}</span>
-                <span className="text-muted">{formatTimestamp(r.sentAt)} · {r.to}</span>
-                <button type="button" disabled={pending} className="text-xs font-semibold text-ppc-gold hover:underline" onClick={() => send(r.stage, true)}>Resend</button>
-                {msg?.stage === r.stage && <span className={`text-xs ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
-              </li>
-            ))}
+            {[...sent].sort((a, b) => b.sentAt.localeCompare(a.sentAt)).map((r, n) => {
+              const isMoney = MONEY_STAGES.has(r.stage);
+              const resendDisabled = pending || (isMoney && (amount[r.stage] ?? '').trim().length === 0);
+              return (
+                <li key={`${r.stage}-${r.sentAt}-${n}`} className="flex flex-wrap items-center gap-x-3">
+                  <span className="font-semibold">{UPDATE_STAGE_LABEL[r.stage]}</span>
+                  <span className="text-muted">{formatTimestamp(r.sentAt)} · {r.to}</span>
+                  {isMoney && (
+                    <span className="flex items-center gap-1">
+                      <label htmlFor={`resend-amount-${r.stage}`} className="text-xs font-medium text-muted">Amount</label>
+                      <input id={`resend-amount-${r.stage}`} className="w-20 text-xs" placeholder="$250" value={amount[r.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [r.stage]: e.target.value }))} />
+                    </span>
+                  )}
+                  <button type="button" disabled={resendDisabled} className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50" onClick={() => send(r.stage, true)}>Resend</button>
+                  <span aria-live="polite">
+                    {msg?.stage === r.stage && <span className={`text-xs ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
