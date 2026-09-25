@@ -32,7 +32,7 @@ export function Timeline({ steps, compact = false }: { steps: TimelineStep[]; co
                 </p>
                 {s.date && <p className="text-xs text-muted">{formatLong(s.date)}</p>}
               </div>
-              {s.state === 'current' && s.copy && <p className="mt-0.5 text-sm text-fg">{s.copy}</p>}
+              {s.state === 'current' && s.copy && <p className="mt-0.5 text-sm text-foreground">{s.copy}</p>}
               {s.state === 'done' && !compact && s.copy && s.key === 'proof' && <p className="mt-0.5 text-xs text-muted">{s.copy}</p>}
               {s.detail && <p className="mt-1 text-sm font-semibold">{s.detail}</p>}
               {s.note && <p className="mt-1 text-xs text-muted">{s.note}</p>}
