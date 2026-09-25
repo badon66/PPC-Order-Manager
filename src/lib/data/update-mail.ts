@@ -34,8 +34,8 @@ interface Draft {
   headline: string;
   /** Plain sentences, in order. Each becomes a paragraph. */
   lines: string[];
-  /** A boxed aside: [eyebrow, text]. */
-  box?: [string, string];
+  /** A boxed aside. `typed` is true when `text` is something a person typed and must be escaped. */
+  box?: { eyebrow: string; text: string; typed: boolean };
   button: { href: string; label: string; dark?: boolean };
   /** A second button, only Completed uses it. */
   button2?: { href: string; label: string };
@@ -47,7 +47,7 @@ interface Draft {
 function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
   const team = i.teamName.trim() || 'your team';
   const first = i.firstName.trim() || 'there';
-  const pay: [string, string] = ['How to pay', i.howToPay];
+  const pay = { eyebrow: 'How to pay', text: i.howToPay, typed: true };
   switch (stage) {
     case 'design_talk':
       return {
@@ -151,7 +151,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         lines: [
           `${team} is in production.${i.estimatedFinishDate ? ` Estimated finish: ${formatLong(i.estimatedFinishDate)}.` : ''}`,
         ],
-        box: ['While they are being made', PRODUCTION_NOTE],
+        box: { eyebrow: 'While they are being made', text: PRODUCTION_NOTE, typed: false },
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         muted: 'Production usually takes 2 to 4 weeks. Shipping across Canada is free.',
         hero: true,
@@ -173,7 +173,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: `On their way. Tracking: ${i.trackingCode}`,
         headline: i.paymentReceivedFirst ? "Payment received, and they're on their way." : "They're on their way.",
         lines: [`${team} has shipped.`],
-        box: ['Tracking number', i.trackingCode],
+        box: { eyebrow: 'Tracking number', text: i.trackingCode, typed: true },
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         muted: "Give it a day for the carrier's site to update. Shipping across Canada is free; cross-border orders can be held at customs for a few days.",
         hero: false,
@@ -198,19 +198,11 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
 export function composeUpdateMail(stage: UpdateStage, i: UpdateMailInput): MailContent {
   const d = draft(stage, i);
 
-  // Determine if box[1] is user input (needs escaping) or a constant
-  const boxInnerIsUserInput = d.box && (
-    stage === 'initial_deposit_requested' ||
-    stage === 'production_deposit_requested' ||
-    stage === 'final_payment_requested' ||
-    stage === 'shipped'
-  );
-
   const text = [
     d.headline,
     '',
     ...d.lines,
-    ...(d.box ? ['', `${d.box[0]}: ${d.box[1]}`] : []),
+    ...(d.box ? ['', `${d.box.eyebrow}: ${d.box.text}`] : []),
     '',
     `${d.button.label}: ${d.button.href}`,
     ...(d.button2 ? [`${d.button2.label}: ${d.button2.href}`] : []),
@@ -222,7 +214,7 @@ export function composeUpdateMail(stage: UpdateStage, i: UpdateMailInput): MailC
   const body = `<tr><td class="pad" style="background:#ffffff;padding:34px 40px 30px;">
 <h1 class="h1" style="margin:0 0 14px;${MAIL_FF}font-size:32px;line-height:38px;font-weight:800;color:#1c1c1c;">${esc(d.headline)}</h1>
 ${d.lines.map((l, n) => mp(esc(l), n < d.lines.length - 1 ? 'margin-bottom:12px;' : '')).join('\n')}
-${d.box ? mBox(d.box[0], boxInnerIsUserInput ? esc(d.box[1]) : d.box[1]) : ''}
+${d.box ? mBox(esc(d.box.eyebrow), d.box.typed ? esc(d.box.text) : d.box.text) : ''}
 ${mButton(d.button.href, esc(d.button.label), d.button.dark)}
 ${d.button2 ? mButton(d.button2.href, esc(d.button2.label)) : ''}
 ${d.muted ? mMuted(esc(d.muted)) : ''}
