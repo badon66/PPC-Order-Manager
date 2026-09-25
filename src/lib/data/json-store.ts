@@ -4,6 +4,7 @@ import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order,
   OrderAsset, RosterEntry,
 } from '@/lib/types';
+import { UPDATE_STAGE_LABEL } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
@@ -270,6 +271,7 @@ export const jsonStore: Repository = {
       o,
       db.roster.filter((r) => r.orderId === o.id),
       db.assets.filter((a) => a.orderId === o.id),
+      db.history.filter((h) => h.orderId === o.id),
     );
   },
 
@@ -277,7 +279,7 @@ export const jsonStore: Repository = {
     const db = await load();
     const o = db.orders.find((x) => x.rosterToken === token && !x.deletedAt);
     if (!o) return null;
-    return rosterLinkView(o, db.roster.filter((r) => r.orderId === o.id).length);
+    return rosterLinkView(o, db.roster.filter((r) => r.orderId === o.id).length, db.history.filter((h) => h.orderId === o.id));
   },
 
   async submitClientRoster(token, submission) {
@@ -344,6 +346,22 @@ export const jsonStore: Repository = {
     return db.history
       .filter((h) => h.orderId === orderId)
       .sort((a, b) => b.at.localeCompare(a.at));
+  },
+
+  async recordCustomerEmail(orderId, record, actor) {
+    await withWrite((db) => {
+      const o = db.orders.find((x) => x.id === orderId);
+      if (!o) throw new Error(`Order ${orderId} not found`);
+      (o.customerEmails ??= []).push(record);
+      o.updatedAt = new Date().toISOString();
+      db.history.push(
+        logEntry({
+          orderId, action: 'customer_emailed', field: record.stage,
+          summary: `Emailed ${record.to}: ${UPDATE_STAGE_LABEL[record.stage]}`,
+          actorEmail: actor.email, actorName: actor.name,
+        }),
+      );
+    });
   },
 
   async listUsers() {

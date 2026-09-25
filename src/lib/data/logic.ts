@@ -10,6 +10,7 @@ import {
 import type { Actor, PublicOrderView } from './repository';
 import type { RouteVariant } from '@/lib/types';
 import { variantOf } from './intake-logic';
+import { timelineOf, type TimelineStep } from './timeline';
 
 /**
  * Store-agnostic rules.
@@ -563,6 +564,7 @@ export function publicViewOf(
   o: Order,
   roster: RosterEntry[],
   assets: OrderAsset[],
+  history: ChangeLogEntry[] = [],
 ): PublicOrderView {
   return {
     orderId: o.id,
@@ -625,6 +627,7 @@ export function publicViewOf(
       province: o.shippingProvince,
       postal: o.shippingPostal,
     },
+    timeline: timelineOf(o, history),
   };
 }
 
@@ -647,7 +650,7 @@ export function clientEditingLocked(status: OrderStatus): boolean {
   return STATUS_META[status].order >= STATUS_META.in_production.order;
 }
 
-export function rosterLinkView(o: Order, existingRosterCount: number): {
+export function rosterLinkView(o: Order, existingRosterCount: number, history: ChangeLogEntry[] = []): {
   orderId: string;
   teamName: string;
   enabled: boolean;
@@ -679,6 +682,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
   /** So the form can point at the full order for review before signing. */
   shareToken: string;
   existingRosterCount: number;
+  timeline: TimelineStep[];
 } {
   return {
     orderId: o.id,
@@ -708,6 +712,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number): {
     approvalRecord: o.approvalRecord,
     shareToken: o.shareToken,
     existingRosterCount,
+    timeline: timelineOf(o, history),
   };
 }
 

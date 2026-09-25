@@ -1,7 +1,8 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, Order, OrderAsset, RosterEntry, RouteVariant,
+  Contact, CustomerEmailRecord, Order, OrderAsset, RosterEntry, RouteVariant,
 } from '@/lib/types';
+import type { TimelineStep } from './timeline';
 
 /**
  * The whole data layer sits behind this interface.
@@ -131,6 +132,9 @@ export interface PublicOrderView {
     province: string;
     postal: string;
   };
+
+  /** Where the order sits, laid out step by step, for the customer's own page. */
+  timeline: TimelineStep[];
 }
 
 export interface Repository {
@@ -184,6 +188,7 @@ export interface Repository {
     shareToken: string;
     /** What's already on the roster, so the customer can see what you have. */
     existingRosterCount: number;
+    timeline: TimelineStep[];
   } | null>;
   /**
    * Record a client submission. `revision` and `changes` are worked out by the
@@ -203,6 +208,8 @@ export interface Repository {
 
   /* History ------------------------------------------------------------ */
   getHistory(orderId: string): Promise<ChangeLogEntry[]>;
+  /** One update email went out: remember it on the order and in the history. */
+  recordCustomerEmail(orderId: string, record: CustomerEmailRecord, actor: Actor): Promise<void>;
 
   /* Settings ----------------------------------------------------------- */
   getSettings(): Promise<AppSettings>;

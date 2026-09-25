@@ -2,6 +2,7 @@ import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order,
   OrderAsset, RosterEntry,
 } from '@/lib/types';
+import { UPDATE_STAGE_LABEL } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import { supabase } from '@/lib/supabase';
 import type {
@@ -334,14 +335,15 @@ export const supabaseStore: Repository = {
   async getByShareToken(token): Promise<PublicOrderView | null> {
     const o = await orderByToken('share_token', token);
     if (!o) return null;
-    const [roster, assets] = await Promise.all([rosterOf(o.id), assetsOf(o.id)]);
-    return publicViewOf(o, roster, assets);
+    const [roster, assets, history] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id)]);
+    return publicViewOf(o, roster, assets, history);
   },
 
   async getByRosterToken(token) {
     const o = await orderByToken('roster_token', token);
     if (!o) return null;
-    return rosterLinkView(o, (await rosterOf(o.id)).length);
+    const [roster, history] = await Promise.all([rosterOf(o.id), this.getHistory(o.id)]);
+    return rosterLinkView(o, roster.length, history);
   },
 
   async submitClientRoster(token, submission) {
@@ -447,6 +449,21 @@ export const supabaseStore: Repository = {
       .eq('order_id', orderId)
       .order('at', { ascending: false });
     return rows<ChangeLogEntry>(unwrap(res, 'load history'));
+  },
+
+  async recordCustomerEmail(orderId, record, actor) {
+    const o = await orderById(orderId, true);
+    if (!o) throw new Error(`Order ${orderId} not found`);
+    o.customerEmails = [...(o.customerEmails ?? []), record];
+    o.updatedAt = new Date().toISOString();
+    await putOrder(o);
+    await appendHistory([
+      logEntry({
+        orderId, action: 'customer_emailed', field: record.stage,
+        summary: `Emailed ${record.to}: ${UPDATE_STAGE_LABEL[record.stage]}`,
+        actorEmail: actor.email, actorName: actor.name,
+      }),
+    ]);
   },
 
   async listUsers() {
