@@ -1,15 +1,15 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import type {
-  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset,
-  RosterEntry,
+  AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order,
+  OrderAsset, RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
@@ -37,6 +37,7 @@ export interface Database {
   callContacts: Contact[];
   callLogs: CallLog[];
   callSessions: CallSession[];
+  settings?: AppSettings;
 }
 
 /** PPC_DATA_DIR lets the e2e run point at a throwaway directory instead of data/. */
@@ -75,6 +76,7 @@ function heal(db: Database): Database {
   (db.callContacts ??= []).forEach(healContact);
   (db.callLogs ??= []).forEach(healCallLog);
   (db.callSessions ??= []).forEach(healCallSession);
+  db.settings = healSettings(db.settings);
   return db;
 }
 
@@ -347,6 +349,17 @@ export const jsonStore: Repository = {
   async listUsers() {
     const db = await load();
     return db.users;
+  },
+
+  /* Settings ----------------------------------------------------------- */
+
+  async getSettings() {
+    const db = await load();
+    return healSettings(db.settings);
+  },
+
+  async saveSettings(settings, _actor) {
+    await withWrite((db) => { db.settings = healSettings(settings); });
   },
 
   /* Sales ------------------------------------------------------------ */

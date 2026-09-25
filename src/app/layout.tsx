@@ -56,6 +56,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   Sales
                 </Link>
+                <Link
+                  href="/settings"
+                  className="rounded-lg px-3 py-2 font-semibold text-muted hover:bg-surface-2 hover:text-ppc-gold"
+                >
+                  Settings
+                </Link>
                 <form action={lock}>
                   <button
                     type="submit"

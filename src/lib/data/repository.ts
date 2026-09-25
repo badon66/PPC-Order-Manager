@@ -1,6 +1,6 @@
 import type {
-  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, Contact,
-  Order, OrderAsset, RosterEntry, RouteVariant,
+  AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
+  Contact, Order, OrderAsset, RosterEntry, RouteVariant,
 } from '@/lib/types';
 
 /**
@@ -203,6 +203,10 @@ export interface Repository {
 
   /* History ------------------------------------------------------------ */
   getHistory(orderId: string): Promise<ChangeLogEntry[]>;
+
+  /* Settings ----------------------------------------------------------- */
+  getSettings(): Promise<AppSettings>;
+  saveSettings(settings: AppSettings, actor: Actor): Promise<void>;
 
   /* Users -------------------------------------------------------------- */
   listUsers(): Promise<AppUser[]>;

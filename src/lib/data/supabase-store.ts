@@ -1,5 +1,6 @@
 import type {
-  AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order, OrderAsset, RosterEntry,
+  AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientRosterSubmission, Contact, Order,
+  OrderAsset, RosterEntry,
 } from '@/lib/types';
 import { newId, newToken, blankOrder } from '@/lib/order-utils';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +8,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
 } from './logic';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 
@@ -37,6 +38,7 @@ const ASSETS = 'order_assets';
 const SUBMISSIONS = 'client_submissions';
 const HISTORY = 'change_log';
 const USERS = 'app_users';
+const SETTINGS = 'app_settings';
 const CALL_LISTS = 'call_lists';
 const CALL_CONTACTS = 'call_contacts';
 const CALL_LOGS = 'call_logs';
@@ -450,6 +452,19 @@ export const supabaseStore: Repository = {
   async listUsers() {
     const res = await supabase().from(USERS).select('id, data');
     return rows<AppUser>(unwrap(res, 'list users'));
+  },
+
+  /* Settings ----------------------------------------------------------- */
+
+  async getSettings() {
+    const res = await supabase().from(SETTINGS).select('data').eq('id', 'app').maybeSingle();
+    if (res.error) throw new Error(`load settings: ${res.error.message}`);
+    return healSettings((res.data?.data as Partial<AppSettings> | undefined) ?? null);
+  },
+
+  async saveSettings(settings, _actor) {
+    const res = await supabase().from(SETTINGS).upsert({ id: 'app', data: healSettings(settings) });
+    if (res.error) throw new Error(`save settings: ${res.error.message}`);
   },
 
   /* Sales ------------------------------------------------------------ */
