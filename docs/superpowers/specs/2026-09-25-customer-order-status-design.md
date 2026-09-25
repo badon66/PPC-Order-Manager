@@ -22,8 +22,8 @@ those is a touchpoint that carries the brand instead of costing Keenan a reply.
 - In production carries a note: "We don't usually hear from production until
   the jerseys are done. If they send us anything in between, Keenan will pass
   it along."
-- Money: the three deposit/payment emails carry an amount Keenan types at the
-  moment of sending. See "The money rule" below.
+- Money: the three request emails carry an amount Keenan types at the moment
+  of sending, and that is the only place money appears. See "The money rule".
 - Approval moves the order into production automatically (or into the
   pre-production deposit gate if that deposit is still outstanding).
 - Completed sends a "review us on Google, refer a team" email.
@@ -76,9 +76,8 @@ copy and detail, future steps grey. Steps are derived, never stored:
   so a normal order shows ten steps and a security-deposit order eleven.
 - Dates come from the change log's `status_changed` entries (`at`), the
   approval record (`signedAt`), `estimatedFinishDate` and `productionFinishDate`.
-- Amounts shown on the money steps come from the sent-email record for that
-  stage (see data), so the timeline says "Initial deposit: $200 requested on
-  Sep 25" only if that email was sent.
+- The money steps never show an amount. The amount lives in the request
+  email only (see "The money rule").
 
 Copy per step, when current:
 
@@ -150,7 +149,7 @@ row; JSON store `settings` key) with three text fields, edited on a new
 ## Data and code
 
 - `Order.customerEmails: CustomerEmailRecord[]` — `{ stage, sentAt, to,
-  messageId, amount? }`. Added to the type, `blankOrder()`, `healOrder()`;
+  messageId }`. No amount. Added to the type, `blankOrder()`, `healOrder()`;
   not on the form's `EDITABLE` list (written only by the send action). No
   migration: orders are stored whole in `data jsonb`.
 - `ChangeLogEntry.action` gains `'customer_emailed'`.
@@ -178,11 +177,13 @@ row; JSON store `settings` key) with three text fields, edited on a new
 ## The money rule
 
 CLAUDE.md: "No pricing, money, or invoicing anywhere. Not a dollar field, not a
-total, not a 'helpful' cost estimate." Keenan asked for an amount in the three
-deposit/payment emails. The exception is kept to exactly that: a free-text
-amount typed into the send panel, stored on the sent-email record, shown on the
-timeline for that step. No amount field on the order form, no totals, no
-invoices, nothing computed. CLAUDE.md gets a sentence recording the exception.
+total, not a 'helpful' cost estimate." The rule stands. The one exception,
+decided by Keenan on 2026-09-25: the three request emails (initial deposit,
+pre-production deposit, final payment) carry an amount he types into the send
+panel, editable each time. That amount goes into that email and nowhere else.
+It is not stored on the order, not shown on the timeline, not written to the
+change log, not on any form. The panel field is free text ("$200"), and the app
+does not parse or add anything up. CLAUDE.md gets one sentence recording this.
 
 ## Out of scope
 
