@@ -6,6 +6,8 @@ import { repo } from '@/lib/data';
 import { APPROVAL_STATEMENT, TERMS_URL } from '@/lib/constants';
 import { today } from '@/lib/dates';
 import type { ApprovalRecord } from '@/lib/types';
+import { statusAfterApproval } from '@/lib/data/customer-updates-logic';
+import { sendCustomerUpdate } from '@/lib/customer-updates';
 
 /**
  * Record a customer's sign-off.
@@ -104,6 +106,7 @@ export async function approveOrder(
     userAgent: (h.get('user-agent') ?? '').slice(0, 300),
   };
 
+  const client = { email: 'client', name: signedName || view.teamName || 'Client' };
   await repo.updateOrder(
     view.orderId,
     {
@@ -112,8 +115,23 @@ export async function approveOrder(
       approvedDate: today(),
       approvalRecord: record,
     },
-    { email: 'client', name: signedName || view.teamName || 'Client' },
+    client,
   );
+
+  /*
+   * A signature is the go-ahead. Into production if the pre-production deposit
+   * is already in, otherwise to the deposit gate; Keenan then sends the deposit
+   * email from the panel. Best effort from here: the signature is saved.
+   */
+  const system = { email: 'system', name: 'Approval' };
+  try {
+    const history = await repo.getHistory(view.orderId);
+    const next = statusAfterApproval(view.status, history);
+    if (next) await repo.updateOrder(view.orderId, { status: next }, system);
+    await sendCustomerUpdate(view.orderId, 'approval_confirmed', {}, system);
+  } catch (e) {
+    console.error(`[updates] after approval of ${view.orderId}: ${(e as Error).message}`);
+  }
 
   revalidatePath(`/share/${token}`);
   revalidatePath(`/roster/${token}`);
