@@ -23,7 +23,7 @@ export default async function SettingsPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-muted" htmlFor="googleReviewUrl">Google review link</label>
-              <input id="googleReviewUrl" name="googleReviewUrl" className="mt-1 w-full" defaultValue={s.googleReviewUrl} placeholder="https://g.page/r/…/review" />
+              <input id="googleReviewUrl" name="googleReviewUrl" type="url" className="mt-1 w-full" defaultValue={s.googleReviewUrl} placeholder="https://g.page/r/…/review" />
               <p className="mt-1 text-xs text-muted">The button in the Thanks email. Leave empty to hide it.</p>
             </div>
             <div>

@@ -115,7 +115,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: 'Your sign-off is recorded. Here is what happens next.',
         headline: 'Approved.',
         lines: [
-          `${team} is signed off. From here nothing on the order changes.`,
+          `${team} is signed off. From here the design is locked in.`,
           i.nextAfterApproval === 'production'
             ? "Next up: production. You'll get a note when it starts, with the estimated finish."
             : `Next up: the pre-production deposit. ${SPECIALIST} will send the details.`,

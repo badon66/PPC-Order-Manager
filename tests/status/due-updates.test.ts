@@ -12,8 +12,8 @@ function order(status: OrderStatus, extra: Partial<ReturnType<typeof blankOrder>
 }
 const stages = (o: ReturnType<typeof order>, h: ChangeLogEntry[] = []) => dueUpdates(o, h).map((d) => d.stage);
 
-test('recipient is the contact email, else the enquiry email, else nothing', () => {
-  assert.equal(recipientOf({ contactEmail: ' a@b.c ', enquiry: null }), 'a@b.c');
+test('recipient is the trimmed contact email, or nothing', () => {
+  assert.equal(recipientOf({ contactEmail: ' a@b.c ' }), 'a@b.c');
   const o = blankOrder();
   o.contactEmail = '';
   assert.equal(recipientOf(o), '');

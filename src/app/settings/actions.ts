@@ -8,8 +8,15 @@ export async function saveSettingsAction(formData: FormData): Promise<void> {
   await requireRole('staff');
   const actor = await currentActor();
   const str = (k: string) => String(formData.get(k) ?? '').trim();
+  const googleReviewUrl = str('googleReviewUrl');
   await repo.saveSettings(
-    { howToPay: str('howToPay'), googleReviewUrl: str('googleReviewUrl'), referralLine: str('referralLine') },
+    {
+      howToPay: str('howToPay'),
+      googleReviewUrl: googleReviewUrl && !/^https?:\/\//i.test(googleReviewUrl)
+        ? `https://${googleReviewUrl}`
+        : googleReviewUrl,
+      referralLine: str('referralLine'),
+    },
     actor,
   );
   revalidatePath('/settings');

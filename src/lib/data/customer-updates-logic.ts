@@ -24,14 +24,14 @@ export interface DueUpdate {
 
 export type DueInput = Pick<
   Order,
-  'status' | 'trackingCode' | 'customerEmails' | 'approvedDate' | 'approvalRecord' | 'contactEmail' | 'enquiry'
+  'status' | 'trackingCode' | 'customerEmails' | 'approvedDate' | 'approvalRecord' | 'contactEmail'
 >;
 
 const pos = (s: OrderStatus) => STATUS_META[s].order;
 const GATE = 'waiting_for_production_deposit' as const;
 
 /** The contact email, trimmed. Website orders always have one; hand-made orders may not. */
-export function recipientOf(order: Pick<Order, 'contactEmail' | 'enquiry'>): string {
+export function recipientOf(order: Pick<Order, 'contactEmail'>): string {
   return (order.contactEmail ?? '').trim();
 }
 
