@@ -14,12 +14,13 @@ export const STATUS_META: Record<
   design_talk:         { label: 'Design Talk',         emoji: '💬', order: 2, className: 'border-cyan-400/60 text-cyan-200 bg-cyan-500/10' },
   finalizing_details:  { label: 'Finalizing Details',  emoji: '📋', order: 3, className: 'border-teal-400/60 text-teal-200 bg-teal-500/10' },
   waiting_for_deposit: { label: 'Waiting for Initial Deposit', emoji: '💵', order: 4, className: 'border-lime-400/60 text-lime-200 bg-lime-500/10' },
-  waiting_for_payment: { label: 'Waiting for Payment', emoji: '💰', order: 5, className: 'border-amber-500/60 text-amber-200 bg-amber-500/10' },
-  waiting_for_approval:{ label: 'Waiting for Approval', emoji: '✍️', order: 6, className: 'border-orange-400/60 text-orange-200 bg-orange-500/10' },
+  waiting_for_approval:{ label: 'Waiting for Approval', emoji: '✍️', order: 5, className: 'border-orange-400/60 text-orange-200 bg-orange-500/10' },
+  waiting_for_production_deposit: { label: 'Pre-Production Deposit', emoji: '💳', order: 6, className: 'border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-500/10' },
   in_production:       { label: 'In Production',       emoji: '🟡', order: 7, className: 'border-ppc-gold/60 text-ppc-gold bg-ppc-gold/10' },
   waiting_for_final_approval: { label: 'Waiting for Final Approval', emoji: '📸', order: 8, className: 'border-violet-400/60 text-violet-200 bg-violet-500/10' },
-  shipped:             { label: 'Shipped',             emoji: '📦', order: 9, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
-  completed:           { label: 'Completed',           emoji: '🟢', order: 10, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
+  waiting_for_payment: { label: 'Final Payment Due',   emoji: '💰', order: 9, className: 'border-amber-500/60 text-amber-200 bg-amber-500/10' },
+  shipped:             { label: 'Shipped',             emoji: '📦', order: 10, className: 'border-indigo-400/60 text-indigo-300 bg-indigo-500/10' },
+  completed:           { label: 'Completed',           emoji: '🟢', order: 11, className: 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10' },
 };
 
 export const STATUS_OPTIONS = (Object.keys(STATUS_META) as OrderStatus[]).sort(
@@ -29,7 +30,7 @@ export const STATUS_OPTIONS = (Object.keys(STATUS_META) as OrderStatus[]).sort(
 /* ------------------------------------------------------------------ *
  * Work buckets
  *
- * Eleven statuses is the right amount of detail on one order and far too much to
+ * Twelve statuses is the right amount of detail on one order and far too much to
  * think in when you're looking at all of them. Three buckets is how the work
  * actually divides:
  *
@@ -52,10 +53,11 @@ export const ACTIVE_STATUSES: OrderStatus[] = [
   'design_talk',
   'finalizing_details',
   'waiting_for_deposit',
-  'waiting_for_payment',
   'waiting_for_approval',
+  'waiting_for_production_deposit',
   'in_production',
   'waiting_for_final_approval',
+  'waiting_for_payment',
   'shipped',
 ];
 

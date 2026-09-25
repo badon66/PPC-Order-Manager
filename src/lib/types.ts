@@ -10,10 +10,11 @@ export const ORDER_STATUSES = [
   'design_talk',
   'finalizing_details',
   'waiting_for_deposit',
-  'waiting_for_payment',
   'waiting_for_approval',
+  'waiting_for_production_deposit',
   'in_production',
   'waiting_for_final_approval',
+  'waiting_for_payment',
   'shipped',
   'completed',
 ] as const;
