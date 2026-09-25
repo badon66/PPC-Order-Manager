@@ -39,6 +39,13 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 
 - **No pricing, money, or invoicing anywhere.** Not a dollar field, not a
   total, not a "helpful" cost estimate. Deliberate. Don't add it.
+  The one exception, decided 2026-09-25: the three request emails (initial
+  deposit, pre-production deposit, final payment) carry an amount Keenan types
+  into the send panel. It goes into that email and nowhere else.
+- **Customer update emails are offered, never sent, on a status change.** The
+  panel on the order page asks first; only the approval receipt is automatic.
+  Leaving the pre-production deposit gate in either direction counts as the
+  deposit received (see `statusAfterApproval`).
 - **Dates never pass through a timezone.** `datePaid`, `approvedDate`,
   `estimatedFinishDate` are `YYYY-MM-DD` strings. Format with helpers in
   `src/lib/dates.ts`. Never `new Date(str)` a date-only string. The old app
