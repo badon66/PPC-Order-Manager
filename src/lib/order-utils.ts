@@ -416,6 +416,7 @@ export function blankOrder(): Order {
     approvedBy: '',
     approvedDate: null,
     deliveryConcern: '',
+    customerEmails: [],
 
     source: 'manual',
     enquiry: null,

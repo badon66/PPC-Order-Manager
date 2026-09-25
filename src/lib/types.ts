@@ -20,6 +20,72 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/* ------------------------------------------------------------------ *
+ * Customer updates
+ *
+ * The emails Keenan can send a team as their order moves, one per stage.
+ * Design: docs/superpowers/specs/2026-09-25-customer-order-status-design.md
+ * ------------------------------------------------------------------ */
+
+export const UPDATE_STAGES = [
+  'design_talk',
+  'finalizing_details',
+  'initial_deposit_requested',
+  'initial_deposit_received',
+  'proof_ready',
+  'approval_confirmed',
+  'production_deposit_requested',
+  'production_deposit_received',
+  'in_production',
+  'final_payment_requested',
+  'shipped',
+  'completed',
+] as const;
+export type UpdateStage = (typeof UPDATE_STAGES)[number];
+
+/** How the staff panel and the history name each email. */
+export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
+  design_talk: 'Send us your logos and inspiration',
+  finalizing_details: 'Roster and contact details',
+  initial_deposit_requested: 'Initial deposit requested',
+  initial_deposit_received: 'Initial deposit received',
+  proof_ready: 'Proof ready to approve',
+  approval_confirmed: 'Approval confirmed',
+  production_deposit_requested: 'Pre-production deposit requested',
+  production_deposit_received: 'Pre-production deposit received',
+  in_production: 'In production',
+  final_payment_requested: 'Final payment requested',
+  shipped: 'Shipped',
+  completed: 'Thanks and review',
+};
+
+/** One email that went out. No amount is ever recorded here — see the money rule. */
+export interface CustomerEmailRecord {
+  stage: UpdateStage;
+  /** ISO instant. */
+  sentAt: string;
+  to: string;
+  messageId: string;
+}
+
+/** One row of app-wide settings. Three strings Keenan writes once. */
+export interface AppSettings {
+  /** Prefilled into the three request emails, editable before sending. */
+  howToPay: string;
+  /** The Google review link; empty hides the button in the Completed email. */
+  googleReviewUrl: string;
+  /** The referral sentence in the Completed email; empty hides it. */
+  referralLine: string;
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  howToPay:
+    'E-transfer to info@powerplaycustoms.ca (no fee), or pay by card (3% processing fee). Put your team name in the message.',
+  googleReviewUrl: '',
+  referralLine:
+    "Know another team that needs jerseys? Send them our way and mention your team, and we'll look after you both.",
+};
+
 export const ORDER_MODES = ['single_set', 'home_away_set', 'multiple_sets'] as const;
 export type OrderMode = (typeof ORDER_MODES)[number];
 
@@ -516,6 +582,9 @@ export interface Order {
   approvalRecord: ApprovalRecord | null;
   deliveryConcern: string;
 
+  /** The update emails sent to this team, one record per send. */
+  customerEmails: CustomerEmailRecord[];
+
   /* Public link tokens — long, random, per-order, revocable. NOT the row id. */
   shareToken: string;
   rosterToken: string;
@@ -646,6 +715,7 @@ export type ChangeAction =
   | 'client_submitted'
   | 'submission_accepted'
   | 'approved'
+  | 'customer_emailed'
   | 'order_deleted'
   | 'order_restored';
 

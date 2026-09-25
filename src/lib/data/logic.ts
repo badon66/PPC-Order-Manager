@@ -1,8 +1,8 @@
 import type { CalendarDate } from '@/lib/dates';
 import type {
-  ApprovalRecord, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
+  ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
-import { DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
+import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
 import { STATUS_META, captaincyLabel } from '@/lib/constants';
 import {
   extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
@@ -56,6 +56,7 @@ export function healOrder(o: Order): Order {
   o.deletedAt ??= null;
   o.source ??= 'manual';
   o.enquiry ??= null;
+  o.customerEmails ??= [];
   for (const set of (o.sets ??= [])) {
     set.extraJerseys ??= 0;
     set.extraSockPairs ??= 0;
@@ -86,12 +87,21 @@ export function healRosterEntry(r: RosterEntry): RosterEntry {
   return r;
 }
 
+/** Settings rows written before a field existed get the default for it. */
+export function healSettings(s: Partial<AppSettings> | null | undefined): AppSettings {
+  return {
+    howToPay: s?.howToPay ?? DEFAULT_APP_SETTINGS.howToPay,
+    googleReviewUrl: s?.googleReviewUrl ?? DEFAULT_APP_SETTINGS.googleReviewUrl,
+    referralLine: s?.referralLine ?? DEFAULT_APP_SETTINGS.referralLine,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Change log
  * ------------------------------------------------------------------ */
 
 /** Fields not worth a history line of their own — noise. */
-const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'sets']);
+const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'sets', 'customerEmails']);
 
 export function diffFields(
   before: Order,
