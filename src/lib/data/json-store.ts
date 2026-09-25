@@ -356,7 +356,7 @@ export const jsonStore: Repository = {
       o.updatedAt = new Date().toISOString();
       db.history.push(
         logEntry({
-          orderId, action: 'customer_emailed', field: record.stage,
+          orderId, action: 'customer_emailed',
           summary: `Emailed ${record.to}: ${UPDATE_STAGE_LABEL[record.stage]}`,
           actorEmail: actor.email, actorName: actor.name,
         }),

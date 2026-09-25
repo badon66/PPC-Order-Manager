@@ -128,7 +128,8 @@ export async function approveOrder(
     const history = await repo.getHistory(view.orderId);
     const next = statusAfterApproval(view.status, history);
     if (next) await repo.updateOrder(view.orderId, { status: next }, system);
-    await sendCustomerUpdate(view.orderId, 'approval_confirmed', {}, system);
+    const r = await sendCustomerUpdate(view.orderId, 'approval_confirmed', {}, system);
+    if (!r.sent) console.warn(`[updates] approval receipt not sent for ${view.orderId}: ${r.reason}`);
   } catch (e) {
     console.error(`[updates] after approval of ${view.orderId}: ${(e as Error).message}`);
   }

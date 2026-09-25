@@ -58,6 +58,9 @@ export function healOrder(o: Order): Order {
   o.source ??= 'manual';
   o.enquiry ??= null;
   o.customerEmails ??= [];
+  o.contactFirstName ??= '';
+  o.trackingCode ??= '';
+  o.approvedBy ??= '';
   for (const set of (o.sets ??= [])) {
     set.extraJerseys ??= 0;
     set.extraSockPairs ??= 0;

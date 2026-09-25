@@ -12,9 +12,13 @@ export async function sendUpdateAction(
 ): Promise<{ ok: boolean; error?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
-  if (!(UPDATE_STAGES as readonly string[]).includes(stage)) return { ok: false, error: 'Unknown email' };
-  const r = await sendCustomerUpdate(orderId, stage, input, actor);
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath(`/orders/${orderId}/history`);
-  return r.sent ? { ok: true } : { ok: false, error: r.reason };
+  try {
+    if (!(UPDATE_STAGES as readonly string[]).includes(stage)) return { ok: false, error: 'Unknown email' };
+    const r = await sendCustomerUpdate(orderId, stage, input, actor);
+    revalidatePath(`/orders/${orderId}`);
+    revalidatePath(`/orders/${orderId}/history`);
+    return r.sent ? { ok: true } : { ok: false, error: r.reason };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }

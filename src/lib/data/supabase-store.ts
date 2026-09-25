@@ -459,7 +459,7 @@ export const supabaseStore: Repository = {
     await putOrder(o);
     await appendHistory([
       logEntry({
-        orderId, action: 'customer_emailed', field: record.stage,
+        orderId, action: 'customer_emailed',
         summary: `Emailed ${record.to}: ${UPDATE_STAGE_LABEL[record.stage]}`,
         actorEmail: actor.email, actorName: actor.name,
       }),
@@ -475,7 +475,20 @@ export const supabaseStore: Repository = {
 
   async getSettings() {
     const res = await supabase().from(SETTINGS).select('data').eq('id', 'app').maybeSingle();
-    if (res.error) throw new Error(`load settings: ${res.error.message}`);
+    if (res.error) {
+      const err = res.error as { code?: string; message: string };
+      // A missing app_settings table (not yet migrated, or a fresh project)
+      // must not take the whole page down — fall back to the defaults.
+      const tableMissing =
+        err.code === '42P01' ||
+        err.code === 'PGRST205' ||
+        (/app_settings/i.test(err.message) && /does not exist|could not find/i.test(err.message));
+      if (tableMissing) {
+        console.error(`[settings] app_settings table not found, using defaults: ${err.message}`);
+        return healSettings(null);
+      }
+      throw new Error(`load settings: ${err.message}`);
+    }
     return healSettings((res.data?.data as Partial<AppSettings> | undefined) ?? null);
   },
 

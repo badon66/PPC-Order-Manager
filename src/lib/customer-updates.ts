@@ -26,16 +26,16 @@ export interface SendUpdateOptions {
 export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: AppSettings, base: string, opts: SendUpdateOptions): UpdateMailInput {
   return {
     teamName: order.teamName,
-    firstName: firstNameOf(order.contactFirstName),
+    firstName: firstNameOf(order.contactFirstName ?? ''),
     rosterUrl: `${base}/roster/${order.rosterToken}`,
     shareUrl: `${base}/share/${order.shareToken}`,
     amount: (opts.amount ?? '').trim(),
     howToPay: (opts.howToPay ?? settings.howToPay).trim(),
     estimatedFinishDate: order.estimatedFinishDate,
-    trackingCode: order.trackingCode.trim(),
+    trackingCode: (order.trackingCode ?? '').trim(),
     paymentReceivedFirst: everInStatus('waiting_for_payment', history, order.status),
     nextAfterApproval: statusAfterApproval(order.status, history) === 'in_production' || order.status === 'in_production' ? 'production' : 'deposit',
-    approvedBy: order.approvedBy,
+    approvedBy: order.approvedBy ?? '',
     googleReviewUrl: settings.googleReviewUrl.trim(),
     referralLine: settings.referralLine.trim(),
   };
@@ -62,7 +62,6 @@ export async function sendCustomerUpdate(
   }
   if (MONEY_STAGES.has(stage) && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
 
-
   const settings = await repo.getSettings();
   const mail = composeUpdateMail(stage, mailInputFor(order, history, settings, await baseUrl(), opts));
   const result = await sendMail({ to, ...mail });
@@ -70,17 +69,27 @@ export async function sendCustomerUpdate(
     console.error(`[updates] ${stage} NOT sent to ${to} for order ${orderId}: ${result.reason}`);
     return result;
   }
-  await repo.recordCustomerEmail(orderId, { stage, sentAt: new Date().toISOString(), to, messageId: result.id }, actor);
   console.log(`[updates] ${stage} sent to ${to} for order ${orderId} (${result.id})`);
 
-  // The two link emails promise a page that collects something. Make sure it does.
-  const open = SECTIONS_OPENED_BY[stage];
-  if (open) {
-    await repo.updateOrder(
-      orderId,
-      { requestClientDetails: true, clientLinkSections: { ...order.clientLinkSections, ...open } },
-      actor,
-    );
+  // The email is gone; a failure from here on must not look like it wasn't
+  // sent. Recording the send and opening the link's sections are best effort —
+  // log and tell the caller not to resend, rather than throw past a sent email.
+  try {
+    await repo.recordCustomerEmail(orderId, { stage, sentAt: new Date().toISOString(), to, messageId: result.id }, actor);
+
+    // The two link emails promise a page that collects something. Make sure it does.
+    const open = SECTIONS_OPENED_BY[stage];
+    if (open) {
+      await repo.updateOrder(
+        orderId,
+        { requestClientDetails: true, clientLinkSections: { ...order.clientLinkSections, ...open } },
+        actor,
+      );
+    }
+  } catch (e) {
+    const message = (e as Error).message;
+    console.error(`[updates] ${stage} sent to ${to} for order ${orderId} but not recorded: ${message}`);
+    return { sent: false, reason: 'The email went out but could not be recorded. Do not resend; refresh the page and check the history.' };
   }
   return result;
 }
