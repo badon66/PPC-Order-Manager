@@ -192,6 +192,28 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         muted: "Next season: reply to this email and we'll reorder from your design, no setup.",
         hero: true,
       };
+    case 'payment_received':
+      return {
+        subject: `Payment received — ${team}`,
+        preheader: 'Thanks — your payment has been received.',
+        headline: `Got it, thanks ${first}.`,
+        lines: [`Your payment for ${team} has been received. ${SPECIALIST} will be in touch with what's next.`],
+        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        hero: false,
+      };
+    case 'review_request':
+      return {
+        subject: `How did we do? — ${team}`,
+        preheader: 'A quick review helps other teams find us.',
+        headline: `Thanks again, ${first}.`,
+        lines: [
+          `We hope ${team} is enjoying the new jerseys.${i.googleReviewUrl || i.referralLine ? ' Two small asks, if you have a minute:' : ''}`,
+          ...(i.referralLine ? [i.referralLine] : []),
+        ],
+        button: i.googleReviewUrl ? { href: i.googleReviewUrl, label: 'Review us on Google' } : { href: i.rosterUrl, label: "Your team's page", dark: true },
+        button2: i.googleReviewUrl ? { href: i.rosterUrl, label: "Your team's page" } : undefined,
+        hero: false,
+      };
   }
 }
 

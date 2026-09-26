@@ -16,12 +16,22 @@ import nodemailer, { type Transporter } from 'nodemailer';
  * the server's environment (Vercel project settings / .env.local).
  */
 
+/** One file attached to an outbound email. */
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+  /** Referenced from the HTML body as `cid:<cid>`, for an inline image. */
+  cid?: string;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
   html: string;
   replyTo?: string;
+  attachments?: MailAttachment[];
 }
 
 export type SendResult = { sent: true; id: string } | { sent: false; reason: string };
@@ -101,7 +111,7 @@ export async function sendMail(m: MailMessage): Promise<SendResult> {
   const bcc = process.env.MAIL_BCC || undefined;
   try {
     const info = await withTimeout(
-      transporter().sendMail({ from, to: m.to, replyTo, bcc, subject: m.subject, text: m.text, html: m.html }),
+      transporter().sendMail({ from, to: m.to, replyTo, bcc, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments }),
       SEND_TIMEOUT_MS,
     );
     return { sent: true, id: String(info.messageId ?? '') };

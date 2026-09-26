@@ -24,6 +24,8 @@ export interface SubmitPayload {
   rosterFiles?: SubmittedRosterFile[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
+  /** "Your colours", typed on the design page. */
+  colours?: string;
   contact?: SubmittedContact;
   confirmed: boolean;
 }
@@ -44,6 +46,8 @@ export interface CleanSubmission {
   extras: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
+  /** "Your colours", typed on the design page. */
+  colours: string;
   contact?: SubmittedContact;
   confirmed: true;
 }
@@ -171,6 +175,7 @@ export function cleanSubmission(
         : [],
       logos,
       inspiration,
+      colours: clean(payload.colours),
       contact: contactHasAnything ? contact : undefined,
       confirmed: true,
     },

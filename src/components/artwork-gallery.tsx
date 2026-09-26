@@ -46,6 +46,7 @@ const ROLE_LABELS: Record<AssetRole, string> = {
   pant_number: 'Pant Number',
   font: 'Font',
   design_svg: 'Design File',
+  finished_photo: 'Finished jerseys',
 };
 
 // Design intent order, not database order or alphabetical: the crest and the
@@ -69,6 +70,7 @@ const ROLE_ORDER: AssetRole[] = [
   'pant_number',
   'design_svg',
   'font',
+  'finished_photo',
 ];
 
 /*

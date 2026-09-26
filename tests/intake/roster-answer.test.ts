@@ -74,7 +74,7 @@ test('with the roster section off, the answer and the file are dropped', () => {
 const stored = (over: Partial<ClientRosterSubmission>): ClientRosterSubmission =>
   healSubmission({
     id: 's1', orderId: 'o1', revision: 1, changes: [], sections: link.sections, players: [], rosterFiles: [],
-    extras: [], logos: [], inspiration: [], confirmed: true, submittedAt: '2026-09-21T10:00:00.000Z', acceptedAt: null,
+    extras: [], logos: [], inspiration: [], colours: '', confirmed: true, submittedAt: '2026-09-21T10:00:00.000Z', acceptedAt: null,
     ...over,
   });
 

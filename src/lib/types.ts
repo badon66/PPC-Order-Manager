@@ -40,6 +40,8 @@ export const UPDATE_STAGES = [
   'final_payment_requested',
   'shipped',
   'completed',
+  'payment_received',
+  'review_request',
 ] as const;
 export type UpdateStage = (typeof UPDATE_STAGES)[number];
 
@@ -57,6 +59,18 @@ export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
   final_payment_requested: 'Final payment requested',
   shipped: 'Shipped',
   completed: 'Thanks and review',
+  payment_received: 'Payment received',
+  review_request: 'Review and referral',
+};
+
+export const PAYMENT_KINDS = ['initial_deposit', 'production_deposit', 'final_payment'] as const;
+export type PaymentKind = (typeof PAYMENT_KINDS)[number];
+
+/** How the staff panel and the history name each payment kind. */
+export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
+  initial_deposit: 'initial deposit',
+  production_deposit: 'pre-production deposit',
+  final_payment: 'final payment',
 };
 
 /** One email that went out. No amount is ever recorded here — see the money rule. */
@@ -66,6 +80,8 @@ export interface CustomerEmailRecord {
   sentAt: string;
   to: string;
   messageId: string;
+  /** A short label, e.g. which payment — "final payment". Never an amount; see the money rule. */
+  detail?: string;
 }
 
 /** One row of app-wide settings. Three strings Keenan writes once. */
@@ -141,6 +157,7 @@ export const ASSET_ROLES = [
   'pant_number',
   'font',
   'design_svg',
+  'finished_photo',
 ] as const;
 export type AssetRole = (typeof ASSET_ROLES)[number];
 
@@ -693,6 +710,8 @@ export interface ClientRosterSubmission {
   extras: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
+  /** "Your colours", typed on the design page. */
+  colours: string;
   /** Only present when personalDetails was requested. */
   contact?: SubmittedContact;
   confirmed: boolean;

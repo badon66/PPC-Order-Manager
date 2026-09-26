@@ -77,6 +77,7 @@ export function healSubmission(s: ClientRosterSubmission): ClientRosterSubmissio
   s.sections ??= { ...DEFAULT_CLIENT_LINK_SECTIONS };
   s.revision ??= 1;
   s.changes ??= [];
+  s.colours ??= '';
   for (const p of (s.players ??= [])) p.captaincy ??= '';
   return s;
 }
