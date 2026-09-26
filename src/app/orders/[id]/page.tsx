@@ -23,6 +23,7 @@ import { Timeline } from '@/components/timeline';
 import { SendUpdatePanel } from '@/components/send-update-panel';
 import { dueUpdates, recipientOf } from '@/lib/data/customer-updates-logic';
 import { timelineOf } from '@/lib/data/timeline';
+import { stagePagePaths } from '@/lib/data/stage-pages';
 import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 
@@ -90,8 +91,14 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
   const settings = await repo.getSettings();
-  const timeline = timelineOf(order, history);
+  // Same stage-page links the customer's own timeline points at — see
+  // stagePagePaths in stage-pages.ts. Without these the compact timeline here
+  // renders with no links at all, even on the current step.
+  const stagePaths = stagePagePaths(order.rosterToken);
+  const timeline = timelineOf(order, history, { designUrl: stagePaths.design, detailsUrl: stagePaths.details });
   const due = dueUpdates(order, history);
+  const finishedPhotos = assets.filter((a) => a.role === 'finished_photo');
+  const showPhotos = STATUS_META[order.status].order >= STATUS_META.waiting_for_final_approval.order;
   const preview = mailInputFor(order, history, settings, BASE_URL, {});
   const pendingSubs = submissions.filter((s) => !s.acceptedAt);
   // Tracking only exists once there's a parcel. Same threshold the editable
@@ -170,7 +177,15 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           </div>
           <div>
             <p className="mb-2 text-xs font-medium text-muted">Customer emails</p>
-            <SendUpdatePanel orderId={order.id} to={recipientOf(order)} due={due} sent={order.customerEmails} preview={preview} />
+            <SendUpdatePanel
+              orderId={order.id}
+              to={recipientOf(order)}
+              due={due}
+              sent={order.customerEmails}
+              preview={preview}
+              finishedPhotos={finishedPhotos}
+              showPhotos={showPhotos}
+            />
           </div>
         </div>
       </Section>
@@ -471,7 +486,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        <ArtworkGallery assets={assets} hideRoles={['font']} teamName={order.teamName} />
+        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo']} teamName={order.teamName} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

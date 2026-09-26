@@ -49,7 +49,7 @@ export interface AssetGroupProps {
  * and no function limit to dodge, so it posts to /api/upload as before. The
  * 409 is that case announcing itself rather than an error.
  */
-async function uploadFile(
+export async function uploadFile(
   file: File,
 ): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const signed = await fetch('/api/upload/sign', {
