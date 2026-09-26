@@ -553,7 +553,7 @@ export function planAcceptance(
 
   // Appended, never overwritten — Keenan's own notes on the order stay, and a
   // second submission with the same colours doesn't repeat itself.
-  if (submission.colours && !(order.designReferenceNotes || '').includes(submission.colours)) {
+  if (submission.colours && !(order.designReferenceNotes || '').includes(`Team colours: ${submission.colours}`)) {
     orderPatch.designReferenceNotes = [order.designReferenceNotes, `Team colours: ${submission.colours}`]
       .filter(Boolean)
       .join('\n');
@@ -666,7 +666,10 @@ export function publicViewOf(
       province: o.shippingProvince,
       postal: o.shippingPostal,
     },
-    timeline: timelineOf(o, history, stageUrls(o.rosterToken)),
+    // No stage URLs here: the /share sheet is circulated widely, and a stage
+    // page URL is built from the roster token — the write credential. See
+    // rosterLinkView, which is the one place that link belongs.
+    timeline: timelineOf(o, history),
   };
 }
 
@@ -751,7 +754,14 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
     approvalRecord: o.approvalRecord,
     shareToken: o.shareToken,
     existingRosterCount,
-    timeline: timelineOf(o, history, stageUrls(o.rosterToken)),
+    // Only when the form link is actually open for editing — a locked order,
+    // or one where the link was never switched on, has nowhere for a "fill
+    // this in" link to send anyone.
+    timeline: timelineOf(
+      o,
+      history,
+      o.requestClientDetails && !clientEditingLocked(o.status) ? stageUrls(o.rosterToken) : undefined,
+    ),
   };
 }
 
