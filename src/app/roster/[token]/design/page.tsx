@@ -72,6 +72,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
                   players: previous.players,
                   rosterAnswer: previous.rosterAnswer,
                   rosterFiles: previous.rosterFiles ?? [],
+                  extras: previous.extras,
                   logos: previous.logos,
                   inspiration: previous.inspiration ?? [],
                   colours: previous.colours,
