@@ -145,11 +145,17 @@ export function cleanSubmission(
 
   const contactHasAnything = Boolean(contact && Object.values(contact).some(Boolean));
 
+  // Only kept when there's a logos or inspiration section to hang it off of —
+  // a details-only submission has nowhere for "your colours" to go.
+  const colours = sec.logos || sec.inspiration ? clean(payload.colours).slice(0, 500) : '';
+
   // "Not ready yet" on its own is worth sending: it tells Keenan where the
-  // team is at, and the history line says so.
+  // team is at, and the history line says so. So is a colours note on its
+  // own — a team with no logo yet ("no logo yet is fine, tell us the idea")
+  // is exactly who this field is for.
   if (
     !players.length && !rosterFiles.length && !logos.length && !inspiration.length &&
-    !contactHasAnything && rosterAnswer !== 'later'
+    !contactHasAnything && !colours && rosterAnswer !== 'later'
   ) {
     return { ok: false, error: 'Add at least one thing before submitting.' };
   }
@@ -175,7 +181,7 @@ export function cleanSubmission(
         : [],
       logos,
       inspiration,
-      colours: clean(payload.colours),
+      colours,
       contact: contactHasAnything ? contact : undefined,
       confirmed: true,
     },

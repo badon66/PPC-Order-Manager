@@ -1,6 +1,4 @@
 import { notFound } from 'next/navigation';
-import { repo } from '@/lib/data';
-import { resolveAll } from '@/lib/storage';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { ClientForm } from './client-form';
 import { ROUTE_COPY } from '@/lib/route-copy';
@@ -8,6 +6,7 @@ import { ApproveBlock } from '@/app/share/[token]/approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { Timeline } from '@/components/timeline';
 import { formatLong } from '@/lib/dates';
+import { loadClientPage } from './load';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,24 +19,9 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ClientRosterPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const link = await repo.getByRosterToken(token);
-  if (!link) notFound();
-
-  // Their own previous submission, so a revisit is an edit rather than a
-  // blank form they'd have to re-type from scratch.
-  const previous = await repo.getLatestSubmissionByRosterToken(token);
-
-  // Their previous uploads are keys in a private bucket. Sign them so a
-  // revisit shows the files they already sent, not broken thumbnails.
-  const previousPreviews = Object.fromEntries(
-    (
-      await resolveAll([
-        ...(previous?.logos ?? []).map((l) => ({ fileUrl: l.fileUrl })),
-        ...(previous?.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
-        ...(previous?.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
-      ])
-    ).map((f) => [f.fileUrl, f.resolvedUrl]),
-  );
+  const data = await loadClientPage(token);
+  if (!data) notFound();
+  const { link, previous, previousPreviews } = data;
 
   const keys = Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>;
   const asked = keys.filter((k) => link.sections[k]);
@@ -126,6 +110,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
                   rosterFiles: previous.rosterFiles ?? [],
                   logos: previous.logos,
                   inspiration: previous.inspiration ?? [],
+                  colours: previous.colours,
                   contact: previous.contact,
                   submittedAt: previous.submittedAt,
                 }

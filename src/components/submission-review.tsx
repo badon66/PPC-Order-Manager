@@ -157,6 +157,10 @@ function SubmissionCard({
         </div>
       )}
 
+      {s.colours && (
+        <p className="mt-3 text-sm"><span className="text-muted">Colours:</span> {s.colours}</p>
+      )}
+
       {s.players.length > 0 && (
         <div className="mt-3">
           <div className="text-xs font-bold uppercase tracking-wide text-muted">

@@ -211,106 +211,124 @@ export function diffSubmissions(
   const keyOf = (p: { number: string; playerNameAsPrinted: string }) =>
     (p.number || '').trim() || p.playerNameAsPrinted.trim().toLowerCase();
 
-  const before = new Map(prev.players.map((p) => [keyOf(p), p]));
-  const after = new Map(next.players.map((p) => [keyOf(p), p]));
+  // A stage page only ever submits its own sections — a details-page visit
+  // carries no logos or inspiration, and a design-page visit carries no
+  // roster or contact. Comparing against a previous submission's fuller set
+  // would otherwise read as "everything was removed", when really this visit
+  // just never touched it.
+  if (next.sections.roster) {
+    const before = new Map(prev.players.map((p) => [keyOf(p), p]));
+    const after = new Map(next.players.map((p) => [keyOf(p), p]));
 
-  for (const [k, p] of after) {
-    const was = before.get(k);
-    if (!was) {
-      out.push({
-        section: 'roster',
-        label: `Player ${p.playerNameAsPrinted || p.number || '(unnamed)'}`,
-        from: '—',
-        to: `added (#${p.number || '?'}, ${p.jerseySize || 'no size'})`,
-      });
-      continue;
-    }
-    const fields: Array<[string, string, string]> = [
-      ['name', was.playerNameAsPrinted, p.playerNameAsPrinted],
-      ['number', was.number, p.number],
-      ['jersey size', was.jerseySize, p.jerseySize],
-      ['sock size', was.sockSize, p.sockSize],
-      ['pant shell size', was.pantShellSize ?? '', p.pantShellSize ?? ''],
-      ['notes', was.notes, p.notes],
-    ];
-    for (const [what, from, to] of fields) {
-      if ((from || '') !== (to || '')) {
+    for (const [k, p] of after) {
+      const was = before.get(k);
+      if (!was) {
         out.push({
           section: 'roster',
-          label: `${p.playerNameAsPrinted || p.number || 'Player'} — ${what}`,
-          from: from || '—',
-          to: to || '—',
+          label: `Player ${p.playerNameAsPrinted || p.number || '(unnamed)'}`,
+          from: '—',
+          to: `added (#${p.number || '?'}, ${p.jerseySize || 'no size'})`,
+        });
+        continue;
+      }
+      const fields: Array<[string, string, string]> = [
+        ['name', was.playerNameAsPrinted, p.playerNameAsPrinted],
+        ['number', was.number, p.number],
+        ['jersey size', was.jerseySize, p.jerseySize],
+        ['sock size', was.sockSize, p.sockSize],
+        ['pant shell size', was.pantShellSize ?? '', p.pantShellSize ?? ''],
+        ['notes', was.notes, p.notes],
+      ];
+      for (const [what, from, to] of fields) {
+        if ((from || '') !== (to || '')) {
+          out.push({
+            section: 'roster',
+            label: `${p.playerNameAsPrinted || p.number || 'Player'} — ${what}`,
+            from: from || '—',
+            to: to || '—',
+          });
+        }
+      }
+      if (was.isGoalie !== p.isGoalie) {
+        out.push({
+          section: 'roster',
+          label: `${p.playerNameAsPrinted || p.number || 'Player'} — goalie`,
+          from: was.isGoalie ? 'Yes' : 'No',
+          to: p.isGoalie ? 'Yes' : 'No',
+        });
+      }
+      if ((was.captaincy || '') !== (p.captaincy || '')) {
+        out.push({
+          section: 'roster',
+          label: `${p.playerNameAsPrinted || p.number || 'Player'} — letter`,
+          from: captaincyLabel(was.captaincy),
+          to: captaincyLabel(p.captaincy),
         });
       }
     }
-    if (was.isGoalie !== p.isGoalie) {
+    for (const [k, p] of before) {
+      if (!after.has(k)) {
+        out.push({
+          section: 'roster',
+          label: `Player ${p.playerNameAsPrinted || p.number || '(unnamed)'}`,
+          from: `#${p.number || '?'}, ${p.jerseySize || 'no size'}`,
+          to: 'removed',
+        });
+      }
+    }
+
+    if ((prev.rosterFiles?.length ?? 0) !== next.rosterFiles.length) {
       out.push({
-        section: 'roster',
-        label: `${p.playerNameAsPrinted || p.number || 'Player'} — goalie`,
-        from: was.isGoalie ? 'Yes' : 'No',
-        to: p.isGoalie ? 'Yes' : 'No',
+        section: 'roster', label: 'Roster files',
+        from: String(prev.rosterFiles?.length ?? 0), to: String(next.rosterFiles.length),
       });
     }
-    if ((was.captaincy || '') !== (p.captaincy || '')) {
+    // "Not yet" turning into a typed list is the change Keenan is waiting
+    // for, so it gets its own line rather than hiding behind the player rows.
+    if ((prev.rosterAnswer ?? '') !== (next.rosterAnswer ?? '')) {
       out.push({
-        section: 'roster',
-        label: `${p.playerNameAsPrinted || p.number || 'Player'} — letter`,
-        from: captaincyLabel(was.captaincy),
-        to: captaincyLabel(p.captaincy),
-      });
-    }
-  }
-  for (const [k, p] of before) {
-    if (!after.has(k)) {
-      out.push({
-        section: 'roster',
-        label: `Player ${p.playerNameAsPrinted || p.number || '(unnamed)'}`,
-        from: `#${p.number || '?'}, ${p.jerseySize || 'no size'}`,
-        to: 'removed',
+        section: 'roster', label: 'Roster',
+        from: prev.rosterAnswer ? ROSTER_ANSWER_LABELS[prev.rosterAnswer] : '—',
+        to: next.rosterAnswer ? ROSTER_ANSWER_LABELS[next.rosterAnswer] : '—',
       });
     }
   }
 
-  if (prev.logos.length !== next.logos.length) {
+  if (next.sections.logos && prev.logos.length !== next.logos.length) {
     out.push({
       section: 'logos', label: 'Logo files',
       from: String(prev.logos.length), to: String(next.logos.length),
     });
   }
-  if ((prev.inspiration?.length ?? 0) !== next.inspiration.length) {
+  if (next.sections.inspiration && (prev.inspiration?.length ?? 0) !== next.inspiration.length) {
     out.push({
       section: 'inspiration', label: 'Inspiration images',
       from: String(prev.inspiration?.length ?? 0), to: String(next.inspiration.length),
     });
   }
-  if ((prev.rosterFiles?.length ?? 0) !== next.rosterFiles.length) {
+  // Colours only ever travels with logos or inspiration — see cleanSubmission
+  // — so a submission carrying neither has nothing to compare here either.
+  if ((next.sections.logos || next.sections.inspiration) && (prev.colours ?? '') !== (next.colours ?? '')) {
     out.push({
-      section: 'roster', label: 'Roster files',
-      from: String(prev.rosterFiles?.length ?? 0), to: String(next.rosterFiles.length),
-    });
-  }
-  // "Not yet" turning into a typed list is the change Keenan is waiting for,
-  // so it gets its own line rather than hiding behind the player rows.
-  if ((prev.rosterAnswer ?? '') !== (next.rosterAnswer ?? '')) {
-    out.push({
-      section: 'roster', label: 'Roster',
-      from: prev.rosterAnswer ? ROSTER_ANSWER_LABELS[prev.rosterAnswer] : '—',
-      to: next.rosterAnswer ? ROSTER_ANSWER_LABELS[next.rosterAnswer] : '—',
+      section: 'inspiration', label: 'Colours',
+      from: prev.colours || '—', to: next.colours || '—',
     });
   }
 
-  const pc = prev.contact, nc = next.contact;
-  if (pc || nc) {
-    const fields: Array<[string, keyof SubmittedContact]> = [
-      ['first name', 'firstName'], ['last name', 'lastName'], ['email', 'email'],
-      ['phone', 'phone'], ['street', 'street'], ['unit', 'secondary'],
-      ['city', 'city'], ['province', 'province'], ['postal code', 'postal'],
-    ];
-    for (const [what, key] of fields) {
-      const from = pc?.[key] ?? '';
-      const to = nc?.[key] ?? '';
-      if (from !== to) {
-        out.push({ section: 'personalDetails', label: `Contact — ${what}`, from: from || '—', to: to || '—' });
+  if (next.sections.personalDetails) {
+    const pc = prev.contact, nc = next.contact;
+    if (pc || nc) {
+      const fields: Array<[string, keyof SubmittedContact]> = [
+        ['first name', 'firstName'], ['last name', 'lastName'], ['email', 'email'],
+        ['phone', 'phone'], ['street', 'street'], ['unit', 'secondary'],
+        ['city', 'city'], ['province', 'province'], ['postal code', 'postal'],
+      ];
+      for (const [what, key] of fields) {
+        const from = pc?.[key] ?? '';
+        const to = nc?.[key] ?? '';
+        if (from !== to) {
+          out.push({ section: 'personalDetails', label: `Contact — ${what}`, from: from || '—', to: to || '—' });
+        }
       }
     }
   }
@@ -354,6 +372,7 @@ export function submissionLogEntries(
     if (created.rosterAnswer === 'later') parts.push('roster not ready yet');
     if (created.logos.length) parts.push(`${created.logos.length} logo(s)`);
     if (created.inspiration.length) parts.push(`${created.inspiration.length} inspiration image(s)`);
+    if (created.colours) parts.push('team colours');
     if (created.contact) parts.push('contact details');
     return [
       logEntry({
@@ -530,6 +549,15 @@ export function planAcceptance(
   });
   if (submission.inspiration?.length) {
     parts.push(`${submission.inspiration.length} inspiration image(s) added to design references`);
+  }
+
+  // Appended, never overwritten — Keenan's own notes on the order stay, and a
+  // second submission with the same colours doesn't repeat itself.
+  if (submission.colours && !(order.designReferenceNotes || '').includes(submission.colours)) {
+    orderPatch.designReferenceNotes = [order.designReferenceNotes, `Team colours: ${submission.colours}`]
+      .filter(Boolean)
+      .join('\n');
+    parts.push('team colours added to design notes');
   }
 
   if (submission.contact) {

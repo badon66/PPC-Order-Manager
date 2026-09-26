@@ -12,6 +12,7 @@ import { CaptaincyPicker } from '@/components/captaincy';
 import { submitClientForm } from './actions';
 import { ROUTE_COPY } from '@/lib/route-copy';
 import type { RouteVariant } from '@/lib/types';
+import type { StagePage } from '@/lib/data/stage-pages';
 
 /**
  * The customer's form. Written for a team manager on their phone at 10pm the
@@ -30,6 +31,8 @@ export interface PreviousSubmission {
   extras?: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
+  /** "Your colours", typed on the design page. */
+  colours?: string;
   contact?: SubmittedContact;
   submittedAt: string;
 }
@@ -50,6 +53,9 @@ type Props = {
   /** Signed links for the files in that previous submission, so a revisit
    *  shows thumbnails rather than broken images. */
   previousPreviews: Record<string, string>;
+  /** Which stage page rendered this form, if any — passed straight through
+   *  to the submit action so it sends only that stage's fixed sections. */
+  stage?: StagePage | null;
 };
 
 const blankPlayer = (): SubmittedPlayer => ({
@@ -142,7 +148,7 @@ function sizeOptions(options: readonly string[], current: string) {
 
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
-  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant,
+  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant, stage,
 }: Props) {
   /*
    * Spares are their own list, not extra roster rows.
@@ -208,6 +214,7 @@ export function ClientForm({
   ).length;
   const [logos, setLogos] = useState<SubmittedLogo[]>(previous?.logos ?? []);
   const [inspiration, setInspiration] = useState<SubmittedInspiration[]>(previous?.inspiration ?? []);
+  const [colours, setColours] = useState(previous?.colours ?? '');
   const [contact, setContact] = useState<SubmittedContact>(previous?.contact ?? blankContact());
   const [previews, setPreviews] = useState<Record<string, string>>(previousPreviews);
   const addPreview = (fileUrl: string, url: string) =>
@@ -230,14 +237,18 @@ export function ClientForm({
   async function handleSubmit() {
     setError(null);
     setBusy(true);
-    const res = await submitClientForm(token, {
-      players: rosterAnswer === 'typed' ? players : [],
-      extras, logos, inspiration,
-      rosterAnswer: sections.roster ? rosterAnswer : undefined,
-      rosterFiles: rosterAnswer === 'file' ? rosterFiles : [],
-      contact: sections.personalDetails ? contact : undefined,
-      confirmed,
-    });
+    const res = await submitClientForm(
+      token,
+      {
+        players: rosterAnswer === 'typed' ? players : [],
+        extras, logos, inspiration, colours,
+        rosterAnswer: sections.roster ? rosterAnswer : undefined,
+        rosterFiles: rosterAnswer === 'file' ? rosterFiles : [],
+        contact: sections.personalDetails ? contact : undefined,
+        confirmed,
+      },
+      stage ?? undefined,
+    );
     setBusy(false);
     if (res.ok) setDone(true);
     else setError(res.error);
@@ -304,6 +315,16 @@ export function ClientForm({
             )}
           />
         </Step>
+      )}
+
+      {(sections.logos || sections.inspiration) && (
+        <details className="rounded-xl border border-line bg-surface">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ppc-gold">Add your colours (optional)</summary>
+          <div className="border-t border-line p-4">
+            <p className="text-xs text-muted">Team colours, or a look to match. &quot;Navy and gold, like our old set&quot; is plenty.</p>
+            <textarea className="mt-2 w-full" rows={2} value={colours} onChange={(e) => setColours(e.target.value)} maxLength={500} />
+          </div>
+        </details>
       )}
 
       {sections.roster && (
