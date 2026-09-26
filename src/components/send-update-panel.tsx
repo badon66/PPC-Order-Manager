@@ -131,7 +131,7 @@ export function SendUpdatePanel({
           force: opts.force,
           paymentKind: opts.paymentKind,
         });
-        setMsg({ stage, text: r.ok ? 'Sent.' : r.error ?? 'Could not send', ok: r.ok });
+        setMsg({ stage, text: r.ok ? (r.note ? `Sent. ${r.note}` : 'Sent.') : r.error ?? 'Could not send', ok: r.ok });
       } finally {
         setInFlight(null);
       }
@@ -150,7 +150,17 @@ export function SendUpdatePanel({
   return (
     <div className="space-y-3">
       {visible.map((d) => {
-        const m = composeUpdateMail(d.stage, { ...preview, amount: amount[d.stage] ?? '', howToPay });
+        // The server-side preview always has an empty `photos` — see the doc
+        // comment on `mailInputFor` — so the "attached" line never shows here
+        // unless this card supplies the same photos the real send will build.
+        const m = composeUpdateMail(d.stage, {
+          ...preview,
+          amount: amount[d.stage] ?? '',
+          howToPay,
+          ...(d.stage === 'final_payment_requested'
+            ? { photos: finishedPhotos.slice(0, 8).map((a, n) => ({ cid: `photo-${n + 1}`, name: a.displayName || a.fileName })) }
+            : {}),
+        });
         const sending = inFlight === d.stage;
         const canSend = !d.blocked && (!d.needsAmount || (amount[d.stage] ?? '').trim().length > 0);
         return (

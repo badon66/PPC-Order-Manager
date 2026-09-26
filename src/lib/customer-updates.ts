@@ -67,6 +67,11 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
  *  a mail provider's total-message-size ceiling. */
 const MAX_PHOTO_BYTES = 6 * 1024 * 1024;
 
+/** Cap on the raw bytes of the whole batch, across every photo in one email —
+ *  eight photos each just under the per-photo limit would still be enough to
+ *  bounce off a mail provider's total-message-size ceiling on their own. */
+const MAX_TOTAL_PHOTO_BYTES = 15 * 1024 * 1024;
+
 interface ChosenPhoto {
   cid: string;
   name: string;
@@ -84,28 +89,35 @@ function chooseFinishedPhotos(assets: OrderAsset[]): ChosenPhoto[] {
 
 /**
  * Download the chosen photos as mail attachments. Best effort per photo: one
- * that fails to fetch, or comes back over the size limit, is skipped and
- * logged rather than thrown — a bad photo must not cost the customer the
- * whole final-payment email. The returned `photos` list only names the ones
- * that actually made it into `attachments`, so the email's photo grid never
- * points at a cid that has nothing behind it.
+ * that fails to fetch, comes back over the per-photo size limit, or would
+ * push the running total over `MAX_TOTAL_PHOTO_BYTES`, is skipped and logged
+ * rather than thrown — a bad or oversized photo must not cost the customer
+ * the whole final-payment email. The returned `photos` list only names the
+ * ones that actually made it into `attachments`, so the email's photo grid
+ * never points at a cid that has nothing behind it. `skipped` is the count of
+ * chosen photos that didn't make it in, for any reason, so the caller can
+ * tell Keenan some were left out.
  */
 async function buildPhotoAttachments(
   orderId: string,
   chosen: ChosenPhoto[],
-): Promise<{ attachments: MailAttachment[]; photos: Array<{ cid: string; name: string }> }> {
+): Promise<{ attachments: MailAttachment[]; photos: Array<{ cid: string; name: string }>; skipped: number }> {
   const attachments: MailAttachment[] = [];
   const photos: Array<{ cid: string; name: string }> = [];
+  let totalBytes = 0;
+  let skipped = 0;
   for (const p of chosen) {
     try {
       const url = await resolveFileUrl(p.asset.fileUrl);
       if (!url) {
         console.log(`[updates] photo skipped (no URL) for order ${orderId}: ${p.name}`);
+        skipped++;
         continue;
       }
       const res = await fetch(url);
       if (!res.ok) {
         console.log(`[updates] photo skipped (HTTP ${res.status}) for order ${orderId}: ${p.name}`);
+        skipped++;
         continue;
       }
       // Check the declared size before buffering the whole thing into memory —
@@ -115,20 +127,32 @@ async function buildPhotoAttachments(
       const declaredLength = Number(res.headers.get('content-length'));
       if (Number.isFinite(declaredLength) && declaredLength > MAX_PHOTO_BYTES) {
         console.log(`[updates] photo skipped (${declaredLength} bytes, over the 6 MB limit) for order ${orderId}: ${p.name}`);
+        skipped++;
         continue;
       }
       const content = Buffer.from(await res.arrayBuffer());
       if (content.byteLength > MAX_PHOTO_BYTES) {
         console.log(`[updates] photo skipped (${content.byteLength} bytes, over the 6 MB limit) for order ${orderId}: ${p.name}`);
+        skipped++;
+        continue;
+      }
+      // The running total across the whole batch, not just this one photo —
+      // eight photos each just under 6 MB would otherwise sail past a mail
+      // provider's own ceiling for the whole message.
+      if (totalBytes + content.byteLength > MAX_TOTAL_PHOTO_BYTES) {
+        console.log(`[updates] photo skipped (would push the total past the 15 MB cap) for order ${orderId}: ${p.name}`);
+        skipped++;
         continue;
       }
       attachments.push({ filename: p.name, content, contentType: res.headers.get('content-type') ?? 'image/jpeg', cid: p.cid });
       photos.push({ cid: p.cid, name: p.name });
+      totalBytes += content.byteLength;
     } catch (e) {
       console.log(`[updates] photo skipped (${(e as Error).message}) for order ${orderId}: ${p.name}`);
+      skipped++;
     }
   }
-  return { attachments, photos };
+  return { attachments, photos, skipped };
 }
 
 export async function sendCustomerUpdate(
@@ -136,7 +160,7 @@ export async function sendCustomerUpdate(
   stage: UpdateStage,
   opts: SendUpdateOptions,
   actor: Actor,
-): Promise<{ sent: true; id: string } | { sent: false; reason: string }> {
+): Promise<{ sent: true; id: string; note?: string } | { sent: false; reason: string }> {
   if (!mailConfigured()) return { sent: false, reason: 'Email is not set up on the server (SMTP_USER / SMTP_PASS).' };
   const bundle = await repo.getOrder(orderId);
   if (!bundle) return { sent: false, reason: 'Order not found.' };
@@ -158,10 +182,12 @@ export async function sendCustomerUpdate(
   // Only the final-payment email carries photos, and only the ones that were
   // actually downloaded successfully — see buildPhotoAttachments.
   let attachments: MailAttachment[] = [];
+  let skippedPhotos = 0;
   if (stage === 'final_payment_requested') {
     const built = await buildPhotoAttachments(orderId, chooseFinishedPhotos(assets));
     mailInput.photos = built.photos;
     attachments = built.attachments;
+    skippedPhotos = built.skipped;
   }
 
   const mail = composeUpdateMail(stage, mailInput);
@@ -170,7 +196,10 @@ export async function sendCustomerUpdate(
     console.error(`[updates] ${stage} NOT sent to ${to} for order ${orderId}: ${result.reason}`);
     return result;
   }
-  console.log(`[updates] ${stage} sent to ${to} for order ${orderId} (${result.id})`);
+  console.log(
+    `[updates] ${stage} sent to ${to} for order ${orderId} (${result.id})` +
+      (skippedPhotos > 0 ? `, ${skippedPhotos} photo(s) skipped` : ''),
+  );
 
   // The email is gone; a failure from here on must not look like it wasn't
   // sent. Recording the send and opening the link's sections are best effort —
@@ -203,7 +232,9 @@ export async function sendCustomerUpdate(
     console.error(`[updates] ${stage} sent to ${to} for order ${orderId} but not recorded: ${message}`);
     return { sent: false, reason: 'The email went out but could not be recorded. Do not resend; refresh the page and check the history.' };
   }
-  return result;
+  return skippedPhotos > 0
+    ? { ...result, note: `${skippedPhotos} photo(s) left out: too large for one email.` }
+    : result;
 }
 
 /** Which client-link sections a link email switches on when it goes out. */

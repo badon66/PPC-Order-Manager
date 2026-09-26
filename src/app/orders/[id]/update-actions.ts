@@ -9,7 +9,7 @@ export async function sendUpdateAction(
   orderId: string,
   stage: UpdateStage,
   input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind },
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; note?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
   try {
@@ -20,7 +20,7 @@ export async function sendUpdateAction(
     const r = await sendCustomerUpdate(orderId, stage, input, actor);
     revalidatePath(`/orders/${orderId}`);
     revalidatePath(`/orders/${orderId}/history`);
-    return r.sent ? { ok: true } : { ok: false, error: r.reason };
+    return r.sent ? { ok: true, note: r.note } : { ok: false, error: r.reason };
   } catch (e) {
     console.error(`[updates] sendUpdateAction failed for ${orderId}/${stage}: ${(e as Error).message}`);
     return { ok: false, error: (e as Error).message };

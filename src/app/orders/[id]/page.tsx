@@ -28,6 +28,9 @@ import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+// Sending the final-payment email downloads and attaches finished-jersey
+// photos, which can take longer than the platform's default function timeout.
+export const maxDuration = 60;
 
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

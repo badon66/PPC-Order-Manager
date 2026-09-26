@@ -38,6 +38,10 @@ export type SendResult = { sent: true; id: string } | { sent: false; reason: str
 
 /** How long a send may take before we give up and log it. Vercel functions are short-lived. */
 const SEND_TIMEOUT_MS = 10_000;
+/** A message with attachments (finished-jersey photos) takes longer to
+ *  hand off to the SMTP server than a plain-text one — 10 s was tuned for
+ *  the latter and clipped real sends of the former. */
+const SEND_TIMEOUT_WITH_ATTACHMENTS_MS = 30_000;
 
 export function mailConfigured(): boolean {
   return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -112,7 +116,7 @@ export async function sendMail(m: MailMessage): Promise<SendResult> {
   try {
     const info = await withTimeout(
       transporter().sendMail({ from, to: m.to, replyTo, bcc, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments }),
-      SEND_TIMEOUT_MS,
+      m.attachments?.length ? SEND_TIMEOUT_WITH_ATTACHMENTS_MS : SEND_TIMEOUT_MS,
     );
     return { sent: true, id: String(info.messageId ?? '') };
   } catch (e) {
