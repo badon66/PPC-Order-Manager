@@ -1,4 +1,5 @@
-import type { UpdateStage } from '@/lib/types';
+import type { PaymentKind, UpdateStage } from '@/lib/types';
+import { PAYMENT_KIND_LABEL } from '@/lib/types';
 import { formatLong } from '@/lib/dates';
 import type { MailContent } from './intake-mail';
 import { PRODUCTION_NOTE } from './timeline';
@@ -17,13 +18,26 @@ export interface UpdateMailInput {
   firstName: string;
   rosterUrl: string;
   shareUrl: string;
+  /**
+   * The two stage pages. Optional: the panel that sends these emails is wired
+   * up in a later task, so callers that don't know about them yet fall back
+   * to `rosterUrl` (see `draft`).
+   */
+  designUrl?: string;
+  detailsUrl?: string;
   amount: string;
   howToPay: string;
   estimatedFinishDate: string | null;
   trackingCode: string;
   paymentReceivedFirst: boolean;
+  /** Did this "in production" email follow right after the pre-production deposit gate? Optional; defaults to false. */
+  cameFromGate?: boolean;
   nextAfterApproval: 'production' | 'deposit';
   approvedBy: string;
+  /** Which payment `payment_received` is confirming. Optional; defaults to 'final_payment'. */
+  paymentKind?: PaymentKind;
+  /** Finished-jersey photos to attach to `final_payment_requested`. Optional; defaults to none. */
+  photos?: Array<{ cid: string; name: string }>;
   googleReviewUrl: string;
   referralLine: string;
 }
@@ -36,13 +50,36 @@ interface Draft {
   lines: string[];
   /** A boxed aside. `typed` is true when `text` is something a person typed and must be escaped. */
   box?: { eyebrow: string; text: string; typed: boolean };
+  /** Extra HTML rendered between the lines and the box — only the photo grid on `final_payment_requested` uses this. */
+  extraHtml?: string;
   button: { href: string; label: string; dark?: boolean };
-  /** A second button, only Completed uses it. */
+  /** A second button. Nothing uses it any more, but composeUpdateMail still supports it. */
   button2?: { href: string; label: string };
   /** Quiet closing line. */
   muted?: string;
   hero: boolean;
 }
+
+/**
+ * Two photos per row. `cid` is sender-guaranteed to be `[a-z0-9-]`, so it
+ * needs no escaping; `name` is a filename someone else chose, so it does.
+ */
+function photoGridHtml(photos: Array<{ cid: string; name: string }>): string {
+  if (!photos.length) return '';
+  const img = (p: { cid: string; name: string }) =>
+    `<td width="300" style="padding:0 0 12px;"><img src="cid:${p.cid}" width="300" alt="${esc(p.name)}" style="width:100%;max-width:300px;height:auto;border-radius:8px;border:0;display:block;"></td>`;
+  const rows: string[] = [];
+  for (let n = 0; n < photos.length; n += 2) {
+    rows.push(`<tr>${photos.slice(n, n + 2).map(img).join('')}</tr>`);
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;"><tbody>${rows.join('')}</tbody></table>`;
+}
+
+const PAYMENT_RECEIVED_NEXT: Record<PaymentKind, string> = {
+  initial_deposit: `Design work carries on, and you'll hear from ${SPECIALIST} with the next mockup.`,
+  production_deposit: "Production is next. You'll get a note when it starts.",
+  final_payment: 'Your tracking number follows shortly, as soon as it ships.',
+};
 
 function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
   const team = i.teamName.trim() || 'your team';
@@ -57,8 +94,9 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         lines: [
           `${SPECIALIST} has started on the ${team} design. The fastest way to a mockup you love is to send everything you've got: your logo in any format, your colours, and pictures of looks you like.`,
           "No logo yet is fine. Tell us the idea and we'll draw it.",
+          "Got team colours in mind? There's a spot for those too.",
         ],
-        button: { href: i.rosterUrl, label: 'Send logos and inspiration' },
+        button: { href: i.designUrl || i.rosterUrl, label: 'Send logos and inspiration' },
         muted: "Free mockup the same day, and we keep going until it's right.",
         hero: false,
       };
@@ -70,7 +108,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         lines: [
           `The design is settled. To build the ${team} order we need each player's name as it should print, their number, and jersey and sock sizes, plus the contact and shipping details for the box.`,
         ],
-        button: { href: i.rosterUrl, label: 'Fill in roster and details' },
+        button: { href: i.detailsUrl || i.rosterUrl, label: 'Fill in roster and details' },
         muted: 'Type it in or upload the list you already have. You can change it right up until production.',
         hero: false,
       };
@@ -84,7 +122,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         ],
         box: pay,
         button: { href: i.shareUrl, label: 'See your order' },
-        muted: `Reply to this email once it's sent and ${SPECIALIST} will confirm.`,
+        muted: "Once it's received, you'll get a follow-up email confirming it.",
         hero: false,
       };
     case 'initial_deposit_received':
@@ -102,11 +140,11 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: 'Check every name, number and size, then sign off.',
         headline: `Ready for your sign-off, ${first}.`,
         lines: [
-          `The ${team} proof is ready. Check the design, every name and number, the sizes and the shipping address, then sign off.`,
-          "Once it's approved nothing changes, so look twice.",
+          `The ${team} proof is ready. This sheet is exactly what our factory sees: the names, numbers and sizes on it are what gets printed.`,
+          "Check every line, then sign off. Once it's approved nothing changes, so look twice.",
         ],
         button: { href: i.shareUrl, label: 'Review and approve' },
-        muted: 'Spot something wrong? Reply to this email before you approve.',
+        muted: `Spot something wrong? Reach out to your sales representative, or to ${SPECIALIST} directly, before you approve.`,
         hero: false,
       };
     case 'approval_confirmed':
@@ -128,10 +166,10 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         subject: `Deposit before production — ${team}`,
         preheader: 'One step before we start making them.',
         headline: 'One step before we start making them.',
-        lines: [`${team} is approved and ready for production. To start, we need the pre-production deposit of ${i.amount}.`],
+        lines: [`${team} is approved and ready for production. To start, we need the pre-production deposit, 50% of the order: ${i.amount}.`],
         box: pay,
         button: { href: i.shareUrl, label: 'See your order' },
-        muted: `Reply to this email once it's sent and ${SPECIALIST} will get production started.`,
+        muted: "Once it's received, you'll get a follow-up email confirming it, and production starts.",
         hero: false,
       };
     case 'production_deposit_received':
@@ -143,30 +181,41 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         hero: false,
       };
-    case 'in_production':
+    case 'in_production': {
+      const estimate = i.estimatedFinishDate ? ` Estimated finish: ${formatLong(i.estimatedFinishDate)}.` : '';
       return {
         subject: `Your jerseys are in production — ${team}`,
         preheader: "They're being made. Here's what to expect.",
         headline: "They're being made.",
         lines: [
-          `${team} is in production.${i.estimatedFinishDate ? ` Estimated finish: ${formatLong(i.estimatedFinishDate)}.` : ''}`,
+          i.cameFromGate
+            ? `We received your payment, and ${team} is in production.${estimate}`
+            : `${team} is in production.${estimate}`,
         ],
         box: { eyebrow: 'While they are being made', text: PRODUCTION_NOTE, typed: false },
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         muted: 'Production usually takes 2 to 4 weeks. Shipping across Canada is free.',
         hero: true,
       };
-    case 'final_payment_requested':
+    }
+    case 'final_payment_requested': {
+      const photos = i.photos ?? [];
       return {
         subject: `Final payment — ${team}`,
         preheader: 'The jerseys are done. The final payment releases them.',
         headline: `The jerseys are done, ${first}.`,
-        lines: [`${team} is finished and ready to ship. The final payment of ${i.amount} releases it.`],
+        lines: [
+          `${team} is finished and ready to ship. The final payment of ${i.amount} releases it.`,
+          "Once it's received, you'll get your tracking number shortly after.",
+          ...(photos.length ? ['Photos of the finished jerseys are attached.'] : []),
+        ],
         box: pay,
+        extraHtml: photoGridHtml(photos),
         button: { href: i.shareUrl, label: 'See your order' },
         muted: `Reply to this email once it's sent and ${SPECIALIST} will get it on its way.`,
         hero: false,
       };
+    }
     case 'shipped':
       return {
         subject: `Your jerseys have shipped — ${team}`,
@@ -183,36 +232,37 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         subject: `Thanks from Powerplay Customs — ${team}`,
         preheader: 'Enjoy the jerseys. Two small asks, if you have a minute.',
         headline: `Enjoy the jerseys, ${first}.`,
-        lines: [
-          `It was a pleasure making them for ${team}.${i.googleReviewUrl || i.referralLine ? ' Two small asks, if you have a minute:' : ''}`,
-          ...(i.referralLine ? [i.referralLine] : []),
-        ],
-        button: i.googleReviewUrl ? { href: i.googleReviewUrl, label: 'Review us on Google' } : { href: i.rosterUrl, label: "Your team's page", dark: true },
-        button2: i.googleReviewUrl ? { href: i.rosterUrl, label: "Your team's page" } : undefined,
+        lines: [`It was a pleasure making them for ${team}.`],
+        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         muted: "Next season: reply to this email and we'll reorder from your design, no setup.",
         hero: true,
       };
-    case 'payment_received':
+    case 'payment_received': {
+      const kind = i.paymentKind ?? 'final_payment';
       return {
         subject: `Payment received — ${team}`,
-        preheader: 'Thanks — your payment has been received.',
+        preheader: "Got it, thanks. Here's what happens next.",
         headline: `Got it, thanks ${first}.`,
-        lines: [`Your payment for ${team} has been received. ${SPECIALIST} will be in touch with what's next.`],
+        lines: [`We received your ${PAYMENT_KIND_LABEL[kind]} for ${team}.`, PAYMENT_RECEIVED_NEXT[kind]],
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },
         hero: false,
       };
+    }
     case 'review_request':
       return {
-        subject: `How did we do? — ${team}`,
-        preheader: 'A quick review helps other teams find us.',
-        headline: `Thanks again, ${first}.`,
+        subject: `How are the jerseys? — ${team}`,
+        preheader: 'A quick favour, if you have a minute.',
+        headline: `How are the ${team} jerseys?`,
         lines: [
-          `We hope ${team} is enjoying the new jerseys.${i.googleReviewUrl || i.referralLine ? ' Two small asks, if you have a minute:' : ''}`,
-          ...(i.referralLine ? [i.referralLine] : []),
-        ],
-        button: i.googleReviewUrl ? { href: i.googleReviewUrl, label: 'Review us on Google' } : { href: i.rosterUrl, label: "Your team's page", dark: true },
-        button2: i.googleReviewUrl ? { href: i.rosterUrl, label: "Your team's page" } : undefined,
-        hero: false,
+          "Now that they've had a few games, we'd love to hear how they're holding up.",
+          i.googleReviewUrl ? "If you're happy with them, a short Google review helps the next team find us." : '',
+          i.referralLine,
+        ].filter(Boolean),
+        button: i.googleReviewUrl
+          ? { href: i.googleReviewUrl, label: 'Review us on Google' }
+          : { href: i.rosterUrl, label: "Your team's page", dark: true },
+        muted: `If anything isn't right, reply to this email and ${SPECIALIST} will sort it.`,
+        hero: true,
       };
   }
 }
@@ -236,6 +286,7 @@ export function composeUpdateMail(stage: UpdateStage, i: UpdateMailInput): MailC
   const body = `<tr><td class="pad" style="background:#ffffff;padding:34px 40px 30px;">
 <h1 class="h1" style="margin:0 0 14px;${MAIL_FF}font-size:32px;line-height:38px;font-weight:800;color:#1c1c1c;">${esc(d.headline)}</h1>
 ${d.lines.map((l, n) => mp(esc(l), n < d.lines.length - 1 ? 'margin-bottom:12px;' : '')).join('\n')}
+${d.extraHtml ?? ''}
 ${d.box ? mBox(esc(d.box.eyebrow), d.box.typed ? esc(d.box.text) : d.box.text) : ''}
 ${mButton(d.button.href, esc(d.button.label), d.button.dark)}
 ${d.button2 ? mButton(d.button2.href, esc(d.button2.label)) : ''}
