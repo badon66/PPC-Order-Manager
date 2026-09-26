@@ -79,8 +79,8 @@ test('what people typed is escaped in the HTML', () => {
 });
 
 test('the two link emails point at their stage pages', () => {
-  assert.ok(composeUpdateMail('design_talk', base).html.includes(base.designUrl!));
-  assert.ok(composeUpdateMail('finalizing_details', base).text.includes(base.detailsUrl!));
+  assert.ok(composeUpdateMail('design_talk', base).html.includes(base.designUrl));
+  assert.ok(composeUpdateMail('finalizing_details', base).text.includes(base.detailsUrl));
 });
 
 test('payment received names the payment and what comes next, never an amount', () => {

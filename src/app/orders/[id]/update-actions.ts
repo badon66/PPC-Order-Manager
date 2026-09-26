@@ -3,17 +3,20 @@
 import { revalidatePath } from 'next/cache';
 import { currentActor, requireRole } from '@/lib/auth';
 import { sendCustomerUpdate } from '@/lib/customer-updates';
-import { UPDATE_STAGES, type UpdateStage } from '@/lib/types';
+import { PAYMENT_KINDS, UPDATE_STAGES, type PaymentKind, type UpdateStage } from '@/lib/types';
 
 export async function sendUpdateAction(
   orderId: string,
   stage: UpdateStage,
-  input: { amount?: string; howToPay?: string; force?: boolean },
+  input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind },
 ): Promise<{ ok: boolean; error?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
   try {
     if (!(UPDATE_STAGES as readonly string[]).includes(stage)) return { ok: false, error: 'Unknown email' };
+    if (input.paymentKind !== undefined && !(PAYMENT_KINDS as readonly string[]).includes(input.paymentKind)) {
+      return { ok: false, error: 'Unknown payment kind' };
+    }
     const r = await sendCustomerUpdate(orderId, stage, input, actor);
     revalidatePath(`/orders/${orderId}`);
     revalidatePath(`/orders/${orderId}/history`);

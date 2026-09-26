@@ -18,26 +18,22 @@ export interface UpdateMailInput {
   firstName: string;
   rosterUrl: string;
   shareUrl: string;
-  /**
-   * The two stage pages. Optional: the panel that sends these emails is wired
-   * up in a later task, so callers that don't know about them yet fall back
-   * to `rosterUrl` (see `draft`).
-   */
-  designUrl?: string;
-  detailsUrl?: string;
+  /** The two stage pages, e.g. `design_talk`'s "send logos and inspiration" and `finalizing_details`'s roster form. */
+  designUrl: string;
+  detailsUrl: string;
   amount: string;
   howToPay: string;
   estimatedFinishDate: string | null;
   trackingCode: string;
   paymentReceivedFirst: boolean;
-  /** Did this "in production" email follow right after the pre-production deposit gate? Optional; defaults to false. */
-  cameFromGate?: boolean;
+  /** Did this "in production" email follow right after the pre-production deposit gate? */
+  cameFromGate: boolean;
   nextAfterApproval: 'production' | 'deposit';
   approvedBy: string;
-  /** Which payment `payment_received` is confirming. Optional; defaults to 'final_payment'. */
-  paymentKind?: PaymentKind;
-  /** Finished-jersey photos to attach to `final_payment_requested`. Optional; defaults to none. */
-  photos?: Array<{ cid: string; name: string }>;
+  /** Which payment `payment_received` is confirming. */
+  paymentKind: PaymentKind;
+  /** Finished-jersey photos to attach to `final_payment_requested`. Empty elsewhere. */
+  photos: Array<{ cid: string; name: string }>;
   googleReviewUrl: string;
   referralLine: string;
 }
@@ -96,7 +92,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
           "No logo yet is fine. Tell us the idea and we'll draw it.",
           "Got team colours in mind? There's a spot for those too.",
         ],
-        button: { href: i.designUrl || i.rosterUrl, label: 'Send logos and inspiration' },
+        button: { href: i.designUrl, label: 'Send logos and inspiration' },
         muted: "Free mockup the same day, and we keep going until it's right.",
         hero: false,
       };
@@ -108,7 +104,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         lines: [
           `The design is settled. To build the ${team} order we need each player's name as it should print, their number, and jersey and sock sizes, plus the contact and shipping details for the box.`,
         ],
-        button: { href: i.detailsUrl || i.rosterUrl, label: 'Fill in roster and details' },
+        button: { href: i.detailsUrl, label: 'Fill in roster and details' },
         muted: 'Type it in or upload the list you already have. You can change it right up until production.',
         hero: false,
       };
@@ -199,7 +195,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
       };
     }
     case 'final_payment_requested': {
-      const photos = i.photos ?? [];
+      const photos = i.photos;
       return {
         subject: `Final payment — ${team}`,
         preheader: 'The jerseys are done. The final payment releases them.',
@@ -238,7 +234,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         hero: true,
       };
     case 'payment_received': {
-      const kind = i.paymentKind ?? 'final_payment';
+      const kind = i.paymentKind;
       return {
         subject: `Payment received — ${team}`,
         preheader: "Got it, thanks. Here's what happens next.",
