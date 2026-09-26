@@ -82,3 +82,14 @@ test('everInStatus reads the log and the current status', () => {
   assert.equal(everInStatus('waiting_for_deposit', [], 'waiting_for_deposit'), true);
   assert.equal(everInStatus('waiting_for_deposit', [moved('draft', 'waiting_for_deposit', '2026-09-21T10:00:00Z')], 'shipped'), true);
 });
+
+test('the designing and finalizing steps link to their pages only while current', () => {
+  const opts = { designUrl: '/roster/t/design', detailsUrl: '/roster/t/details' };
+  const designing = timelineOf(order('design_talk'), [], opts).find((s) => s.key === 'designing')!;
+  assert.equal(designing.href, '/roster/t/design');
+  assert.equal(designing.linkLabel, 'Send logos and inspiration');
+  const finalizing = timelineOf(order('finalizing_details'), [], opts).find((s) => s.key === 'finalizing')!;
+  assert.equal(finalizing.href, '/roster/t/details');
+  assert.equal(timelineOf(order('in_production'), [], opts).find((s) => s.key === 'designing')!.href, null);
+  assert.equal(timelineOf(order('design_talk'), []).find((s) => s.key === 'designing')!.href, null);
+});

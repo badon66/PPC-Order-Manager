@@ -10,7 +10,14 @@ import {
 import type { Actor, PublicOrderView } from './repository';
 import type { RouteVariant } from '@/lib/types';
 import { variantOf } from './intake-logic';
+import { stagePagePaths } from './stage-pages';
 import { timelineOf, type TimelineStep } from './timeline';
+
+/** Adapts stagePagePaths' {design, details} to timelineOf's {designUrl, detailsUrl} opts. */
+function stageUrls(token: string): { designUrl: string; detailsUrl: string } {
+  const paths = stagePagePaths(token);
+  return { designUrl: paths.design, detailsUrl: paths.details };
+}
 
 /**
  * Store-agnostic rules.
@@ -631,7 +638,7 @@ export function publicViewOf(
       province: o.shippingProvince,
       postal: o.shippingPostal,
     },
-    timeline: timelineOf(o, history),
+    timeline: timelineOf(o, history, stageUrls(o.rosterToken)),
   };
 }
 
@@ -716,7 +723,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
     approvalRecord: o.approvalRecord,
     shareToken: o.shareToken,
     existingRosterCount,
-    timeline: timelineOf(o, history),
+    timeline: timelineOf(o, history, stageUrls(o.rosterToken)),
   };
 }
 

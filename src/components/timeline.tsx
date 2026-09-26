@@ -36,6 +36,11 @@ export function Timeline({ steps, compact = false }: { steps: TimelineStep[]; co
               {s.state === 'done' && !compact && s.copy && s.key === 'proof' && <p className="mt-0.5 text-xs text-muted">{s.copy}</p>}
               {s.detail && <p className="mt-1 text-sm font-semibold">{s.detail}</p>}
               {s.note && <p className="mt-1 text-xs text-muted">{s.note}</p>}
+              {s.href && (
+                <a href={s.href} className="mt-1 inline-block text-sm font-semibold text-ppc-gold hover:underline">
+                  {s.linkLabel} →
+                </a>
+              )}
             </div>
           </li>
         );

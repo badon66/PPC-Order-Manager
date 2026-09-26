@@ -31,6 +31,10 @@ export interface TimelineStep {
   detail: string | null;
   /** A longer aside, only on In production. */
   note: string | null;
+  /** Where this step's own stage page lives, only while it's the current step. */
+  href: string | null;
+  /** Label for the link above, paired with href. */
+  linkLabel: string | null;
 }
 
 export type TimelineInput = Pick<
@@ -77,7 +81,11 @@ function enteredOn(status: OrderStatus, history: ChangeLogEntry[]): string | nul
   return hits[0] ? timestampDay(hits[0].at) : null;
 }
 
-export function timelineOf(order: TimelineInput, history: ChangeLogEntry[]): TimelineStep[] {
+export function timelineOf(
+  order: TimelineInput,
+  history: ChangeLogEntry[],
+  opts: { designUrl?: string; detailsUrl?: string } = {},
+): TimelineStep[] {
   // 'incomplete' sits before draft; both read as "enquiry received".
   const current = order.status === 'incomplete' ? 'draft' : order.status;
   const here = pos(current);
@@ -111,6 +119,16 @@ export function timelineOf(order: TimelineInput, history: ChangeLogEntry[]): Tim
       detail = `Tracking number: ${order.trackingCode}`;
     }
 
-    return { key: d.key, label: d.label, state, copy, date, detail, note };
+    let href: string | null = null;
+    let linkLabel: string | null = null;
+    if (state === 'current' && d.key === 'designing') {
+      href = opts.designUrl ?? null;
+      linkLabel = 'Send logos and inspiration';
+    } else if (state === 'current' && d.key === 'finalizing') {
+      href = opts.detailsUrl ?? null;
+      linkLabel = 'Fill in roster and details';
+    }
+
+    return { key: d.key, label: d.label, state, copy, date, detail, note, href, linkLabel };
   });
 }
