@@ -78,7 +78,7 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
           type="file"
           multiple
           hidden
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           onChange={(e) => {
             if (e.target.files?.length) handleFiles(e.target.files);
             e.target.value = '';
@@ -106,7 +106,7 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
                 type="button"
                 onClick={() => remove(p.id)}
                 aria-label="Remove photo"
-                className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white opacity-70 transition group-hover:opacity-100 group-focus-within:opacity-100"
               >
                 ✕
               </button>
