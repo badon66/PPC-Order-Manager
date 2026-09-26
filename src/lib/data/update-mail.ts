@@ -37,6 +37,8 @@ export interface UpdateMailInput {
   paymentKind: PaymentKind;
   /** Finished-jersey photos to attach to `final_payment_requested`. Empty elsewhere. */
   photos: Array<{ cid: string; name: string }>;
+  /** `final_payment_requested` for a team that already paid: the photos and "they ship next", no payment ask. */
+  finalPaid: boolean;
   googleReviewUrl: string;
   referralLine: string;
 }
@@ -52,7 +54,7 @@ interface Draft {
   /** Extra HTML rendered between the lines and the box — only the photo grid on `final_payment_requested` uses this. */
   extraHtml?: string;
   button: { href: string; label: string; dark?: boolean };
-  /** A second button. Nothing uses it any more, but composeUpdateMail still supports it. */
+  /** A second button — the upload link after the initial deposit, the order sheet under "Track with UPS". */
   button2?: { href: string; label: string };
   /** Quiet closing line. */
   muted?: string;
@@ -77,8 +79,13 @@ function photoGridHtml(photos: Array<{ cid: string; name: string }>): string {
 const PAYMENT_RECEIVED_NEXT: Record<PaymentKind, string> = {
   initial_deposit: `Design work carries on, and you'll hear from ${SPECIALIST} with the next mockup.`,
   production_deposit: "Production is next. You'll get a note when it starts.",
-  final_payment: 'Your tracking number follows shortly, as soon as it ships.',
+  final_payment: 'Your UPS tracking number follows shortly, as soon as it ships.',
 };
+
+/** UPS's own tracking page for a tracking number. The shipment is in the customer's name, so UPS is where the answers are. */
+export function upsTrackingUrl(code: string): string {
+  return `https://www.ups.com/track?tracknum=${encodeURIComponent(code.trim())}`;
+}
 
 function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
   const team = i.teamName.trim() || 'your team';
@@ -130,7 +137,8 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: 'Your initial deposit has landed. Design work carries on.',
         headline: `Got it, thanks ${first}.`,
         lines: [`Your initial deposit for ${team} has landed. Design work carries on, and you'll hear from ${SPECIALIST} with the next mockup.`],
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        button: { href: i.shareUrl, label: 'See your order', dark: true },
+        button2: { href: i.rosterUrl, label: 'Upload your info and files' },
         hero: false,
       };
     case 'proof_ready':
@@ -157,7 +165,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
             ? "Next up: production. You'll get a note when it starts, with the estimated finish."
             : `Next up: the pre-production deposit. ${SPECIALIST} will send the details.`,
         ],
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        button: { href: i.shareUrl, label: 'See your order', dark: true },
         hero: false,
       };
     case 'production_deposit_requested':
@@ -177,7 +185,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: "Your deposit is in. The order goes to production next.",
         headline: `Thanks, ${first}. We're on it.`,
         lines: [`Your deposit for ${team} is in. The order goes to production next, and you'll get a note when it starts.`],
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        button: { href: i.shareUrl, label: 'See your order', dark: true },
         hero: false,
       };
     case 'in_production': {
@@ -192,47 +200,78 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
             : `${team} is in production.${estimate}`,
         ],
         box: { eyebrow: 'While they are being made', text: PRODUCTION_NOTE, typed: false },
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        // The order sheet, not the team page: once production starts there's
+        // nothing left to fill in, and the sheet shows where it is plus every detail.
+        button: { href: i.shareUrl, label: 'See your order', dark: true },
         muted: 'Production usually takes 2 to 4 weeks. Shipping across Canada is free.',
         hero: true,
       };
     }
+    // "The jerseys are done": the photos first, then what's needed before they
+    // ship. Sent when production finishes — usually before the team pays, so
+    // the photos never wait on the money. A team that already paid gets the
+    // photos and "they ship next" instead of a payment ask.
     case 'final_payment_requested': {
       const photos = i.photos;
+      const done = `Production on ${team} is finished.${photos.length ? ' Here are photos of the finished jerseys.' : ''}`;
+      if (i.finalPaid) {
+        return {
+          subject: `The jerseys are done — ${team}`,
+          preheader: 'Production is finished. Photos inside, and they ship next.',
+          headline: `The jerseys are done, ${first}.`,
+          lines: [done, 'Your final payment is already in, thank you, so they ship next.'],
+          extraHtml: photoGridHtml(photos),
+          button: { href: i.shareUrl, label: 'See your order' },
+          muted: "Your UPS tracking number follows as soon as they're on the way.",
+          hero: false,
+        };
+      }
       return {
-        subject: `Final payment — ${team}`,
-        preheader: 'The jerseys are done. The final payment releases them.',
+        subject: `The jerseys are done — ${team}`,
+        preheader: 'Production is finished. Photos inside, and what we need before they ship.',
         headline: `The jerseys are done, ${first}.`,
-        lines: [
-          `${team} is finished and ready to ship. The final payment of ${i.amount} releases it.`,
-          "Once it's received, you'll get your tracking number shortly after.",
-          ...(photos.length ? ['Photos of the finished jerseys are attached.'] : []),
-        ],
-        box: pay,
+        lines: [done],
         extraHtml: photoGridHtml(photos),
+        // Photos, then the ask: one box with the amount and how to pay. Both
+        // are typed by Keenan, so the box is escaped.
+        box: { eyebrow: 'Before they ship', text: `The final payment: ${i.amount}. ${i.howToPay}`, typed: true },
         button: { href: i.shareUrl, label: 'See your order' },
-        muted: `Reply to this email once it's sent and ${SPECIALIST} will get it on its way.`,
+        muted: "Once it's received, we ship them, and your UPS tracking number follows shortly after.",
         hero: false,
       };
     }
     case 'shipped':
       return {
         subject: `Your jerseys have shipped — ${team}`,
-        preheader: `On their way. Tracking: ${i.trackingCode}`,
+        preheader: `On their way with UPS. Tracking: ${i.trackingCode}`,
         headline: i.paymentReceivedFirst ? "Payment received, and they're on their way." : "They're on their way.",
-        lines: [`${team} has shipped.`],
-        box: { eyebrow: 'Tracking number', text: i.trackingCode, typed: true },
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
-        muted: "Give it a day for the carrier's site to update. Shipping across Canada is free; cross-border orders can be held at customs for a few days.",
+        lines: [
+          `${team} has left the factory and is on its way to you with UPS. Delivery usually takes 3 to 6 days, depending on any delays and how quickly it clears customs.`,
+          "Once it leaves the factory it's in UPS's hands and out of our control. The shipment is in your name, not ours, so UPS has the best and most up-to-date information. For any question about where it is or when it'll arrive, contact UPS directly with your tracking number.",
+        ],
+        box: { eyebrow: 'UPS tracking number', text: i.trackingCode, typed: true },
+        button: { href: upsTrackingUrl(i.trackingCode), label: 'Track with UPS', dark: true },
+        button2: { href: i.shareUrl, label: 'See your order' },
+        muted: 'Give it a day for UPS tracking to update.',
         hero: false,
       };
     case 'completed':
       return {
         subject: `Thanks from Powerplay Customs — ${team}`,
-        preheader: 'Enjoy the jerseys. Reply any time to reorder from your design.',
+        preheader: i.googleReviewUrl
+          ? 'Enjoy the jerseys. One small favour, if you have a minute.'
+          : 'Enjoy the jerseys. Reply any time to reorder from your design.',
         headline: `Enjoy the jerseys, ${first}.`,
-        lines: [`It was a pleasure making them for ${team}.`],
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        lines: [
+          `It was a pleasure making them for ${team}. We hope they're everything you pictured when we started.`,
+          i.googleReviewUrl
+            ? "One small favour: if you're happy with them, we'd love a quick, honest Google review from you, and from a few of your teammates too. It takes a minute, and it's how the next team finds us."
+            : '',
+          i.referralLine,
+        ].filter(Boolean),
+        button: i.googleReviewUrl
+          ? { href: i.googleReviewUrl, label: 'Leave a Google review' }
+          : { href: i.shareUrl, label: 'See your order', dark: true },
         muted: "Next season: reply to this email and we'll reorder from your design, no setup.",
         hero: true,
       };
@@ -243,7 +282,12 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: "Got it, thanks. Here's what happens next.",
         headline: `Got it, thanks ${first}.`,
         lines: [`We received your ${PAYMENT_KIND_LABEL[kind]} for ${team}.`, PAYMENT_RECEIVED_NEXT[kind]],
-        button: { href: i.rosterUrl, label: "Your team's page", dark: true },
+        // The order sheet first: after paying, "what did I pay for" is the
+        // question. The upload link only while there's still something to
+        // send — after the initial deposit the design is still in progress;
+        // after the later payments the details are locked in.
+        button: { href: i.shareUrl, label: 'See your order', dark: true },
+        ...(kind === 'initial_deposit' ? { button2: { href: i.rosterUrl, label: 'Upload your info and files' } } : {}),
         hero: false,
       };
     }
@@ -259,7 +303,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         ].filter(Boolean),
         button: i.googleReviewUrl
           ? { href: i.googleReviewUrl, label: 'Review us on Google' }
-          : { href: i.rosterUrl, label: "Your team's page", dark: true },
+          : { href: i.shareUrl, label: 'See your order', dark: true },
         muted: `If anything isn't right, reply to this email and ${SPECIALIST} will sort it.`,
         hero: true,
       };

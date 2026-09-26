@@ -15,6 +15,36 @@ import type { ChangeLogEntry, Order, OrderStatus } from '@/lib/types';
 export const PRODUCTION_NOTE =
   "We don't usually hear from production until the jerseys are done. If they send us anything in between, Keenan will pass it along.";
 
+/**
+ * The headline the customer pages show once production has started and
+ * nothing more is collected: under the timeline on the order sheet, and in
+ * place of the form on the team pages. Null before production.
+ */
+export function stageMessage(status: OrderStatus): { title: string; text: string } | null {
+  switch (status) {
+    case 'in_production':
+      return { title: 'Your order is being made.', text: PRODUCTION_NOTE };
+    case 'waiting_for_final_approval':
+    case 'waiting_for_payment':
+      return {
+        title: 'Your jerseys are done.',
+        text: 'Production is finished. Photos of the finished jerseys, and what we need before they ship, come by email.',
+      };
+    case 'shipped':
+      return {
+        title: 'Your jerseys have shipped.',
+        text: "They're on their way with UPS. Once they leave the factory they're in UPS's hands, and the shipment is in your name, so UPS has the latest on where they are.",
+      };
+    case 'completed':
+      return {
+        title: 'Delivered. Enjoy the jerseys.',
+        text: "Reorder any time: reply to any of our emails and we'll make them again from this design.",
+      };
+    default:
+      return null;
+  }
+}
+
 export type TimelineStepKey =
   | 'received' | 'designing' | 'finalizing' | 'initial_deposit' | 'proof' | 'production_deposit'
   | 'in_production' | 'final_check' | 'final_payment' | 'shipped' | 'delivered';

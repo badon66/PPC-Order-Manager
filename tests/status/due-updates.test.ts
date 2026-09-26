@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MONEY_STAGES, dueUpdates, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
+import { MONEY_STAGES, dueUpdates, formatAmount, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { blankOrder } from '@/lib/order-utils';
 import type { ChangeLogEntry, OrderStatus, UpdateStage } from '@/lib/types';
 
@@ -24,7 +24,8 @@ test('each status offers its own email, once', () => {
     ['design_talk', 'design_talk'], ['finalizing_details', 'finalizing_details'],
     ['waiting_for_deposit', 'initial_deposit_requested'], ['waiting_for_approval', 'proof_ready'],
     ['waiting_for_production_deposit', 'production_deposit_requested'], ['in_production', 'in_production'],
-    ['waiting_for_payment', 'final_payment_requested'], ['completed', 'completed'],
+    ['waiting_for_final_approval', 'final_payment_requested'], ['waiting_for_payment', 'final_payment_requested'],
+    ['completed', 'completed'],
   ];
   const withoutAutoStages = (list: UpdateStage[]) =>
     list.filter((s) => s !== 'payment_received' && s !== 'review_request');
@@ -34,7 +35,6 @@ test('each status offers its own email, once', () => {
     assert.deepEqual(withoutAutoStages(stages(sent)), [], `${status} already sent`);
   }
   assert.deepEqual(stages(order('draft')), []);
-  assert.deepEqual(withoutAutoStages(stages(order('waiting_for_final_approval'))), []);
 });
 
 test('the three request emails need an amount, nothing else does', () => {
@@ -96,4 +96,13 @@ test('approval moves the order to production, or to the deposit gate first', () 
   assert.equal(statusAfterApproval('waiting_for_production_deposit', []), null);
   assert.equal(statusAfterApproval('in_production', []), null);
   assert.equal(statusAfterApproval('shipped', []), null);
+});
+
+test('a typed amount gets its $ without doubling one, and words pass through', () => {
+  assert.equal(formatAmount('250'), '$250');
+  assert.equal(formatAmount(' 1,200.50 '), '$1,200.50');
+  assert.equal(formatAmount('$250'), '$250');
+  assert.equal(formatAmount('$ 250'), '$250');
+  assert.equal(formatAmount(''), '');
+  assert.equal(formatAmount('half the total'), 'half the total');
 });

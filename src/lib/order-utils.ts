@@ -224,6 +224,18 @@ export function estimateFinish(
  * TBC" should still ask for pant shell sizes.
  * ------------------------------------------------------------------ */
 
+/**
+ * Is the order open for the customer's sign-off?
+ *
+ * Either Keenan switched "request approval" on in the order form, or the
+ * order is at "ready for sign-off". The status alone has to be enough: moving
+ * an order there and sending the proof email is how Keenan asks for the
+ * signature, and a sheet with no place to sign leaves the customer stuck.
+ */
+export function approvalOpen(order: Pick<Order, 'requestApproval' | 'status'>): boolean {
+  return order.requestApproval || order.status === 'waiting_for_approval';
+}
+
 type IncludesInput = Pick<Order, 'sets' | 'sockType' | 'pantShellType'>;
 
 export function orderIncludesSocks(order: IncludesInput): boolean {

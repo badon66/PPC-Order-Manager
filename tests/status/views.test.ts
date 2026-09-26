@@ -13,3 +13,12 @@ test('both customer views carry the timeline, and neither carries the email reco
   }
   assert.equal(rosterLinkView(o, 0).timeline.length, 10, 'history defaults to empty');
 });
+
+test('ready for sign-off opens the approval on both customer pages, with or without the toggle', () => {
+  const ready = { ...blankOrder(), status: 'waiting_for_approval' as const, requestApproval: false };
+  assert.equal(publicViewOf(ready, [], [], []).requestApproval, true);
+  assert.equal(rosterLinkView(ready, 0, []).requestApproval, true);
+  const design = { ...blankOrder(), status: 'design_talk' as const, requestApproval: false };
+  assert.equal(publicViewOf(design, [], [], []).requestApproval, false);
+  assert.equal(publicViewOf({ ...design, requestApproval: true }, [], [], []).requestApproval, true, 'the toggle still works on its own');
+});

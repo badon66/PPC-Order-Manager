@@ -5,7 +5,7 @@ import type {
 import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
 import { STATUS_META, captaincyLabel } from '@/lib/constants';
 import {
-  extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
+  approvalOpen, extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
 import type { Actor, PublicOrderView } from './repository';
 import type { RouteVariant } from '@/lib/types';
@@ -646,7 +646,7 @@ export function publicViewOf(
     // Customers see the spares too — they're part of what's being made, and a
     // team checking an order should see the numbers going on them.
     extraJerseyDetails: o.extraJerseyDetails ?? [],
-    requestApproval: o.requestApproval,
+    requestApproval: approvalOpen(o),
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
     approvalRecord: o.approvalRecord,
@@ -748,7 +748,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
     extraJerseyDetails: o.extraJerseyDetails ?? [],
     // The same sign-off appears here as on the share page. A team that only
     // ever opens the form link would otherwise never be asked to approve.
-    requestApproval: o.requestApproval,
+    requestApproval: approvalOpen(o),
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
     approvalRecord: o.approvalRecord,

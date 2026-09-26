@@ -2,6 +2,18 @@ import { STATUS_META } from '@/lib/constants';
 import type { ChangeLogEntry, Order, OrderStatus, PaymentKind, UpdateStage } from '@/lib/types';
 
 /**
+ * A typed deposit amount as the email prints it. The staff box shows the $
+ * already, so Keenan types just the number ("250" becomes "$250"); a $ typed
+ * anyway isn't doubled, and anything that isn't a number ("half the total")
+ * goes through as typed.
+ */
+export function formatAmount(raw: string): string {
+  const t = raw.trim();
+  const rest = t.replace(/^\$\s*/, '');
+  return /^\d/.test(rest) ? `$${rest}` : t;
+}
+
+/**
  * Which update emails the staff panel should offer for an order, and where an
  * approval sends it. Pure; the sending lives in src/lib/customer-updates.ts.
  *
@@ -77,7 +89,9 @@ export function dueUpdates(order: DueInput, _history: ChangeLogEntry[]): DueUpda
   if (approved && p <= pos('in_production')) offer('approval_confirmed');
   if (s === GATE) offer('production_deposit_requested');
   if (s === 'in_production') offer('in_production');
-  if (s === 'waiting_for_payment') offer('final_payment_requested');
+  // "The jerseys are done" goes out with the photos as soon as production
+  // finishes, before the money — and stays on offer until it's sent.
+  if (s === 'waiting_for_final_approval' || s === 'waiting_for_payment') offer('final_payment_requested');
   if (s === 'shipped') offer('shipped', order.trackingCode.trim() ? null : 'Add a tracking code first.');
   if (s === 'completed') offer('completed');
   if (p >= pos('waiting_for_deposit') && p <= pos('shipped')) {

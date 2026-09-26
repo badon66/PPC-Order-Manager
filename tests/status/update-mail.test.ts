@@ -12,7 +12,7 @@ const base: UpdateMailInput = {
   products: { socks: true, pantShells: false },
   amount: '$250', howToPay: 'E-transfer to info@powerplaycustoms.ca (no fee), or by card (3% fee).',
   estimatedFinishDate: '2026-10-15', trackingCode: 'CP123456789CA',
-  paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', photos: [],
+  paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', photos: [], finalPaid: false,
   nextAfterApproval: 'production', approvedBy: 'Sam Carter',
   googleReviewUrl: 'https://g.page/r/abc/review', referralLine: 'Know another team? Send them our way.',
 };
@@ -55,13 +55,17 @@ test('in production carries the estimate and the production note; shipped carrie
   assert.match(composeUpdateMail('shipped', { ...base, paymentReceivedFirst: true }).text, /Payment received/);
 });
 
-test('approval confirmed says what comes next; completed has no review button or referral, review_request does', () => {
+test('approval confirmed says what comes next; the thank-you and the follow-up both ask for a review once the link is set', () => {
   assert.match(composeUpdateMail('approval_confirmed', base).text, /production/i);
   assert.match(composeUpdateMail('approval_confirmed', { ...base, nextAfterApproval: 'deposit' }).text, /deposit/i);
 
   const done = composeUpdateMail('completed', base);
-  assert.ok(!done.html.includes(base.googleReviewUrl) && !done.text.includes(base.googleReviewUrl));
-  assert.ok(!done.text.includes(base.referralLine));
+  assert.ok(done.html.includes(base.googleReviewUrl) && done.text.includes(base.googleReviewUrl));
+  assert.match(done.text, /quick, honest Google review from you, and from a few of your teammates/);
+  assert.ok(done.text.includes(base.referralLine));
+  const bareDone = composeUpdateMail('completed', { ...base, googleReviewUrl: '', referralLine: '' });
+  assert.doesNotMatch(bareDone.text, /review/i, 'no review ask without a link to send them to');
+  assert.ok(bareDone.text.includes(base.shareUrl));
 
   const review = composeUpdateMail('review_request', base);
   assert.ok(review.html.includes(base.googleReviewUrl) && review.text.includes(base.googleReviewUrl));
@@ -100,12 +104,21 @@ test('proof ready explains the factory sheet; in production opens with payment r
   assert.doesNotMatch(composeUpdateMail('in_production', base).text, /received your payment/);
 });
 
-test('final payment carries the photos and the tracking promise; pre-production says 50%', () => {
-  const m = composeUpdateMail('final_payment_requested', { ...base, photos: [{ cid: 'photo-1', name: 'front.jpg' }, { cid: 'photo-2', name: 'back.jpg' }] });
+test('the jerseys are done: photos first, then what we need before they ship; pre-production says 50%', () => {
+  const photos = [{ cid: 'photo-1', name: 'front.jpg' }, { cid: 'photo-2', name: 'back.jpg' }];
+  const m = composeUpdateMail('final_payment_requested', { ...base, photos });
+  assert.match(m.subject, /^The jerseys are done/);
   assert.ok(m.html.includes('cid:photo-1') && m.html.includes('cid:photo-2'));
-  assert.match(m.text, /Photos of the finished jerseys are attached/);
-  assert.match(m.text, /tracking number shortly after/);
-  assert.doesNotMatch(composeUpdateMail('final_payment_requested', base).text, /attached/);
+  assert.ok(m.text.includes('Production on Ice Cats is finished. Here are photos of the finished jerseys.'));
+  assert.ok(m.text.includes('Before they ship: The final payment: $250.'));
+  assert.ok(m.html.indexOf('cid:photo-1') < m.html.indexOf('Before they ship'), 'photos come before the ask');
+  assert.match(m.text, /UPS tracking number follows shortly after/);
+  assert.doesNotMatch(composeUpdateMail('final_payment_requested', base).text, /Here are photos/);
+
+  const paid = composeUpdateMail('final_payment_requested', { ...base, photos, finalPaid: true });
+  assert.ok(paid.html.includes('cid:photo-1'));
+  assert.match(paid.text, /already in/);
+  assert.ok(!/\$\s?\d/.test(paid.text) && !paid.text.includes('3% fee'), 'no payment ask once paid');
   assert.match(composeUpdateMail('production_deposit_requested', base).text, /50% of the order: \$250/);
 });
 
@@ -116,4 +129,38 @@ test('"nearly there" asks only for the sizes of what is on the order', () => {
   const all = composeUpdateMail('finalizing_details', { ...base, products: { socks: true, pantShells: true } });
   assert.match(all.text, /jersey, sock and pant shell sizes/);
   assert.match(all.html, /jersey, sock and pant shell sizes/);
+});
+
+test('payment received links the order sheet, plus the upload page after the initial deposit only', () => {
+  const initial = composeUpdateMail('payment_received', { ...base, paymentKind: 'initial_deposit' });
+  for (const body of [initial.text, initial.html]) {
+    assert.ok(body.includes(base.shareUrl), 'order sheet');
+    assert.ok(body.includes(base.rosterUrl), 'upload page');
+  }
+  assert.match(initial.text, /See your order: /);
+  assert.match(initial.text, /Upload your info and files: /);
+  for (const kind of ['production_deposit', 'final_payment'] as const) {
+    const m = composeUpdateMail('payment_received', { ...base, paymentKind: kind });
+    assert.ok(m.text.includes(base.shareUrl), `${kind} order sheet`);
+    assert.ok(!m.text.includes(base.rosterUrl) && !m.html.includes(base.rosterUrl), `${kind} has no upload link`);
+  }
+});
+
+test('shipped is a UPS email: tracking link, 3 to 6 days, and UPS for any questions', () => {
+  const m = composeUpdateMail('shipped', base);
+  assert.ok(m.text.includes('https://www.ups.com/track?tracknum=CP123456789CA'));
+  assert.match(m.text, /UPS tracking number: CP123456789CA/);
+  assert.match(m.text, /3 to 6 days/);
+  assert.match(m.text, /out of our control/);
+  assert.match(m.text, /in your name, not ours/);
+  assert.match(m.text, /contact UPS directly/);
+  assert.ok(m.text.includes(base.shareUrl));
+});
+
+test('from production on, every email points at the order sheet, never the team form', () => {
+  for (const stage of ['approval_confirmed', 'in_production', 'final_payment_requested', 'shipped', 'completed'] as const) {
+    const m = composeUpdateMail(stage, { ...base, googleReviewUrl: '' });
+    assert.ok(m.text.includes(base.shareUrl), `${stage} links the order sheet`);
+    assert.ok(!m.text.includes(base.rosterUrl) && !m.html.includes(base.rosterUrl), `${stage} doesn't link the form`);
+  }
 });

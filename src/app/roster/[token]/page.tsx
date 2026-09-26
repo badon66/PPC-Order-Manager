@@ -7,6 +7,7 @@ import { SignatureProof } from '@/components/signature-proof';
 import { Timeline } from '@/components/timeline';
 import { formatLong } from '@/lib/dates';
 import { loadClientPage } from './load';
+import { stageMessage } from '@/lib/data/timeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
         */}
       {link.locked ? (
         <div className="rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-6 text-center">
-          <p className="font-semibold text-ppc-gold">Your order is being made.</p>
+          <p className="font-semibold text-ppc-gold">{stageMessage(link.status)?.title ?? 'Your order is being made.'}</p>
           <p className="mt-2 text-sm text-muted">
             Everything you sent is locked in. The timeline above shows where it is; if something
             needs changing, reply to any of our emails and we&apos;ll tell you straight away

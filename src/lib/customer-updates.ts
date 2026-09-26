@@ -1,6 +1,6 @@
 import { repo } from '@/lib/data';
 import type { Actor } from '@/lib/data/repository';
-import { MONEY_STAGES, defaultPaymentKind, dueUpdates, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
+import { MONEY_STAGES, defaultPaymentKind, formatAmount, dueUpdates, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { everInStatus } from '@/lib/data/timeline';
 import { stagePagePaths } from '@/lib/data/stage-pages';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
@@ -9,7 +9,7 @@ import { mailConfigured, sendMail, type MailAttachment } from '@/lib/mail';
 import { resolveFileUrl } from '@/lib/storage';
 import { baseUrl } from '@/lib/base-url';
 import { orderIncludesPantShells, orderIncludesSocks } from '@/lib/order-utils';
-import { PAYMENT_KIND_LABEL } from '@/lib/types';
+import { ALREADY_PAID_DETAIL, PAYMENT_KIND_LABEL } from '@/lib/types';
 import type { AppSettings, ChangeLogEntry, Order, OrderAsset, PaymentKind, UpdateStage } from '@/lib/types';
 
 /**
@@ -27,6 +27,8 @@ export interface SendUpdateOptions {
   force?: boolean;
   /** Which payment `payment_received` is confirming. Defaults from the order's own status — see `defaultPaymentKind`. */
   paymentKind?: PaymentKind;
+  /** "The jerseys are done" for a team that already paid: no amount, no payment ask. */
+  alreadyPaid?: boolean;
 }
 
 /** The most recent `status_changed` entry, or null. History normally arrives
@@ -47,7 +49,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
     designUrl: `${base}${stagePaths.design}`,
     detailsUrl: `${base}${stagePaths.details}`,
     products: { socks: orderIncludesSocks(order), pantShells: orderIncludesPantShells(order) },
-    amount: (opts.amount ?? '').trim(),
+    amount: formatAmount(opts.amount ?? ''),
     howToPay: (opts.howToPay ?? settings.howToPay).trim(),
     estimatedFinishDate: order.estimatedFinishDate,
     trackingCode: (order.trackingCode ?? '').trim(),
@@ -59,6 +61,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
     // Filled in by sendCustomerUpdate for final_payment_requested, once the
     // attachments are actually built — this function has no asset access.
     photos: [],
+    finalPaid: opts.alreadyPaid ?? false,
     googleReviewUrl: settings.googleReviewUrl.trim(),
     referralLine: settings.referralLine.trim(),
   };
@@ -176,7 +179,8 @@ export async function sendCustomerUpdate(
     if (!due) return { sent: false, reason: 'That email is not due for this order (already sent, or the order is at a different stage).' };
     if (due.blocked) return { sent: false, reason: due.blocked };
   }
-  if (MONEY_STAGES.has(stage) && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
+  const paidAlready = stage === 'final_payment_requested' && Boolean(opts.alreadyPaid);
+  if (MONEY_STAGES.has(stage) && !paidAlready && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
 
   const settings = await repo.getSettings();
   const mailInput = mailInputFor(order, history, settings, await baseUrl(), opts);
@@ -215,7 +219,7 @@ export async function sendCustomerUpdate(
         to,
         messageId: result.id,
         // Never an amount — see the money rule. Just which payment this was.
-        detail: stage === 'payment_received' ? PAYMENT_KIND_LABEL[mailInput.paymentKind] : undefined,
+        detail: stage === 'payment_received' ? PAYMENT_KIND_LABEL[mailInput.paymentKind] : paidAlready ? ALREADY_PAID_DETAIL : undefined,
       },
       actor,
     );

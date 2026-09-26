@@ -8,7 +8,7 @@ import { PAYMENT_KINDS, UPDATE_STAGES, type PaymentKind, type UpdateStage } from
 export async function sendUpdateAction(
   orderId: string,
   stage: UpdateStage,
-  input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind },
+  input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean },
 ): Promise<{ ok: boolean; error?: string; note?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
@@ -17,7 +17,7 @@ export async function sendUpdateAction(
     if (input.paymentKind !== undefined && !(PAYMENT_KINDS as readonly string[]).includes(input.paymentKind)) {
       return { ok: false, error: 'Unknown payment kind' };
     }
-    const r = await sendCustomerUpdate(orderId, stage, input, actor);
+    const r = await sendCustomerUpdate(orderId, stage, { ...input, alreadyPaid: input.alreadyPaid === true }, actor);
     revalidatePath(`/orders/${orderId}`);
     revalidatePath(`/orders/${orderId}/history`);
     return r.sent ? { ok: true, note: r.note } : { ok: false, error: r.reason };

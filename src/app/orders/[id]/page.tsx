@@ -7,7 +7,7 @@ import {
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META,
   addonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
-import { computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
+import { approvalOpen, computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
 import { asDownload, downloadName } from '@/lib/download';
 import { baseUrl, isLocalUrl } from '@/lib/base-url';
@@ -161,6 +161,27 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {pendingSubs.length} client submission{pendingSubs.length === 1 ? '' : 's'} waiting for
           review. Nothing is added to the roster until you accept it.
         </Warning>
+      )}
+
+      {/*
+        * In-person sign-off. Same block, same record, same server action as
+        * the customer's page — it just isn't always convenient to send a
+        * link. A team manager standing at the rink can read this screen and
+        * sign on the phone in front of them, and it counts exactly the same.
+        *
+        * Up top and outlined while it's open, so it's the first thing on the
+        * page at "ready for sign-off". Once signed, the signature lives in
+        * Notes & Approval below, and a second one is refused by the server.
+        */}
+      {approvalOpen(order) && !order.approvedDate && !order.approvalRecord && (
+        <div className="rounded-xl ring-2 ring-ppc-gold">
+          <Section title="Ready for sign-off">
+            <p className="mb-3 text-sm text-muted">
+              Walk them through the sheet below first. This is exactly what the factory sees.
+            </p>
+            <ApproveBlock token={order.shareToken} teamName={order.teamName} audience="staff" />
+          </Section>
+        </div>
       )}
 
       <Section title="Operational">
@@ -543,24 +564,6 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {history.length <= 20 && ' — with exact times and what changed'} →
         </Link>
       </Section>
-
-      {/*
-        * Sign-off at the bottom of the order sheet itself.
-        *
-        * Same block, same record, same server action as the customer's page —
-        * it just isn't always convenient to send a link. A team manager
-        * standing at the rink can read this screen and sign on the phone in
-        * front of them, and it counts exactly the same.
-        *
-        * Only while the toggle is on and nothing has been signed yet: once
-        * there's a signature it lives in Notes & Approval above, and a second
-        * one is refused by the server anyway.
-        */}
-      {order.requestApproval && !order.approvedDate && !order.approvalRecord && (
-        <Section title="Sign Off">
-          <ApproveBlock token={order.shareToken} teamName={order.teamName} audience="staff" />
-        </Section>
-      )}
     </div>
   );
 }

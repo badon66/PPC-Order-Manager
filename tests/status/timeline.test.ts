@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PRODUCTION_NOTE, everInStatus, timelineOf } from '@/lib/data/timeline';
+import { PRODUCTION_NOTE, everInStatus, stageMessage, timelineOf } from '@/lib/data/timeline';
 import { blankOrder } from '@/lib/order-utils';
 import type { ChangeLogEntry, OrderStatus } from '@/lib/types';
 
@@ -92,4 +92,14 @@ test('the designing and finalizing steps link to their pages only while current'
   assert.equal(finalizing.href, '/roster/t/details');
   assert.equal(timelineOf(order('in_production'), [], opts).find((s) => s.key === 'designing')!.href, null);
   assert.equal(timelineOf(order('design_talk'), []).find((s) => s.key === 'designing')!.href, null);
+});
+
+test('the customer pages headline where the order stands once production starts', () => {
+  assert.equal(stageMessage('design_talk'), null);
+  assert.equal(stageMessage('waiting_for_approval'), null);
+  assert.equal(stageMessage('in_production')?.title, 'Your order is being made.');
+  assert.equal(stageMessage('in_production')?.text, PRODUCTION_NOTE);
+  assert.equal(stageMessage('waiting_for_final_approval')?.title, 'Your jerseys are done.');
+  assert.equal(stageMessage('shipped')?.title, 'Your jerseys have shipped.');
+  assert.match(stageMessage('completed')?.title ?? '', /Delivered/);
 });

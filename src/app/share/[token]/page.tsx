@@ -12,6 +12,8 @@ import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { Timeline } from '@/components/timeline';
+import { stageMessage } from '@/lib/data/timeline';
+import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { resolveAll } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -61,6 +63,9 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     view.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
     view.pantShellType !== null;
 
+  const signOffOpen = view.requestApproval && !view.approvedBy && !view.approvedDate;
+  const stage = stageMessage(view.status);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -70,8 +75,41 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </div>
       </div>
 
+      {/*
+        * Ready for sign-off: say so first thing. The signature lives at the
+        * bottom on purpose — the customer should read the sheet on the way
+        * down — so the top of the page says what's being asked and jumps there.
+        */}
+      {signOffOpen && (
+        <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-ppc-gold">Ready for your sign-off</p>
+          <p className="mt-2 text-lg font-bold">Check every line, then approve at the bottom.</p>
+          <p className="mt-1 text-sm text-muted">
+            This sheet is exactly what our factory sees: the names, numbers and sizes on it are what
+            gets printed. Once it&apos;s approved nothing changes, so look twice.
+          </p>
+          <a
+            href="#sign-off"
+            className="mt-4 inline-block rounded-lg bg-ppc-gold px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
+          >
+            Go to sign-off ↓
+          </a>
+        </div>
+      )}
+
       <Section title="Where your order is">
         <Timeline steps={view.timeline} />
+        {/*
+          * From production on, this page is where every email points: say
+          * where things stand right under the timeline, then every detail of
+          * the order below it.
+          */}
+        {stage && (
+          <div className="mt-4 rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-4">
+            <p className="font-semibold text-ppc-gold">{stage.title}</p>
+            <p className="mt-1 text-sm text-muted">{stage.text}</p>
+          </div>
+        )}
       </Section>
 
       <Section title="Order Information">
@@ -80,7 +118,18 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           <Field label="Invoice Number">{view.invoiceNumber}</Field>
           <Field label="Date Paid">{formatLong(view.datePaid)}</Field>
           <Field label="Estimated Finish">{formatLong(view.estimatedFinishDate)}</Field>
-          {view.trackingCode && <Field label="Tracking Code">{view.trackingCode}</Field>}
+          {view.trackingCode && (
+            <Field label="UPS Tracking">
+              <a
+                href={upsTrackingUrl(view.trackingCode)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-ppc-gold hover:underline"
+              >
+                {view.trackingCode} →
+              </a>
+            </Field>
+          )}
           {view.googleDriveLink && (
             <Field label="Google Drive">
               <a
@@ -325,10 +374,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             after this point.
           </p>
         </Section>
-      ) : view.requestApproval ? (
-        <Section title="Approval">
-          <ApproveBlock token={token} teamName={view.teamName} />
-        </Section>
+      ) : signOffOpen ? (
+        <div id="sign-off" className="scroll-mt-4 rounded-xl ring-2 ring-ppc-gold">
+          <Section title="Sign off on your order">
+            <ApproveBlock token={token} teamName={view.teamName} />
+          </Section>
+        </div>
       ) : null}
     </div>
   );

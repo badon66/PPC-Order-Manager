@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
-import { MONEY_STAGES, type DueUpdate } from '@/lib/data/customer-updates-logic';
+import { MONEY_STAGES, formatAmount, type DueUpdate } from '@/lib/data/customer-updates-logic';
 import {
-  PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
+  ALREADY_PAID_DETAIL, PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
   type CustomerEmailRecord, type PaymentKind, type UpdateStage, type ViewableAsset,
 } from '@/lib/types';
 import { formatTimestamp } from '@/lib/dates';
@@ -71,6 +71,14 @@ export function SendUpdatePanel({
   const [resendKind, setResendKind] = useState<Record<number, PaymentKind>>({});
   /** Which stage's Send/Resend is in flight — only that card disables and says "Sending…". */
   const [inFlight, setInFlight] = useState<UpdateStage | null>(null);
+  /**
+   * "The jerseys are done" for a team that already paid: photos and "they ship
+   * next", no payment ask. Ticked for you when a final-payment receipt has
+   * already gone out; Keenan can tick it for a payment that arrived another way.
+   */
+  const [finalPaid, setFinalPaid] = useState(() =>
+    sent.some((r) => r.stage === 'payment_received' && r.detail === PAYMENT_KIND_LABEL.final_payment),
+  );
   const [, start] = useTransition();
 
   // payment_received is handled in its own block below, never in the
@@ -120,7 +128,7 @@ export function SendUpdatePanel({
     }
   }, [hidden, storageKey]);
 
-  function send(stage: UpdateStage, opts: { force?: boolean; paymentKind?: PaymentKind } = {}) {
+  function send(stage: UpdateStage, opts: { force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean } = {}) {
     setMsg(null);
     setInFlight(stage);
     start(async () => {
@@ -130,6 +138,7 @@ export function SendUpdatePanel({
           howToPay,
           force: opts.force,
           paymentKind: opts.paymentKind,
+          alreadyPaid: opts.alreadyPaid,
         });
         setMsg({ stage, text: r.ok ? (r.note ? `Sent. ${r.note}` : 'Sent.') : r.error ?? 'Could not send', ok: r.ok });
       } finally {
@@ -153,16 +162,22 @@ export function SendUpdatePanel({
         // The server-side preview always has an empty `photos` — see the doc
         // comment on `mailInputFor` — so the "attached" line never shows here
         // unless this card supplies the same photos the real send will build.
+        const isDone = d.stage === 'final_payment_requested';
+        const paidAlready = isDone && finalPaid;
         const m = composeUpdateMail(d.stage, {
           ...preview,
-          amount: amount[d.stage] ?? '',
+          amount: formatAmount(amount[d.stage] ?? ''),
           howToPay,
-          ...(d.stage === 'final_payment_requested'
-            ? { photos: finishedPhotos.slice(0, 8).map((a, n) => ({ cid: `photo-${n + 1}`, name: a.displayName || a.fileName })) }
+          ...(isDone
+            ? {
+                photos: finishedPhotos.slice(0, 8).map((a, n) => ({ cid: `photo-${n + 1}`, name: a.displayName || a.fileName })),
+                finalPaid,
+              }
             : {}),
         });
         const sending = inFlight === d.stage;
-        const canSend = !d.blocked && (!d.needsAmount || (amount[d.stage] ?? '').trim().length > 0);
+        const askAmount = d.needsAmount && !paidAlready;
+        const canSend = !d.blocked && (!askAmount || (amount[d.stage] ?? '').trim().length > 0);
         return (
           <div key={d.stage} className="rounded-xl border border-ppc-gold/50 bg-ppc-gold/5 p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Email the customer?</p>
@@ -170,15 +185,22 @@ export function SendUpdatePanel({
             <p className="text-sm text-muted">To {to || 'nobody yet'} · Subject: {m.subject}</p>
             {d.stage === 'review_request' && (
               <p className="mt-2 text-xs text-muted">
-                Best sent a week or two after delivery, once the jerseys have been worn.
+                The thank-you already asks for a review. This is the follow-up nudge, best a week or
+                two after delivery, once the jerseys have been worn.
               </p>
             )}
             {d.blocked && <p className="mt-2 text-sm text-amber-300">{d.blocked}</p>}
-            {d.needsAmount && (
+            {isDone && (
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={finalPaid} onChange={(e) => setFinalPaid(e.target.checked)} />
+                They&apos;ve already paid the final payment (send the photos without a payment ask)
+              </label>
+            )}
+            {askAmount && (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label htmlFor={`amount-${d.stage}`} className="text-xs font-medium text-muted">Amount, exactly as it should read</label>
-                  <input id={`amount-${d.stage}`} className="mt-1 w-full" placeholder="$250" value={amount[d.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [d.stage]: e.target.value }))} />
+                  <label htmlFor={`amount-${d.stage}`} className="text-xs font-medium text-muted">Amount</label>
+                  <AmountInput id={`amount-${d.stage}`} className="mt-1" value={amount[d.stage] ?? ''} onChange={(v) => setAmount((a) => ({ ...a, [d.stage]: v }))} />
                   <p className="mt-1 text-xs text-muted">Goes into this email only. Not saved anywhere.</p>
                 </div>
                 <div>
@@ -200,7 +222,7 @@ export function SendUpdatePanel({
             </button>
             {open === d.stage && <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-3 text-xs">{m.text}</pre>}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button type="button" disabled={!canSend || sending} className="rounded-lg bg-ppc-gold px-3.5 py-2 text-sm font-semibold text-black disabled:opacity-50" onClick={() => send(d.stage)}>
+              <button type="button" disabled={!canSend || sending} className="rounded-lg bg-ppc-gold px-3.5 py-2 text-sm font-semibold text-black disabled:opacity-50" onClick={() => send(d.stage, { alreadyPaid: paidAlready })}>
                 {sending ? 'Sending…' : 'Send'}
               </button>
               <button type="button" className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-muted" onClick={() => setHidden((h) => new Set(h).add(d.stage))}>
@@ -228,7 +250,7 @@ export function SendUpdatePanel({
         <div className="rounded-xl border border-line bg-surface-2 p-4">
           <p className="text-base font-bold">Finished jersey photos</p>
           <p className="text-xs text-muted">
-            Upload as they come in — they&apos;ll go out with the final payment email when that stage arrives.
+            Upload as they come in — they go out with the &quot;Jerseys are done&quot; email.
           </p>
           <div className="mt-3">
             <FinishedPhotos orderId={orderId} photos={finishedPhotos} />
@@ -286,7 +308,9 @@ export function SendUpdatePanel({
           <p className="text-xs font-medium text-muted">Sent to the customer</p>
           <ul className="mt-1 space-y-1 text-sm">
             {[...sent].sort((a, b) => b.sentAt.localeCompare(a.sentAt)).map((r, n) => {
-              const isMoney = MONEY_STAGES.has(r.stage);
+              // A "Jerseys are done" that went out without a payment ask resends the same way.
+              const rowPaid = r.stage === 'final_payment_requested' && r.detail === ALREADY_PAID_DETAIL;
+              const isMoney = MONEY_STAGES.has(r.stage) && !rowPaid;
               const isPaymentReceived = r.stage === 'payment_received';
               // This row's own kind, read back from what it actually recorded —
               // never the panel's current selection, or resending an early
@@ -310,7 +334,7 @@ export function SendUpdatePanel({
                   {isMoney && (
                     <span className="flex items-center gap-1">
                       <label htmlFor={`resend-amount-${r.stage}-${n}`} className="text-xs font-medium text-muted">Amount</label>
-                      <input id={`resend-amount-${r.stage}-${n}`} className="w-20 text-xs" placeholder="$250" value={amount[r.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [r.stage]: e.target.value }))} />
+                      <AmountInput id={`resend-amount-${r.stage}-${n}`} className="w-28" value={amount[r.stage] ?? ''} onChange={(v) => setAmount((a) => ({ ...a, [r.stage]: v }))} />
                     </span>
                   )}
                   {needsKindConfirm && (
@@ -332,7 +356,7 @@ export function SendUpdatePanel({
                     type="button"
                     disabled={resendDisabled}
                     className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50"
-                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined })}
+                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined, alreadyPaid: rowPaid })}
                   >
                     {sending ? 'Sending…' : 'Resend'}
                   </button>
@@ -349,6 +373,32 @@ export function SendUpdatePanel({
       {visible.length === 0 && chips.length === 0 && !paymentReceived && !showStandalonePhotos && sent.length === 0 && (
         <p className="text-sm text-muted">Nothing to send at this stage.</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The amount box for the request emails. The $ is printed in the box, so only
+ * the number is typed; a $ typed anyway is dropped so it can't show twice.
+ * Padding is inline because the global input rule would beat a utility class.
+ */
+function AmountInput({ id, value, onChange, className = '' }: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-semibold text-muted">$</span>
+      <input
+        id={id}
+        inputMode="decimal"
+        placeholder="250"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/^\s*\$\s*/, ''))}
+        style={{ paddingLeft: '1.6rem' }}
+      />
     </div>
   );
 }

@@ -56,7 +56,7 @@ export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
   production_deposit_requested: 'Pre-production deposit requested',
   production_deposit_received: 'Pre-production deposit received',
   in_production: 'In production',
-  final_payment_requested: 'Final payment requested',
+  final_payment_requested: 'Jerseys are done',
   shipped: 'Shipped',
   completed: 'Thanks',
   payment_received: 'Payment received',
@@ -72,6 +72,9 @@ export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
   production_deposit: 'pre-production deposit',
   final_payment: 'final payment',
 };
+
+/** The `detail` on a "Jerseys are done" record that went out without a payment ask, so a resend does the same. */
+export const ALREADY_PAID_DETAIL = 'already paid';
 
 /** One email that went out. No amount is ever recorded here — see the money rule. */
 export interface CustomerEmailRecord {
