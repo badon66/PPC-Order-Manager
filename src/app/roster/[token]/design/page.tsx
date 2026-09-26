@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ClientForm } from '../client-form';
 import { loadClientPage } from '../load';
-import { STAGE_PAGE_COPY, STAGE_SECTIONS } from '@/lib/data/stage-pages';
+import { STAGE_SECTIONS, stagePageCopy } from '@/lib/data/stage-pages';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
   const data = await loadClientPage(token);
   if (!data) notFound();
   const { link, previous, previousPreviews } = data;
-  const copy = STAGE_PAGE_COPY[STAGE];
+  const copy = stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">

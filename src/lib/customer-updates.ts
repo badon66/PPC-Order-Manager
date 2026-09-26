@@ -8,6 +8,7 @@ import { firstNameOf } from '@/lib/data/mail-layout';
 import { mailConfigured, sendMail, type MailAttachment } from '@/lib/mail';
 import { resolveFileUrl } from '@/lib/storage';
 import { baseUrl } from '@/lib/base-url';
+import { orderIncludesPantShells, orderIncludesSocks } from '@/lib/order-utils';
 import { PAYMENT_KIND_LABEL } from '@/lib/types';
 import type { AppSettings, ChangeLogEntry, Order, OrderAsset, PaymentKind, UpdateStage } from '@/lib/types';
 
@@ -45,6 +46,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
     shareUrl: `${base}/share/${order.shareToken}`,
     designUrl: `${base}${stagePaths.design}`,
     detailsUrl: `${base}${stagePaths.details}`,
+    products: { socks: orderIncludesSocks(order), pantShells: orderIncludesPantShells(order) },
     amount: (opts.amount ?? '').trim(),
     howToPay: (opts.howToPay ?? settings.howToPay).trim(),
     estimatedFinishDate: order.estimatedFinishDate,

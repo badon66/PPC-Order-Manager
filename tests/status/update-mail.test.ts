@@ -9,6 +9,7 @@ const base: UpdateMailInput = {
   rosterUrl: 'https://orders.powerplaycustoms.ca/roster/' + 'a'.repeat(64),
   shareUrl: 'https://orders.powerplaycustoms.ca/share/' + 'b'.repeat(64),
   designUrl: 'https://x/roster/t/design', detailsUrl: 'https://x/roster/t/details',
+  products: { socks: true, pantShells: false },
   amount: '$250', howToPay: 'E-transfer to info@powerplaycustoms.ca (no fee), or by card (3% fee).',
   estimatedFinishDate: '2026-10-15', trackingCode: 'CP123456789CA',
   paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', photos: [],
@@ -106,4 +107,13 @@ test('final payment carries the photos and the tracking promise; pre-production 
   assert.match(m.text, /tracking number shortly after/);
   assert.doesNotMatch(composeUpdateMail('final_payment_requested', base).text, /attached/);
   assert.match(composeUpdateMail('production_deposit_requested', base).text, /50% of the order: \$250/);
+});
+
+test('"nearly there" asks only for the sizes of what is on the order', () => {
+  const jerseysOnly = composeUpdateMail('finalizing_details', { ...base, products: { socks: false, pantShells: false } });
+  assert.match(jerseysOnly.text, /their number, and jersey sizes, plus/);
+  assert.ok(!/sock|pant/i.test(jerseysOnly.text), 'no socks or pants on a jerseys-only order');
+  const all = composeUpdateMail('finalizing_details', { ...base, products: { socks: true, pantShells: true } });
+  assert.match(all.text, /jersey, sock and pant shell sizes/);
+  assert.match(all.html, /jersey, sock and pant shell sizes/);
 });

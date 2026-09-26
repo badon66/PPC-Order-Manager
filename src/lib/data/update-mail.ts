@@ -3,6 +3,7 @@ import { PAYMENT_KIND_LABEL } from '@/lib/types';
 import { formatLong } from '@/lib/dates';
 import type { MailContent } from './intake-mail';
 import { PRODUCTION_NOTE } from './timeline';
+import { sizesWanted, type OrderProducts } from './stage-pages';
 import { MAIL_FF, SPECIALIST, esc, mBox, mButton, mMuted, mailShell, mp, textFooter } from './mail-layout';
 
 /**
@@ -21,6 +22,8 @@ export interface UpdateMailInput {
   /** The two stage pages, e.g. `design_talk`'s "send logos and inspiration" and `finalizing_details`'s roster form. */
   designUrl: string;
   detailsUrl: string;
+  /** What's on the order, so `finalizing_details` asks for exactly the sizes the roster form shows. */
+  products: OrderProducts;
   amount: string;
   howToPay: string;
   estimatedFinishDate: string | null;
@@ -102,7 +105,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         preheader: 'Names, numbers, sizes and where the box should go.',
         headline: `Nearly there, ${first}.`,
         lines: [
-          `The design is settled. To build the ${team} order we need each player's name as it should print, their number, and jersey and sock sizes, plus the contact and shipping details for the box.`,
+          `The design is settled. To build the ${team} order we need each player's name as it should print, their number, and ${sizesWanted(i.products)}, plus the contact and shipping details for the box.`,
         ],
         button: { href: i.detailsUrl, label: 'Fill in roster and details' },
         muted: 'Type it in or upload the list you already have. You can change it right up until production.',

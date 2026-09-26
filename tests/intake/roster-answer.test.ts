@@ -103,3 +103,16 @@ test('accepting keeps a roster file on the submission and says so, adding nobody
   assert.deepEqual(plan.assets, []);
   assert.match(plan.summary, /1 roster file\(s\) kept for typing up/);
 });
+
+test('an order without socks keeps no socks-only rows and no spare sock sizes', () => {
+  const noSocks: SubmitLink = { ...link, includesSocks: false, extraJerseys: 1 };
+  const r = cleanSubmission(noSocks, payload({
+    rosterAnswer: 'typed',
+    players: [{ ...player, sockOnly: true, captaincy: 'C' }],
+    extras: [{ number: '30', size: 'XL', sockSize: 'M', sockOnly: true, notes: '' }],
+  }));
+  if (!r.ok) throw new Error(r.error);
+  assert.equal(r.value.players[0].sockOnly, false);
+  assert.equal(r.value.players[0].captaincy, 'C');
+  assert.deepEqual(r.value.extras, [{ number: '30', size: 'XL', sockSize: '', sockOnly: false, notes: '' }]);
+});

@@ -82,6 +82,10 @@ export function cleanSubmission(
 
   const keepRows = sec.roster && rosterAnswer !== 'file' && rosterAnswer !== 'later';
 
+  // A socks-only row only exists on an order with socks; the form hides the
+  // option otherwise, so a flag arriving here is stale.
+  const sockOnlyRow = (flag: unknown) => link.includesSocks && Boolean(flag);
+
   const players: SubmittedPlayer[] = keepRows
     ? (payload.players ?? [])
         .map((p) => ({
@@ -90,8 +94,8 @@ export function cleanSubmission(
           isGoalie: Boolean(p.isGoalie),
           // Only the two letters, and never on a row with no jersey. Anything
           // else arriving here didn't come from the form.
-          captaincy: (p.sockOnly ? '' : p.captaincy === 'C' || p.captaincy === 'A' ? p.captaincy : '') as Captaincy,
-          sockOnly: Boolean(p.sockOnly),
+          captaincy: (sockOnlyRow(p.sockOnly) ? '' : p.captaincy === 'C' || p.captaincy === 'A' ? p.captaincy : '') as Captaincy,
+          sockOnly: sockOnlyRow(p.sockOnly),
           jerseySize: clean(p.jerseySize),
           // Blanked rather than trusted when the order has no shells — the
           // form doesn't show the field, so anything arriving here is stale.
@@ -173,9 +177,9 @@ export function cleanSubmission(
         ? (payload.extras ?? []).slice(0, link.extraJerseys).map((x) => ({
             number: clean(x.number ?? ''),
             // A socks-only spare has no jersey, so it can't carry a jersey size.
-            size: x.sockOnly ? '' : clean(x.size ?? ''),
-            sockSize: clean(x.sockSize ?? ''),
-            sockOnly: Boolean(x.sockOnly),
+            size: sockOnlyRow(x.sockOnly) ? '' : clean(x.size ?? ''),
+            sockSize: link.includesSocks ? clean(x.sockSize ?? '') : '',
+            sockOnly: sockOnlyRow(x.sockOnly),
             notes: clean(x.notes ?? ''),
           }))
         : [],

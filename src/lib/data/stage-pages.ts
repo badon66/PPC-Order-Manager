@@ -17,16 +17,36 @@ export const STAGE_SECTIONS: Record<StagePage, ClientLinkSections> = {
   details: { logos: false, inspiration: false, roster: true, personalDetails: true },
 };
 
-export const STAGE_PAGE_COPY: Record<StagePage, { title: string; intro: string }> = {
-  design: {
-    title: 'Send us your logos and inspiration',
-    intro: "Your logo in any format, your colours, and pictures of looks you like. No logo yet is fine — tell us the idea and we'll draw it.",
-  },
-  details: {
+/** What's on the order, as far as the roster needs to know: which size columns to ask for. */
+export interface OrderProducts {
+  socks: boolean;
+  pantShells: boolean;
+}
+
+/**
+ * The sizes a roster asks for, in words — "jersey sizes", "jersey and sock
+ * sizes", "jersey, sock and pant shell sizes". Jerseys always; socks and pant
+ * shells only when the order has them, so the copy asks for exactly the
+ * columns the form shows.
+ */
+export function sizesWanted(p: OrderProducts): string {
+  const kinds = ['jersey', ...(p.socks ? ['sock'] : []), ...(p.pantShells ? ['pant shell'] : [])];
+  const list = kinds.length === 1 ? kinds[0] : `${kinds.slice(0, -1).join(', ')} and ${kinds[kinds.length - 1]}`;
+  return `${list} sizes`;
+}
+
+export function stagePageCopy(page: StagePage, products: OrderProducts): { title: string; intro: string } {
+  if (page === 'design') {
+    return {
+      title: 'Send us your logos and inspiration',
+      intro: "Your logo in any format, your colours, and pictures of looks you like. No logo yet is fine — tell us the idea and we'll draw it.",
+    };
+  }
+  return {
     title: 'Roster and contact details',
-    intro: "Each player's name as it should print, their number, and jersey and sock sizes, plus who we contact and where the box ships.",
-  },
-};
+    intro: `Each player's name as it should print, their number, and ${sizesWanted(products)}, plus who we contact and where the box ships.`,
+  };
+}
 
 /** Relative paths, so the same helper serves pages and emails (emails prefix the base URL). */
 export function stagePagePaths(token: string): Record<StagePage, string> {

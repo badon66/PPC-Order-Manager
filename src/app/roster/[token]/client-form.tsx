@@ -163,10 +163,12 @@ export function ClientForm({
    */
   const [extras, setExtras] = useState<ExtraJersey[]>(() => {
     const seed = previous?.extras?.length ? previous.extras : extraJerseyDetails;
-    return Array.from(
-      { length: extraJerseys },
-      (_, i) => seed[i] ?? { number: '', size: '', sockSize: '', sockOnly: false, notes: '' },
-    );
+    return Array.from({ length: extraJerseys }, (_, i) => {
+      const x = seed[i] ?? { number: '', size: '', sockSize: '', sockOnly: false, notes: '' };
+      // No socks on the order means no socks-only spare: a flag left over from
+      // before socks came off the order would hide the jersey size with no way to undo it.
+      return includesSocks ? x : { ...x, sockOnly: false };
+    });
   });
   /*
    * Open with one slot per PLAYER on the order.
@@ -184,7 +186,8 @@ export function ClientForm({
    * submitted players back up to fifteen would look like we lost some.
    */
   const [players, setPlayers] = useState<SubmittedPlayer[]>(() => {
-    if (previous?.players.length) return previous.players;
+    // Same rule as the spares: a socks-only row can't exist on an order without socks.
+    if (previous?.players.length) return includesSocks ? previous.players : previous.players.map((p) => ({ ...p, sockOnly: false }));
     if (!sections.roster) return [];
     return Array.from({ length: Math.max(1, jerseyCount) }, blankPlayer);
   });
@@ -369,8 +372,10 @@ export function ClientForm({
                   <div className="flex items-center gap-2">
                     <Chip active={p.isGoalie} label="Goalie"
                       onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, isGoalie: !x.isGoalie, sockOnly: false } : x))} />
-                    <Chip active={p.sockOnly} label="Socks only"
-                      onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '', captaincy: '' } : x))} />
+                    {includesSocks && (
+                      <Chip active={p.sockOnly} label="Socks only"
+                        onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '', captaincy: '' } : x))} />
+                    )}
                     {/*
                       * Hidden on a socks-only row: there's no jersey for a
                       * letter to go on, and offering it there just invites a
@@ -480,9 +485,10 @@ export function ClientForm({
                 </p>
                 <p className="mt-1 text-xs text-muted">
                   Your order includes {extraJerseys} spare{extraJerseys === 1 ? '' : 's'} with no
-                  name on the back. Tell us what number and size each one should be. Tick
-                  &quot;socks only&quot; for any that are a spare pair of socks rather than a
-                  jersey.
+                  name on the back. Tell us what number and size each one should be.
+                  {includesSocks && (
+                    <> Tick &quot;socks only&quot; for any that are a spare pair of socks rather than a jersey.</>
+                  )}
                 </p>
                 <div className="mt-3 space-y-2">
                   {extras.map((x, i) => (
@@ -513,19 +519,21 @@ export function ClientForm({
                           {sizeOptions(SOCK_SIZES, x.sockSize)}
                         </select>
                       )}
-                      <label className="flex items-center gap-2 self-center text-xs text-muted">
-                        <input
-                          type="checkbox"
-                          checked={x.sockOnly}
-                          onChange={(e) =>
-                            patchExtra(i, {
-                              sockOnly: e.target.checked,
-                              size: e.target.checked ? '' : x.size,
-                            })
-                          }
-                        />
-                        Socks only
-                      </label>
+                      {includesSocks && (
+                        <label className="flex items-center gap-2 self-center text-xs text-muted">
+                          <input
+                            type="checkbox"
+                            checked={x.sockOnly}
+                            onChange={(e) =>
+                              patchExtra(i, {
+                                sockOnly: e.target.checked,
+                                size: e.target.checked ? '' : x.size,
+                              })
+                            }
+                          />
+                          Socks only
+                        </label>
+                      )}
                     </div>
                   ))}
                 </div>
