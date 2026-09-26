@@ -24,12 +24,12 @@ export default async function SettingsPage() {
             <div>
               <label className="text-xs font-medium text-muted" htmlFor="googleReviewUrl">Google review link</label>
               <input id="googleReviewUrl" name="googleReviewUrl" type="text" className="mt-1 w-full" defaultValue={s.googleReviewUrl} placeholder="https://g.page/r/…/review" />
-              <p className="mt-1 text-xs text-muted">The button in the Thanks email. Leave empty to hide it.</p>
+              <p className="mt-1 text-xs text-muted">The button in the Review and referral email. Leave empty to hide it.</p>
             </div>
             <div>
               <label className="text-xs font-medium text-muted" htmlFor="referralLine">Referral line</label>
               <textarea id="referralLine" name="referralLine" rows={2} className="mt-1 w-full" defaultValue={s.referralLine} />
-              <p className="mt-1 text-xs text-muted">One sentence in the Thanks email. Leave empty to hide it.</p>
+              <p className="mt-1 text-xs text-muted">One sentence in the Review and referral email. Leave empty to hide it.</p>
             </div>
             <Button type="submit" variant="primary">Save settings</Button>
           </div>

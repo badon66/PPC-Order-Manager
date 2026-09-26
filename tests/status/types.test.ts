@@ -15,7 +15,7 @@ test('a blank order has no customer emails yet, and old rows are healed to the s
   assert.deepEqual(healOrder(o as Order).customerEmails, []);
 });
 
-test('there are twelve stages and every one has a label', () => {
+test('there are fourteen stages and every one has a label', () => {
   assert.equal(UPDATE_STAGES.length, 14);
   for (const s of UPDATE_STAGES) assert.ok(UPDATE_STAGE_LABEL[s].length > 3, s);
 });

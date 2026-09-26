@@ -226,7 +226,7 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
     case 'completed':
       return {
         subject: `Thanks from Powerplay Customs — ${team}`,
-        preheader: 'Enjoy the jerseys. Two small asks, if you have a minute.',
+        preheader: 'Enjoy the jerseys. Reply any time to reorder from your design.',
         headline: `Enjoy the jerseys, ${first}.`,
         lines: [`It was a pleasure making them for ${team}.`],
         button: { href: i.rosterUrl, label: "Your team's page", dark: true },

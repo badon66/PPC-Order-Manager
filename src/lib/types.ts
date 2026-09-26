@@ -58,7 +58,7 @@ export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
   in_production: 'In production',
   final_payment_requested: 'Final payment requested',
   shipped: 'Shipped',
-  completed: 'Thanks and review',
+  completed: 'Thanks',
   payment_received: 'Payment received',
   review_request: 'Review and referral',
 };
@@ -88,9 +88,9 @@ export interface CustomerEmailRecord {
 export interface AppSettings {
   /** Prefilled into the three request emails, editable before sending. */
   howToPay: string;
-  /** The Google review link; empty hides the button in the Completed email. */
+  /** The Google review link; empty hides the button in the Review and referral email. */
   googleReviewUrl: string;
-  /** The referral sentence in the Completed email; empty hides it. */
+  /** The referral sentence in the Review and referral email; empty hides it. */
   referralLine: string;
 }
 

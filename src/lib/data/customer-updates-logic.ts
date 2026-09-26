@@ -6,7 +6,10 @@ import type { ChangeLogEntry, Order, OrderStatus, PaymentKind, UpdateStage } fro
  * approval sends it. Pure; the sending lives in src/lib/customer-updates.ts.
  *
  * Every email is offered at most once per order (customerEmails remembers
- * what went out). Nothing here sends anything.
+ * what went out), except `payment_received` — repeatable, since it confirms
+ * whichever payment (initial deposit, pre-production deposit, final payment)
+ * last arrived, and each is worth its own confirmation. Nothing here sends
+ * anything.
  */
 
 export const MONEY_STAGES: ReadonlySet<UpdateStage> = new Set<UpdateStage>([
