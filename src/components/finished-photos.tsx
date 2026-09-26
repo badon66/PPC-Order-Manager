@@ -50,10 +50,13 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
         });
         slot++;
       }
-      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      // Refresh even after a mid-batch failure: photos already attached
+      // before the error should show up, and the next slot needs to be
+      // computed from what the server now actually has.
+      router.refresh();
       setBusy(false);
     }
   }

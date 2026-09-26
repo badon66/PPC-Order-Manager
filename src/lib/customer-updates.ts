@@ -108,6 +108,15 @@ async function buildPhotoAttachments(
         console.log(`[updates] photo skipped (HTTP ${res.status}) for order ${orderId}: ${p.name}`);
         continue;
       }
+      // Check the declared size before buffering the whole thing into memory —
+      // a photo that's already over the limit shouldn't cost a full download
+      // just to be thrown away. Some responses omit content-length, so this is
+      // a fast path, not a replacement for the byte check below.
+      const declaredLength = Number(res.headers.get('content-length'));
+      if (Number.isFinite(declaredLength) && declaredLength > MAX_PHOTO_BYTES) {
+        console.log(`[updates] photo skipped (${declaredLength} bytes, over the 6 MB limit) for order ${orderId}: ${p.name}`);
+        continue;
+      }
       const content = Buffer.from(await res.arrayBuffer());
       if (content.byteLength > MAX_PHOTO_BYTES) {
         console.log(`[updates] photo skipped (${content.byteLength} bytes, over the 6 MB limit) for order ${orderId}: ${p.name}`);

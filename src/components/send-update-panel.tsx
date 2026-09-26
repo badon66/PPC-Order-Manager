@@ -13,6 +13,14 @@ import { FinishedPhotos } from '@/components/finished-photos';
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/** Reverse of `PAYMENT_KIND_LABEL`: which kind a sent record's `detail` names,
+ *  or null if it doesn't match any (older records, or no detail at all). */
+function paymentKindFromDetail(detail: string | undefined): PaymentKind | null {
+  if (!detail) return null;
+  const hit = (Object.entries(PAYMENT_KIND_LABEL) as Array<[PaymentKind, string]>).find(([, label]) => label === detail);
+  return hit ? hit[0] : null;
+}
+
 /**
  * "Email the customer this update?" One card per due email: recipient,
  * subject, a preview, the amount box for the three request emails, Send and
@@ -57,6 +65,10 @@ export function SendUpdatePanel({
   const [howToPay, setHowToPay] = useState(preview.howToPay);
   const [paymentKind, setPaymentKind] = useState<PaymentKind | null>(null);
   const [msg, setMsg] = useState<{ stage: string; text: string; ok: boolean } | null>(null);
+  /** Resend of an old `payment_received` row whose `detail` doesn't match any
+   *  known label — keyed by that row's position in the sorted sent list, so
+   *  Keenan can confirm which payment it actually was before it goes back out. */
+  const [resendKind, setResendKind] = useState<Record<number, PaymentKind>>({});
   /** Which stage's Send/Resend is in flight — only that card disables and says "Sending…". */
   const [inFlight, setInFlight] = useState<UpdateStage | null>(null);
   const [, start] = useTransition();
@@ -65,7 +77,6 @@ export function SendUpdatePanel({
   // dismissable due/chip list — see the doc comment above.
   const generalDue = due.filter((d) => d.stage !== 'payment_received');
   const paymentReceived = due.find((d) => d.stage === 'payment_received') ?? null;
-  const finalPaymentDue = due.some((d) => d.stage === 'final_payment_requested');
   const effectivePaymentKind: PaymentKind = paymentKind ?? paymentReceived?.paymentKind ?? 'final_payment';
 
   // Read the dismissed set once on mount. Anything no longer due (already
@@ -129,7 +140,12 @@ export function SendUpdatePanel({
 
   const visible = generalDue.filter((d) => !hidden.has(d.stage));
   const chips = generalDue.filter((d) => hidden.has(d.stage));
-  const showStandalonePhotos = showPhotos && !finalPaymentDue;
+  // The final-payment card carries its own embedded uploader only while it's
+  // actually on screen — dismissed to a chip via "Not now", it collapses and
+  // takes the uploader with it. Base this on what's VISIBLE, not on whether
+  // the stage is still due, or the standalone card would stay hidden behind a
+  // dismissed chip with nowhere else to upload photos.
+  const showStandalonePhotos = showPhotos && !visible.some((d) => d.stage === 'final_payment_requested');
 
   return (
     <div className="space-y-3">
@@ -262,6 +278,16 @@ export function SendUpdatePanel({
             {[...sent].sort((a, b) => b.sentAt.localeCompare(a.sentAt)).map((r, n) => {
               const isMoney = MONEY_STAGES.has(r.stage);
               const isPaymentReceived = r.stage === 'payment_received';
+              // This row's own kind, read back from what it actually recorded —
+              // never the panel's current selection, or resending an early
+              // "initial deposit" receipt after the order has moved on would
+              // relabel it "final payment". Only when the record predates this
+              // (or otherwise doesn't match a known label) do we fall back to
+              // the current selection, and only then do we surface a select so
+              // Keenan can confirm or correct it before it goes back out.
+              const matchedKind = isPaymentReceived ? paymentKindFromDetail(r.detail) : null;
+              const needsKindConfirm = isPaymentReceived && !matchedKind;
+              const rowPaymentKind = matchedKind ?? resendKind[n] ?? effectivePaymentKind;
               const sending = inFlight === r.stage;
               const resendDisabled = sending || (isMoney && (amount[r.stage] ?? '').trim().length === 0);
               return (
@@ -277,11 +303,26 @@ export function SendUpdatePanel({
                       <input id={`resend-amount-${r.stage}-${n}`} className="w-20 text-xs" placeholder="$250" value={amount[r.stage] ?? ''} onChange={(e) => setAmount((a) => ({ ...a, [r.stage]: e.target.value }))} />
                     </span>
                   )}
+                  {needsKindConfirm && (
+                    <span className="flex items-center gap-1">
+                      <label htmlFor={`resend-kind-${r.stage}-${n}`} className="text-xs font-medium text-muted">Which payment</label>
+                      <select
+                        id={`resend-kind-${r.stage}-${n}`}
+                        className="text-xs"
+                        value={rowPaymentKind}
+                        onChange={(e) => setResendKind((k) => ({ ...k, [n]: e.target.value as PaymentKind }))}
+                      >
+                        {PAYMENT_KINDS.map((k) => (
+                          <option key={k} value={k}>{capitalize(PAYMENT_KIND_LABEL[k])}</option>
+                        ))}
+                      </select>
+                    </span>
+                  )}
                   <button
                     type="button"
                     disabled={resendDisabled}
                     className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50"
-                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? effectivePaymentKind : undefined })}
+                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined })}
                   >
                     {sending ? 'Sending…' : 'Resend'}
                   </button>
