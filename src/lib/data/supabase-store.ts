@@ -404,6 +404,16 @@ export const supabaseStore: Repository = {
       );
       if (res.error) throw new Error(`add submitted players: ${res.error.message}`);
     }
+    /*
+     * Deleted only after the replacements are safely in, for the same reason
+     * the inserts come first: a failure here leaves the old rows next to the
+     * new ones, which Keenan can see and delete. Deleting first and failing
+     * on the insert would lose the roster outright.
+     */
+    if (plan.removeRosterIds.length) {
+      const res = await supabase().from(ROSTER).delete().in('id', plan.removeRosterIds);
+      if (res.error) throw new Error(`replace superseded players: ${res.error.message}`);
+    }
     if (plan.assets.length) {
       const res = await supabase().from(ASSETS).insert(
         plan.assets.map((a) => ({ id: a.id, order_id: a.orderId, data: a })),

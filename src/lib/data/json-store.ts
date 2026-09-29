@@ -313,6 +313,10 @@ export const jsonStore: Repository = {
         db.assets.filter((a) => a.orderId === s.orderId),
       );
 
+      if (plan.removeRosterIds.length) {
+        const gone = new Set(plan.removeRosterIds);
+        db.roster = db.roster.filter((r) => !gone.has(r.id));
+      }
       db.roster.push(...plan.roster);
       db.assets.push(...plan.assets);
       Object.assign(order, plan.orderPatch);

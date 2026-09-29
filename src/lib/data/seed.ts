@@ -58,6 +58,7 @@ function players(
     pantNumber: '',
     notes: '',
     sortOrder: i,
+    fromSubmissionId: '',
   }));
 }
 

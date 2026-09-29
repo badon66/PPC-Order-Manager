@@ -467,6 +467,19 @@ export interface RosterEntry {
   pantNumber: string;
   notes: string;
   sortOrder: number;
+  /**
+   * The client submission this row was created from, or '' for a row Keenan
+   * typed or imported himself.
+   *
+   * This is what makes re-accepting a roster a replacement rather than a
+   * second copy. The form prefills from the last submission, so when a team
+   * fixes two sizes and sends it back, what arrives is the WHOLE roster
+   * again, not a delta — appending it turned 20 players into 40. Accepting
+   * now clears the rows the previous submission put there and writes the new
+   * set, while anything without a submission id behind it (hand-typed, CSV
+   * import) is left alone.
+   */
+  fromSubmissionId: string;
 }
 
 export interface Order {

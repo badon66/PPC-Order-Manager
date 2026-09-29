@@ -96,6 +96,9 @@ export function healSubmission(s: ClientRosterSubmission): ClientRosterSubmissio
  */
 export function healRosterEntry(r: RosterEntry): RosterEntry {
   r.captaincy ??= '';
+  // Rows written before this field existed are treated as Keenan's own, so
+  // the first replacing accept after this ships can't delete work he typed.
+  r.fromSubmissionId ??= '';
   return r;
 }
 
@@ -411,8 +414,14 @@ export function submissionLogEntries(
 /**
  * What accepting a submission produces.
  *
- *  players      → appended to the roster (never replaces — Keenan deletes
- *                 duplicates himself; silent replacement is the worse mistake)
+ *  players      → REPLACES the rows a previous submission put on the roster,
+ *                 and leaves every hand-made row alone. The form prefills
+ *                 from the last submission, so a team correcting two sizes
+ *                 sends back the whole roster — appending it made 20 players
+ *                 into 40, then 60. Provenance lives on the row
+ *                 (`fromSubmissionId`) rather than being guessed by matching
+ *                 names, because two kids called J. Smith is a real roster
+ *                 and a name match is not an identity.
  *  logos        → additional_logo assets, one group per submitted logo
  *  inspiration  → design_reference assets
  *  contact      → only the fields the customer actually filled in, so a partial
@@ -423,6 +432,8 @@ export function submissionLogEntries(
  */
 export interface AcceptancePlan {
   roster: RosterEntry[];
+  /** Rows a previous submission created, to delete as this one supersedes them. */
+  removeRosterIds: string[];
   assets: OrderAsset[];
   orderPatch: Partial<Order>;
   summary: string;
@@ -444,11 +455,22 @@ export function planAcceptance(
 ): AcceptancePlan {
   const parts: string[] = [];
   const roster: RosterEntry[] = [];
+  /*
+   * Only a submission that actually carries the roster section may clear it.
+   * A logos-only submission must not empty the team sheet.
+   */
+  const replacesRoster = submission.sections.roster === true;
+  const superseded = replacesRoster
+    ? existingRoster.filter((r) => r.fromSubmissionId)
+    : [];
+  const supersededIds = new Set(superseded.map((r) => r.id));
+  /* Hand-typed and CSV-imported rows survive, and still hold their budget. */
+  const keptRoster = existingRoster.filter((r) => !supersededIds.has(r.id));
   const assets: OrderAsset[] = [];
   const orderPatch: Partial<Order> = {};
 
   const homeAway = order.orderMode === 'home_away_set';
-  let sortOrder = existingRoster.length;
+  let sortOrder = keptRoster.length;
 
   /*
    * Budgets, so accepting a submission can't over-assign.
@@ -462,7 +484,7 @@ export function planAcceptance(
     order.sets.reduce((n, x) => n + (pick(x) || 0), 0);
 
   const assigned = (pick: (r: RosterEntry) => number) =>
-    existingRoster.reduce((n, r) => n + (pick(r) || 0), 0);
+    keptRoster.reduce((n, r) => n + (pick(r) || 0), 0);
 
   let jerseyBudget =
     declared((x) => (x.playerJerseys || 0) + (x.goalieJerseys || 0)) -
@@ -508,9 +530,16 @@ export function planAcceptance(
       armNumbers: '', shoulderLogo: '', pantLogo: '', pantNumber: '',
       notes: p.notes,
       sortOrder: sortOrder++,
+      fromSubmissionId: submission.id,
     });
   }
-  if (submission.players.length) parts.push(`${submission.players.length} player(s) added to roster`);
+  if (submission.players.length || superseded.length) {
+    parts.push(
+      superseded.length
+        ? `roster replaced: ${superseded.length} player(s) out, ${submission.players.length} in`
+        : `${submission.players.length} player(s) added to roster`,
+    );
+  }
   // A roster file is never merged: nobody's name goes on a jersey off a
   // spreadsheet we haven't read. It stays on the submission and under Player
   // Roster on the order page for Keenan to type up (a CSV imports straight in).
@@ -579,6 +608,7 @@ export function planAcceptance(
 
   return {
     roster,
+    removeRosterIds: superseded.map((r) => r.id),
     assets,
     orderPatch,
     summary: `Accepted client submission: ${parts.length ? parts.join('; ') : 'nothing to add'}`,

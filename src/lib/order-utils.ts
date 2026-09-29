@@ -489,6 +489,9 @@ export function blankRosterEntry(
     pantNumber: '',
     notes: '',
     sortOrder,
+    // Keenan's own row. Never a client submission's, so accepting one can
+    // never delete it.
+    fromSubmissionId: '',
   };
 }
 
