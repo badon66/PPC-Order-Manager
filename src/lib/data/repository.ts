@@ -80,10 +80,23 @@ export interface PublicOrderView {
   status: Order['status'];
   datePaid: Order['datePaid'];
   estimatedFinishDate: Order['estimatedFinishDate'];
+  /*
+   * The production window. This sheet is the manufacturer's copy as well as
+   * the team's, so the dates the job is scheduled against belong on it.
+   */
+  productionStartDate: Order['productionStartDate'];
+  productionFinishDate: Order['productionFinishDate'];
+  /** A hard date the team needs these by — a tournament, a season opener. */
+  deliveryConcern: string;
   trackingCode: string;
   googleDriveLink: string;
   orderMode: Order['orderMode'];
+  /** How many sets were ordered, as typed on the sheet. */
+  numberOfSets: number;
   sets: Order['sets'];
+  /** Premier / Pro / Elite — what they actually bought. */
+  jerseyTier: Order['jerseyTier'];
+  isSample: boolean;
   jerseyType: Order['jerseyType'];
   sockType: Order['sockType'];
   pantShellType: Order['pantShellType'];
@@ -100,6 +113,16 @@ export interface PublicOrderView {
     | 'pantLogo' | 'pantNumber' | 'lacesStyle' | 'shoulderCut' | 'nameStyle'
     | 'hasCaptainPatches' | 'hasShoulderLogos'
   >;
+  /*
+   * Captain patches and shoulder logos in full, not just the on/off toggle.
+   * `hasCaptainPatches: true` told the customer nothing about how many C's
+   * and A's are being made or in which style, and told the manufacturer
+   * even less — those are the details the job is actually built from.
+   */
+  captainPatchStyle: Order['captainPatchStyle'];
+  captainCQuantity: number;
+  captainAQuantity: number;
+  shoulderLogosSame: boolean;
   assets: OrderAsset[];
   roster: RosterEntry[];
   /** Numbers and sizes for the spare jerseys. */

@@ -5,6 +5,7 @@ import { computeTotals, describeOrderTotals, describeSet } from '@/lib/order-uti
 import {
   JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS, PANT_SHELL_TYPE_LABELS,
   PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
+  CAPTAIN_PATCH_STYLE_META, tierById,
 } from '@/lib/constants';
 import { Card, Field, Section, Stat, YesNo } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
@@ -118,6 +119,13 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           <Field label="Invoice Number">{view.invoiceNumber}</Field>
           <Field label="Date Paid">{formatLong(view.datePaid)}</Field>
           <Field label="Estimated Finish">{formatLong(view.estimatedFinishDate)}</Field>
+          {view.productionStartDate && (
+            <Field label="Production Start">{formatLong(view.productionStartDate)}</Field>
+          )}
+          {view.productionFinishDate && (
+            <Field label="Production Finished">{formatLong(view.productionFinishDate)}</Field>
+          )}
+          {view.isSample && <Field label="Sample Order">Yes</Field>}
           {view.trackingCode && (
             <Field label="UPS Tracking">
               <a
@@ -143,6 +151,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             </Field>
           )}
         </div>
+        {view.deliveryConcern && (
+          <div className="mt-4">
+            <Field label="Needed By / Delivery Notes">{view.deliveryConcern}</Field>
+          </div>
+        )}
         <p className="mt-4 text-xs text-muted">
           Finish dates are estimates. Shipping can be affected by customs and carriers, especially
           on cross-border orders.
@@ -200,7 +213,21 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       </Section>
 
       <Section title="Build Type">
+        {/* The tier is the headline fact about what was bought — it was on the
+            order sheet and nowhere on this page. */}
+        {(() => {
+          const tier = tierById(view.jerseyTier);
+          if (!tier) return null;
+          return (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
+              {tier.label} build
+            </div>
+          );
+        })()}
         <div className="grid gap-4 sm:grid-cols-3">
+          {view.numberOfSets > 1 && (
+            <Field label="Number of Sets">{view.numberOfSets}</Field>
+          )}
           <Field label="Jersey Type">{view.jerseyType ? JERSEY_TYPE_LABELS[view.jerseyType] : ''}</Field>
           <Field label="Sock Type">{view.sockType ? SOCK_TYPE_LABELS[view.sockType] : ''}</Field>
           <Field label="Pant Shell Type">
@@ -243,7 +270,33 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <span className="text-muted">Name Style</span>
             <span className="font-semibold">{NAME_STYLE_LABELS[view.addons.nameStyle]}</span>
           </div>
+          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
+            <span className="text-muted">Shoulder Logos</span>
+            <span className={view.addons.hasShoulderLogos ? 'font-semibold text-ppc-gold' : 'text-muted'}>
+              {view.addons.hasShoulderLogos
+                ? view.shoulderLogosSame
+                  ? 'Same both sides'
+                  : 'Left / right differ'
+                : 'None'}
+            </span>
+          </div>
         </div>
+
+        {view.addons.hasCaptainPatches && (
+          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3">
+            <div className="text-sm font-bold text-ppc-gold">Captain Patches</div>
+            <div className="mt-2 grid gap-4 sm:grid-cols-3">
+              <Field label="Style">
+                {view.captainPatchStyle ? CAPTAIN_PATCH_STYLE_META[view.captainPatchStyle].label : ''}
+              </Field>
+              <Field label="Quantity of C&apos;s">{view.captainCQuantity || 0}</Field>
+              <Field label="Quantity of A&apos;s">{view.captainAQuantity || 0}</Field>
+            </div>
+            {view.captainPatchNotes && (
+              <p className="mt-2 text-sm text-muted">{view.captainPatchNotes}</p>
+            )}
+          </div>
+        )}
       </Section>
 
       {(view.roster.length > 0 || view.extraJerseyDetails.length > 0) && (
