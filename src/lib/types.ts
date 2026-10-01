@@ -451,6 +451,18 @@ export interface RosterEntry {
    * was faked by typing "Sock Only" into the jersey-size column.
    */
   sockOnly: boolean;
+  /**
+   * This jersey gets no name on the back.
+   *
+   * A flag rather than an empty name field, for the same reason sockOnly is a
+   * flag rather than words typed into the size column: '' means "nobody has
+   * filled this in yet", which is a problem to chase, and this means "there is
+   * deliberately no name", which is finished work. The manufacturer has to be
+   * able to tell those apart. The typed name is kept, so unticking brings it
+   * back. See `isNoName` in lib/roster-edit.ts for the derived case (the whole
+   * order is No Letters).
+   */
+  noName: boolean;
   jerseySize: string;
   sockSize: string;
   pantShellSize: string;

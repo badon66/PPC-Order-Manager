@@ -12,6 +12,7 @@ import { ArtworkGallery } from '@/components/artwork-gallery';
 import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
+import { isNoName } from '@/lib/roster-edit';
 import { Timeline } from '@/components/timeline';
 import { stageMessage } from '@/lib/data/timeline';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
@@ -329,7 +330,13 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                 {view.roster.map((r) => (
                   <tr key={r.id} className="border-b border-line/50">
                     <td className="py-2 pr-3 font-semibold">
-                      {r.playerNameAsPrinted || <span className="text-muted">—</span>}
+                      {/* Spelled out: a blank here would read as "still to come" to
+                          the manufacturer, and this one is finished. */}
+                      {isNoName(r, view.addons.nameStyle) ? (
+                        <span className="font-normal italic text-muted">No name</span>
+                      ) : (
+                        r.playerNameAsPrinted || <span className="text-muted">—</span>
+                      )}
                       {r.isGoalie && <GoalieBadge />}
                       <CaptaincyBadge value={r.captaincy} />
                     </td>

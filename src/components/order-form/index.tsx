@@ -696,6 +696,7 @@ export function OrderForm({
         sets={draft.sets}
         sockType={draft.sockType}
         pantShellType={draft.pantShellType}
+        nameStyle={draft.nameStyle}
         onChange={(next) => {
           rosterDirty.current = true;
           setRoster(next);

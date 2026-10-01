@@ -5,10 +5,16 @@ import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import {
   blankRosterEntry, nextRowClaims, orderIncludesPantShells, orderIncludesSocks, stripSpaces,
 } from '@/lib/order-utils';
-import type { Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
+import {
+  applyBulkPatch, isNoName, nextHomeAwayClaims, nextSelection, pruneSelection, selectionCut,
+  type BulkPatch,
+} from '@/lib/roster-edit';
+import type { NameStyle, Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 import { SizeSelect } from './fields';
 import { CaptaincyPicker } from '@/components/captaincy';
 import { RosterTally, buildTallies } from './roster-tally';
+import { RosterBreakdown } from './roster-breakdown';
+import { RosterBulkEdit } from './roster-bulk-edit';
 
 /**
  * Roster editor.
@@ -34,6 +40,7 @@ export function RosterTable({
   sets,
   sockType,
   pantShellType,
+  nameStyle,
   onChange,
 }: {
   orderId: string;
@@ -42,9 +49,40 @@ export function RosterTable({
   sets: SetQuantities[];
   sockType: Order['sockType'];
   pantShellType: Order['pantShellType'];
+  /** The order's name style. "No Letters" makes every blank row read as no-name. */
+  nameStyle: NameStyle;
   onChange: (next: RosterEntry[]) => void;
 }) {
   const homeAway = orderMode === 'home_away_set';
+  const noLetters = nameStyle === 'none';
+
+  /*
+   * Selection, for shift-click and bulk edit.
+   *
+   * A set of row ids, never indexes: removing a row above a selected one must
+   * not slide the selection onto the next player. `anchor` is the last row
+   * clicked, which is where a shift-click range starts from.
+   */
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const ids = entries.map((e) => e.id);
+
+  function clickRow(id: string, shift: boolean) {
+    setSelected((cur) => nextSelection(cur, ids, id, anchor, shift));
+    setAnchor(id);
+  }
+  function selectAll(on: boolean) {
+    setSelected(on ? new Set(ids) : new Set());
+    setAnchor(null);
+  }
+  const allSelected = entries.length > 0 && selected.size === entries.length;
+
+  function applyBulk(patch: BulkPatch) {
+    const cut = selectionCut(entries, selected);
+    onChange(applyBulkPatch(entries, selected, patch, cut === 'goalies' ? true : cut === 'skaters' ? false : null));
+    setBulkOpen(false);
+  }
 
   // Columns for things this order doesn't include are hidden outright rather
   // than left blank: an empty sock-size cell on a jerseys-only order looks
@@ -82,12 +120,21 @@ export function RosterTable({
      */
     onChange([
       ...entries,
-      blankRosterEntry(orderId, entries.length, nextRowClaims({ sets }, entries)),
+      blankRosterEntry(
+        orderId,
+        entries.length,
+        nextRowClaims({ sets }, entries),
+        // Home/away: every box the order still has quantity for starts ticked,
+        // instead of four empty boxes to click on every player.
+        homeAway ? nextHomeAwayClaims(sets, entries) : {},
+      ),
     ]);
   }
 
   function removePlayer(i: number) {
-    onChange(entries.filter((_, idx) => idx !== i).map((e, idx) => ({ ...e, sortOrder: idx })));
+    const next = entries.filter((_, idx) => idx !== i).map((e, idx) => ({ ...e, sortOrder: idx }));
+    onChange(next);
+    setSelected((cur) => pruneSelection(cur, next.map((e) => e.id)));
   }
 
   async function handleCsv(file: File) {
@@ -127,6 +174,25 @@ export function RosterTable({
           {skaters} skater{skaters === 1 ? '' : 's'} · {goalies} goalie{goalies === 1 ? '' : 's'}
           {sockOnly > 0 && ` · ${sockOnly} sock only`}
         </span>
+
+        {selected.size > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              className="rounded-lg border border-ppc-gold bg-ppc-gold/10 px-3 py-2 text-sm font-semibold text-ppc-gold"
+            >
+              Edit {selected.size} selected
+            </button>
+            <button
+              type="button"
+              onClick={() => selectAll(false)}
+              className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold text-muted hover:text-foreground"
+            >
+              Clear
+            </button>
+          </>
+        )}
 
         <button
           type="button"
@@ -203,6 +269,16 @@ export function RosterTable({
         </p>
       )}
 
+      {noLetters && (
+        <p className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 px-3 py-2 text-xs text-muted">
+          <span className="font-semibold text-ppc-gold">No Letters is on for this order.</span> Any row
+          without a name typed goes out with no name on the back. Rows that do have a name are left
+          as you set them.
+        </p>
+      )}
+
+      <RosterBreakdown entries={entries} showSocks={showSocks} showPantShells={showPantShells} />
+
       <RosterTally
         tallies={buildTallies(orderMode, sets, entries, {
           socks: showSocks,
@@ -221,6 +297,15 @@ export function RosterTable({
             <table className="w-full min-w-[54rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="w-8 py-2 pr-2">
+                    <input
+                      type="checkbox"
+                      aria-label={allSelected ? 'Deselect all players' : 'Select all players'}
+                      checked={allSelected}
+                      onChange={(e) => selectAll(e.target.checked)}
+                      className="h-4 w-4 cursor-pointer accent-[var(--color-ppc-gold)]"
+                    />
+                  </th>
                   <th className="py-2 pr-2">Name on back</th>
                   <th className="py-2 pr-2 w-20">#</th>
                   <th className="py-2 pr-2 w-28">Jersey</th>
@@ -244,13 +329,35 @@ export function RosterTable({
                 </tr>
               </thead>
               <tbody>
-                {entries.map((e, i) => (
-                  <tr key={e.id} className="border-b border-line/50 align-top">
+                {entries.map((e, i) => {
+                  const noName = isNoName(e, nameStyle);
+                  // Derived (No Letters + blank), as opposed to ticked by hand.
+                  const impliedNoName = noName && !e.noName;
+                  return (
+                  <tr
+                    key={e.id}
+                    className={`border-b border-line/50 align-top ${selected.has(e.id) ? 'bg-ppc-gold/5' : ''}`}
+                  >
+                    <td className="py-2 pr-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${e.playerNameAsPrinted || `player ${i + 1}`}`}
+                        checked={selected.has(e.id)}
+                        /*
+                         * Shift is read off the click that produced this change.
+                         * onChange is the right event for a controlled checkbox,
+                         * and the native event behind it is the mouse click.
+                         */
+                        onChange={(ev) => clickRow(e.id, (ev.nativeEvent as MouseEvent).shiftKey)}
+                        className="mt-2.5 h-4 w-4 cursor-pointer accent-[var(--color-ppc-gold)]"
+                      />
+                    </td>
                     <td className="py-2 pr-2">
                       <input
                         value={e.playerNameAsPrinted}
-                        placeholder={e.sockOnly ? 'Sock only' : 'Player name'}
+                        placeholder={e.sockOnly ? 'Sock only' : noName ? 'No name on back' : 'Player name'}
                         disabled={e.sockOnly}
+                        className={noName ? 'italic' : ''}
                         onChange={(ev) =>
                           patch(i, {
                             playerNameAsPrinted: formatName(ev.target.value),
@@ -263,6 +370,21 @@ export function RosterTable({
                           label="Goalie"
                           onClick={() => patch(i, { isGoalie: !e.isGoalie, sockOnly: false })}
                         />
+                        {!e.sockOnly && (
+                          <RowChip
+                            active={noName}
+                            dim={impliedNoName}
+                            title={
+                              impliedNoName
+                                ? 'No Letters is on and this row has no name typed. Type a name to print one, or tick to make it explicit.'
+                                : noName
+                                  ? 'No name on the back. Untick to print the name.'
+                                  : 'Leave the back blank for this player.'
+                            }
+                            label="No name"
+                            onClick={() => patch(i, { noName: !e.noName })}
+                          />
+                        )}
                         <RowChip
                           active={e.sockOnly}
                           label="Sock only"
@@ -390,7 +512,8 @@ export function RosterTable({
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -415,6 +538,14 @@ export function RosterTable({
                     label="Goalie"
                     onClick={() => patch(i, { isGoalie: !e.isGoalie, sockOnly: false })}
                   />
+                  {!e.sockOnly && (
+                    <RowChip
+                      active={isNoName(e, nameStyle)}
+                      dim={isNoName(e, nameStyle) && !e.noName}
+                      label="No name"
+                      onClick={() => patch(i, { noName: !e.noName })}
+                    />
+                  )}
                   <RowChip
                     active={e.sockOnly}
                     label="Sock only"
@@ -529,6 +660,18 @@ export function RosterTable({
           </div>
         </>
       )}
+
+      {bulkOpen && selected.size > 0 && (
+        <RosterBulkEdit
+          count={selected.size}
+          cut={selectionCut(entries, selected)}
+          homeAway={homeAway}
+          showSocks={showSocks}
+          showPantShells={showPantShells}
+          onApply={applyBulk}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -537,17 +680,27 @@ function RowChip({
   active,
   label,
   onClick,
+  dim = false,
+  title,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
+  /** Active because of a rule, not a tick — shown lighter so the two read differently. */
+  dim?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
       className={`rounded px-2 py-1 text-[0.7rem] font-bold uppercase tracking-wide ${
-        active ? 'bg-ppc-gold text-black' : 'bg-surface text-muted hover:text-foreground'
+        active
+          ? dim
+            ? 'bg-ppc-gold/40 text-black'
+            : 'bg-ppc-gold text-black'
+          : 'bg-surface text-muted hover:text-foreground'
       }`}
     >
       {label}

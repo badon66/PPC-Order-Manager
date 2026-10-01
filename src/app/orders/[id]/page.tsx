@@ -26,6 +26,7 @@ import { timelineOf } from '@/lib/data/timeline';
 import { stagePagePaths } from '@/lib/data/stage-pages';
 import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
+import { isNoName } from '@/lib/roster-edit';
 
 export const dynamic = 'force-dynamic';
 // Sending the final-payment email downloads and attaches finished-jersey
@@ -465,7 +466,11 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 {roster.map((r) => (
                   <tr key={r.id} className="border-b border-line/50">
                     <td className="py-2 pr-3 font-semibold">
-                      {r.playerNameAsPrinted || <span className="text-muted">—</span>}
+                      {isNoName(r, order.nameStyle) ? (
+                        <span className="font-normal italic text-muted">No name</span>
+                      ) : (
+                        r.playerNameAsPrinted || <span className="text-muted">—</span>
+                      )}
                       {r.isGoalie && <GoalieBadge />}
                       <CaptaincyBadge value={r.captaincy} />
                       {r.sockOnly && (

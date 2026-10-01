@@ -42,6 +42,7 @@ function players(
     isGoalie: goalie,
     captaincy: '',
     sockOnly,
+    noName: false,
     jerseySize: sockOnly ? '' : size,
     sockSize: 'Senior',
     pantShellSize: '',

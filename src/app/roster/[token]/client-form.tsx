@@ -12,6 +12,7 @@ import type {
 // Type-only, so nothing of the server-side storage module reaches the browser bundle.
 import type { UploadPurpose } from '@/lib/storage';
 import { CaptaincyPicker } from '@/components/captaincy';
+import { FileThumb } from '@/components/file-thumb';
 import { submitClientForm } from './actions';
 import { ROUTE_COPY } from '@/lib/route-copy';
 import type { RouteVariant } from '@/lib/types';
@@ -771,7 +772,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
           <div className="flex items-center gap-3">
-            <Thumb url={previews[item.fileUrl] ?? item.fileUrl} name={item.fileName} />
+            <FileThumb url={previews[item.fileUrl] ?? item.fileUrl} fileName={item.fileName} size="md" />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.fileName}</span>
             <button type="button" className="text-xs text-muted hover:text-red-300"
               onClick={() => onChange(items.filter((_, j) => j !== i))}>Remove</button>
@@ -792,29 +793,3 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
   );
 }
 
-/*
- * A vector file has no preview, so it shows its format instead.
- *
- * Gold for the formats we want (AI, EPS, SVG, PDF) so an upload that went right
- * looks like it went right — a grey box reading "FILE" after sending an .ai reads
- * as a failure, and people re-upload a JPG to "fix" it.
- */
-function Thumb({ url, name }: { url: string; name: string }) {
-  if (/\.(png|jpe?g|webp|gif|svg)$/i.test(name)) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />;
-  }
-  const m = /\.([a-z0-9]{2,5})$/i.exec(name);
-  const badge = m ? m[1].toUpperCase() : 'FILE';
-  const vector = /^(AI|EPS|PS|PDF|SVG|CDR)$/.test(badge);
-  return (
-    <span
-      title={name}
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold ${
-        vector ? 'bg-ppc-gold/15 text-ppc-gold' : 'bg-surface text-muted'
-      }`}
-    >
-      {badge}
-    </span>
-  );
-}

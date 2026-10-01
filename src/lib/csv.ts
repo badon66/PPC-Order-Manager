@@ -1,6 +1,8 @@
 import { CSV_COLUMNS } from './constants';
 import type { RosterEntry } from './types';
 import { blankRosterEntry } from './order-utils';
+import { NO_NAME_LABEL, isNoName, parsesAsNoName } from './roster-edit';
+import type { NameStyle } from './types';
 
 /**
  * CSV round-trip for the player roster.
@@ -16,11 +18,22 @@ export function escapeCell(v: unknown): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function rosterToCsv(roster: RosterEntry[]): string {
+export function rosterToCsv(
+  roster: RosterEntry[],
+  /**
+   * Needed to print NO NAME for the derived case (the whole order is No
+   * Letters and the row is blank). Defaults to a style that never derives it,
+   * so a caller without the order still gets a correct file for ticked rows.
+   */
+  nameStyle: NameStyle = 'name_bars',
+): string {
   const header = CSV_COLUMNS.join(',');
   const rows = roster.map((r) =>
     [
-      r.playerNameAsPrinted,
+      // The factory must not read a blank as "name to follow". A blank is one
+      // of two things, deliberately nameless or genuinely missing, and only
+      // the first is spelled out.
+      isNoName(r, nameStyle) ? NO_NAME_LABEL : r.playerNameAsPrinted,
       r.number,
       r.isGoalie ? 'Yes' : 'No',
       r.captaincy || '',
@@ -124,18 +137,29 @@ export function csvToRoster(text: string, orderId: string): CsvImportResult {
   const entries: RosterEntry[] = [];
   rows.slice(1).forEach((row, i) => {
     const line = i + 2;
-    const name = get(row, 'name');
+    const rawName = get(row, 'name');
+    const number = get(row, 'number');
     const jerseyRaw = get(row, 'jerseySize');
     const sockOnly = /sock\s*only/i.test(jerseyRaw);
+    // "NO NAME" in the name column is our own export coming back, or a team
+    // that wrote it in. Either way it's a flag, not a name to print.
+    const noName = parsesAsNoName(rawName);
+    const name = noName ? '' : rawName;
 
-    if (!name && !sockOnly) {
-      problems.push({ line, reason: 'No player name', raw: row.join(',') });
+    /*
+     * A row needs SOMETHING to identify the jersey: a name, a number, or it's
+     * sock-only. "No player name" used to reject the whole row, which made a
+     * numbers-only roster, i.e. every no-name team, impossible to import.
+     */
+    if (!name && !number && !sockOnly && !noName) {
+      problems.push({ line, reason: 'No player name or number', raw: row.join(',') });
       return;
     }
 
     const e = blankRosterEntry(orderId, entries.length);
     e.playerNameAsPrinted = name;
-    e.number = get(row, 'number');
+    e.noName = noName;
+    e.number = number;
     e.isGoalie = truthy(get(row, 'goalie'));
     // Anything that isn't a bare C or A is no letter — a spreadsheet typed by
     // hand will contain "Capt", "(A)", stars and blanks.

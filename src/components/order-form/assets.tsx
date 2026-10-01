@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { ARTWORK_ACCEPT_WITH_FONTS, MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
+import { FileThumb } from '@/components/file-thumb';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
@@ -185,7 +186,7 @@ export function AssetGroup({
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
           {mine.map((a) => (
             <li key={a.id} className="flex items-center gap-2 rounded border border-line bg-surface p-2">
-              <Thumb fileName={a.fileName} url={a.viewUrl} />
+              <FileThumb fileName={a.fileName} url={a.viewUrl} />
               <div className="min-w-0 flex-1">
                 <a
                   href={a.viewUrl}
@@ -222,41 +223,3 @@ export function AssetGroup({
   );
 }
 
-/*
- * A vector file gets its format, not the word "FILE".
- *
- * No browser draws an .ai or .eps in an <img>, so there is nothing to preview
- * — but "FILE" throws away the one fact worth knowing at a glance, which is
- * whether what we were sent is usable. "AI" and "EPS" read as good news; "JPG"
- * on a crest is a problem you want to see without opening anything.
- */
-function badgeFor(fileName: string): string {
-  const m = /\.([a-z0-9]{2,5})$/i.exec(fileName);
-  return m ? m[1].toUpperCase() : 'FILE';
-}
-
-function Thumb({ fileName, url }: { fileName: string; url: string }) {
-  const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(fileName);
-  if (!isImage) {
-    const badge = badgeFor(fileName);
-    const vector = /^(AI|EPS|PS|PDF|SVG|CDR)$/.test(badge);
-    return (
-      <span
-        title={fileName}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold ${
-          vector ? 'bg-ppc-gold/15 text-ppc-gold' : 'bg-surface-2 text-muted'
-        }`}
-      >
-        {badge}
-      </span>
-    );
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return (
-    <img
-      src={url}
-      alt=""
-      className="h-9 w-9 shrink-0 rounded object-cover"
-    />
-  );
-}

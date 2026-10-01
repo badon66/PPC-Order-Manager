@@ -4,6 +4,7 @@ import type {
 } from '@/lib/types';
 import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
 import { STATUS_META, captaincyLabel } from '@/lib/constants';
+import { nextHomeAwayClaims } from '@/lib/roster-edit';
 import {
   approvalOpen, extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
@@ -99,6 +100,7 @@ export function healRosterEntry(r: RosterEntry): RosterEntry {
   // Rows written before this field existed are treated as Keenan's own, so
   // the first replacing accept after this ships can't delete work he typed.
   r.fromSubmissionId ??= '';
+  r.noName ??= false;
   return r;
 }
 
@@ -492,6 +494,10 @@ export function planAcceptance(
   let sockBudget = declared((x) => x.sockPairs || 0) - assigned((r) => r.socksPerPlayer);
   let shellBudget = declared((x) => x.pantShells || 0) - assigned((r) => r.shellsPerPlayer);
 
+  // Home/away sock ticks are budgeted per set against what this batch has
+  // already placed, same as the table does for a hand-added row.
+  const ticks = () => nextHomeAwayClaims(order.sets, [...keptRoster, ...roster]);
+
   const takeJersey = () => jerseyBudget-- > 0;
   const takeSocks = () => sockBudget-- > 0;
   const takeShells = () => shellBudget-- > 0;
@@ -505,6 +511,8 @@ export function planAcceptance(
       isGoalie: p.isGoalie,
       captaincy: p.captaincy || '',
       sockOnly: p.sockOnly,
+      // The client form doesn't ask; Keenan ticks it on his side.
+      noName: false,
       jerseySize: p.jerseySize,
       sockSize: p.sockSize,
       pantShellSize: p.pantShellSize ?? '',
@@ -523,10 +531,13 @@ export function planAcceptance(
       shellsPerPlayer: takeShells() ? 1 : 0,
       // In home/away mode a submitted player is assumed to get one of each;
       // Keenan can un-tick in the roster table.
+      // Away socks used to be left unticked here, so every accepted roster
+      // needed a pass down that column by hand. Same per-set rule as a row
+      // added in the table: ticked while that set still has quantity.
       homeJersey: homeAway && !p.sockOnly ? 1 : 0,
       awayJersey: homeAway && !p.sockOnly ? 1 : 0,
-      homeSocks: homeAway && orderIncludesSocks(order) ? 1 : 0,
-      awaySocks: 0,
+      homeSocks: homeAway && orderIncludesSocks(order) && ticks().homeSocks ? 1 : 0,
+      awaySocks: homeAway && orderIncludesSocks(order) && ticks().awaySocks ? 1 : 0,
       armNumbers: '', shoulderLogo: '', pantLogo: '', pantNumber: '',
       notes: p.notes,
       sortOrder: sortOrder++,

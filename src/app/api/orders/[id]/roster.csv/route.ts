@@ -8,7 +8,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const bundle = await repo.getOrder(id);
   if (!bundle) return new Response('Not found', { status: 404 });
 
-  const csv = rosterToCsv(bundle.roster);
+  const csv = rosterToCsv(bundle.roster, bundle.order.nameStyle);
   const slug = (bundle.order.teamName || 'roster').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 
   return new Response(csv, {

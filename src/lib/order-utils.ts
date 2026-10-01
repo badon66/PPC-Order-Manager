@@ -464,6 +464,13 @@ export function blankRosterEntry(
   orderId: string,
   sortOrder: number,
   claims: { jerseys?: boolean; socks?: boolean; pantShells?: boolean } = {},
+  /**
+   * Home/away ticks for a new row. Absent = all off, which is what a
+   * single-set order wants; the roster table passes `nextHomeAwayClaims` so a
+   * home/away row starts with every box the order still has quantity for
+   * ticked, instead of four empty boxes to click on every player.
+   */
+  ticks: { homeJersey?: boolean; awayJersey?: boolean; homeSocks?: boolean; awaySocks?: boolean } = {},
 ): RosterEntry {
   return {
     id: newId(),
@@ -473,16 +480,17 @@ export function blankRosterEntry(
     isGoalie: false,
     captaincy: '',
     sockOnly: false,
+    noName: false,
     jerseySize: '',
     sockSize: '',
     pantShellSize: '',
     jerseysPerPlayer: claims.jerseys ? 1 : 0,
     socksPerPlayer: claims.socks ? 1 : 0,
     shellsPerPlayer: claims.pantShells ? 1 : 0,
-    homeJersey: 0,
-    awayJersey: 0,
-    homeSocks: 0,
-    awaySocks: 0,
+    homeJersey: ticks.homeJersey ? 1 : 0,
+    awayJersey: ticks.awayJersey ? 1 : 0,
+    homeSocks: ticks.homeSocks ? 1 : 0,
+    awaySocks: ticks.awaySocks ? 1 : 0,
     armNumbers: '',
     shoulderLogo: '',
     pantLogo: '',
