@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { ARTWORK_ACCEPT_WITH_FONTS, MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
-import { FileThumb } from '@/components/file-thumb';
+import { ClickableThumb } from '@/components/file-lightbox';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 
 /**
@@ -185,8 +185,8 @@ export function AssetGroup({
       {mine.length > 0 && (
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
           {mine.map((a) => (
-            <li key={a.id} className="flex items-center gap-2 rounded border border-line bg-surface p-2">
-              <FileThumb fileName={a.fileName} url={a.viewUrl} />
+            <li key={a.id} className="flex items-center gap-3 rounded border border-line bg-surface p-2">
+              <ClickableThumb fileName={a.fileName} url={a.viewUrl} />
               <div className="min-w-0 flex-1">
                 <a
                   href={a.viewUrl}

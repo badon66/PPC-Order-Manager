@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { ARTWORK_ACCEPT, MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
-import { FileThumb } from '@/components/file-thumb';
+import { ClickableThumb } from '@/components/file-lightbox';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -252,11 +252,11 @@ function LogoCard({
           {group.assets.map((a) => (
             <li
               key={a.id}
-              className="flex items-center gap-2 rounded border border-line bg-surface p-2"
+              className="flex items-center gap-3 rounded border border-line bg-surface p-2"
             >
               {/* The file was uploaded and then shown only as a name. The
                   signed URL was already here; it just wasn't used. */}
-              <FileThumb fileName={a.fileName} url={a.viewUrl} size="md" />
+              <ClickableThumb fileName={a.fileName} url={a.viewUrl} />
               <a
                 href={a.viewUrl}
                 target="_blank"

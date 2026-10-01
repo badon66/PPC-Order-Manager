@@ -35,9 +35,11 @@ export function FileThumb({
   fileName: string;
   /** A URL the browser can load now — a signed one, for the private bucket. */
   url: string;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
 }) {
-  const box = size === 'md' ? 'h-12 w-12' : 'h-9 w-9';
+  // 'lg' is for the editing form, where you're checking the artwork is right,
+  // not just that a file is there. A 36px crest can't be checked for anything.
+  const box = size === 'lg' ? 'h-28 w-28 text-sm' : size === 'md' ? 'h-12 w-12' : 'h-9 w-9';
 
   if (isPreviewable(fileName) && url) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -49,7 +51,7 @@ export function FileThumb({
   return (
     <span
       title={fileName}
-      className={`flex ${box} shrink-0 items-center justify-center rounded text-[0.6rem] font-bold ${
+      className={`flex ${box} shrink-0 items-center justify-center rounded ${size === 'lg' ? '' : 'text-[0.6rem]'} font-bold ${
         vector ? 'bg-ppc-gold/15 text-ppc-gold' : 'bg-surface-2 text-muted'
       }`}
     >
