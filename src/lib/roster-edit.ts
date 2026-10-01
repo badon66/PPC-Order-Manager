@@ -263,3 +263,38 @@ export function sizedRows(rows: RosterEntry[], garment: 'jersey' | 'sock' | 'pan
 export function usesTicks(mode: OrderMode): boolean {
   return mode === 'home_away_set';
 }
+
+/* ------------------------------------------------------------------ *
+ * Shared value
+ * ------------------------------------------------------------------ */
+
+/** Returned by `sharedValue` when the selected rows don't agree. */
+export const MIXED = Symbol('mixed');
+
+/**
+ * The value a field has across the selected rows, if they all agree; MIXED
+ * if they don't; undefined if nothing is selected.
+ *
+ * The bulk bar is drawn as one more player row, so each control has to show
+ * something: the common value when there is one (so "everyone's a Large"
+ * reads as L), and a visible "mixed" state otherwise, rather than silently
+ * showing the first row's value as if it were everyone's.
+ */
+export function sharedValue<K extends keyof RosterEntry>(
+  rows: RosterEntry[],
+  selected: ReadonlySet<string>,
+  key: K,
+): RosterEntry[K] | typeof MIXED | undefined {
+  let seen = false;
+  let value: RosterEntry[K] | undefined;
+  for (const r of rows) {
+    if (!selected.has(r.id)) continue;
+    if (!seen) {
+      value = r[key];
+      seen = true;
+    } else if (r[key] !== value) {
+      return MIXED;
+    }
+  }
+  return seen ? value : undefined;
+}

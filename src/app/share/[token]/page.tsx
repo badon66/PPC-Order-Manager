@@ -13,6 +13,16 @@ import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { isNoName } from '@/lib/roster-edit';
+import type { AssetRole } from '@/lib/types';
+import { CLIENT_LINK_SECTION_META } from '@/lib/types';
+import type { ClientLinkSections } from '@/lib/types';
+
+/*
+ * Number reference photos belong with Number Details, not three screens down
+ * in the logo gallery. They were being rendered there, correctly, and nobody
+ * looked for them there. Pulled up here and hidden from the gallery below.
+ */
+const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
 import { Timeline } from '@/components/timeline';
 import { stageMessage } from '@/lib/data/timeline';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
@@ -96,6 +106,24 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           >
             Go to sign-off ↓
           </a>
+        </div>
+      )}
+
+      {view.clientFormOpen && (
+        <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-4">
+          <p className="font-bold text-ppc-gold">We still need a few things from you</p>
+          <p className="mt-1 text-sm text-muted">
+            Your team&apos;s form is open for:{' '}
+            <span className="font-semibold text-foreground">
+              {(Object.keys(CLIENT_LINK_SECTION_META) as (keyof ClientLinkSections)[])
+                .filter((k) => view.clientFormSections[k])
+                .map((k) => CLIENT_LINK_SECTION_META[k].label)
+                .join(', ') || 'details'}
+            </span>
+            . Use the form link we sent you to fill it in. Nothing goes into production until
+            it&apos;s done, so the sooner the better. Can&apos;t find the link? Just reply to our
+            email and we&apos;ll resend it.
+          </p>
         </div>
       )}
 
@@ -240,6 +268,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <Field label="Number Details">{view.numberDetails}</Field>
           </div>
         )}
+        {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
+            <ArtworkGallery assets={assets.filter((a) => NUMBER_ROLES.includes(a.role))} teamName={view.teamName} />
+          </div>
+        )}
       </Section>
 
       <Section title="Add-Ons & Customization">
@@ -381,7 +415,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
       {assets.length > 0 && (
         <Section title="Logos & Artwork">
-          <ArtworkGallery assets={assets} teamName={view.teamName} />
+          <ArtworkGallery assets={assets} hideRoles={NUMBER_ROLES} teamName={view.teamName} />
           {/*
             * The notes that go with the artwork, same as the order sheet shows
             * them. Whoever is making these needs the instruction as much as

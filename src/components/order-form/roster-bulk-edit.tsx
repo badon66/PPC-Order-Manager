@@ -1,285 +1,183 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
-import type { BulkPatch } from '@/lib/roster-edit';
+import { MIXED, sharedValue, type BulkPatch } from '@/lib/roster-edit';
+import type { RosterEntry } from '@/lib/types';
 
 /**
- * Edit many roster rows at once.
+ * The bulk-edit bar.
  *
- * "Everyone's a Large except the two goalies" was twenty separate dropdowns and
- * twenty chances to put the L on the wrong line.
+ * Select some players and one more row appears, stuck to the bottom of the
+ * screen, laid out like the rows above it. Whatever you change on it changes on
+ * every selected player, immediately, the same way editing one row does. No
+ * dialog, no Apply button — it IS a row, it just happens to be several.
  *
- * Every field opens on "Leave as is", and a field left there is NOT in the
- * patch — see `applyBulkPatch`. That one rule is what makes this a bulk edit
- * rather than a bulk overwrite: setting sock sizes can't blank jersey sizes,
- * because the jersey size was never sent.
+ * Each control shows the value the selected rows share, or reads "Mixed" when
+ * they don't agree. Touching a control writes that one field and nothing else;
+ * the rows' other fields are never sent. That's `applyBulkPatch`'s rule, and
+ * it is what makes "set everyone's sock size" safe.
  *
- * The dialog builds the patch and hands it back; it never touches the roster
- * itself. The rules about which rows may take which field live in
- * lib/roster-edit.ts, where they're tested.
+ * It stays while the roster is on screen and goes when you scroll away from
+ * it — the table owns that with an IntersectionObserver; this component just
+ * draws.
  */
-
-const KEEP = '__keep__';
-const CLEAR = '__clear__';
 
 type Cut = 'skaters' | 'goalies' | 'mixed' | 'none';
 
-export function RosterBulkEdit({
-  count,
+export function RosterBulkBar({
+  entries,
+  selected,
   cut,
   homeAway,
   showSocks,
   showPantShells,
-  onApply,
-  onClose,
+  onPatch,
+  onClear,
 }: {
-  count: number;
-  /** Skaters, goalies, or a mix — decides which jersey size list is safe to offer. */
+  entries: RosterEntry[];
+  selected: ReadonlySet<string>;
   cut: Cut;
   homeAway: boolean;
   showSocks: boolean;
   showPantShells: boolean;
-  onApply: (patch: BulkPatch) => void;
-  onClose: () => void;
+  /** One field for every selected row. */
+  onPatch: (patch: BulkPatch) => void;
+  onClear: () => void;
 }) {
-  const [name, setName] = useState(KEEP);
-  const [nameText, setNameText] = useState('');
-  const [number, setNumber] = useState(KEEP);
-  const [numberText, setNumberText] = useState('');
-  const [noName, setNoName] = useState(KEEP);
-  const [jersey, setJersey] = useState(KEEP);
-  const [sock, setSock] = useState(KEEP);
-  const [pant, setPant] = useState(KEEP);
-  const [jerseyQty, setJerseyQty] = useState(KEEP);
-  const [sockQty, setSockQty] = useState(KEEP);
-  const [homeJersey, setHomeJersey] = useState(KEEP);
-  const [awayJersey, setAwayJersey] = useState(KEEP);
-  const [homeSocks, setHomeSocks] = useState(KEEP);
-  const [awaySocks, setAwaySocks] = useState(KEEP);
-  const [notes, setNotes] = useState(KEEP);
-  const [notesText, setNotesText] = useState('');
+  const n = selected.size;
+  const v = <K extends keyof RosterEntry>(k: K) => sharedValue(entries, selected, k);
+  const str = (k: 'playerNameAsPrinted' | 'number' | 'jerseySize' | 'sockSize' | 'pantShellSize' | 'notes') => {
+    const x = v(k);
+    return x === MIXED ? { value: '', mixed: true } : { value: (x as string) ?? '', mixed: false };
+  };
+  const tick = (k: 'homeJersey' | 'awayJersey' | 'homeSocks' | 'awaySocks') => {
+    const x = v(k);
+    return x === MIXED ? 'mixed' : x ? 'on' : 'off';
+  };
+  const qty = (k: 'jerseysPerPlayer' | 'socksPerPlayer') => {
+    const x = v(k);
+    return x === MIXED ? { value: '', mixed: true } : { value: String(x ?? 0), mixed: false };
+  };
+  const noNameState = (() => {
+    const x = v('noName');
+    return x === MIXED ? 'mixed' : x ? 'on' : 'off';
+  })();
 
-  // Escape closes. Done here rather than on the backdrop so it works with the
-  // focus inside a select.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const mixedCuts = cut === 'mixed';
-
-  function build(): BulkPatch {
-    const p: BulkPatch = {};
-    if (name === CLEAR) p.playerNameAsPrinted = '';
-    else if (name === 'set') p.playerNameAsPrinted = nameText;
-    if (number === CLEAR) p.number = '';
-    else if (number === 'set') p.number = numberText;
-    if (noName !== KEEP) p.noName = noName === '1';
-    if (jersey !== KEEP) p.jerseySize = jersey === CLEAR ? '' : jersey;
-    if (sock !== KEEP) p.sockSize = sock === CLEAR ? '' : sock;
-    if (pant !== KEEP) p.pantShellSize = pant === CLEAR ? '' : pant;
-    if (jerseyQty !== KEEP) p.jerseysPerPlayer = Number(jerseyQty);
-    if (sockQty !== KEEP) p.socksPerPlayer = Number(sockQty);
-    if (homeJersey !== KEEP) p.homeJersey = homeJersey === '1' ? 1 : 0;
-    if (awayJersey !== KEEP) p.awayJersey = awayJersey === '1' ? 1 : 0;
-    if (homeSocks !== KEEP) p.homeSocks = homeSocks === '1' ? 1 : 0;
-    if (awaySocks !== KEEP) p.awaySocks = awaySocks === '1' ? 1 : 0;
-    if (notes === CLEAR) p.notes = '';
-    else if (notes === 'set') p.notes = notesText;
-    return p;
-  }
-
-  const patch = build();
-  const changes = Object.keys(patch).length;
+  const name = str('playerNameAsPrinted');
+  const number = str('number');
+  const jersey = str('jerseySize');
+  const sock = str('sockSize');
+  const pant = str('pantShellSize');
+  const notes = str('notes');
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Edit ${count} players`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={onClose}
+      role="region"
+      aria-label={`Editing ${n} selected players`}
+      className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-ppc-gold bg-surface shadow-[0_-12px_40px_rgba(0,0,0,0.45)]"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold">
-              Edit {count} player{count === 1 ? '' : 's'}
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Anything left on &ldquo;Leave as is&rdquo; isn&apos;t touched.
-            </p>
-          </div>
+      <div className="mx-auto max-w-[110rem] px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-sm font-bold text-ppc-gold">
+            {n} player{n === 1 ? '' : 's'} selected — anything you change here changes on all of them
+          </span>
           <button
             type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded px-2 py-1 text-muted hover:text-red-300"
+            onClick={onClear}
+            className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground"
           >
-            ✕
+            Done
           </button>
         </div>
 
-        <div className="mt-4 divide-y divide-line/60">
-          <Row label="Name on back">
-            <Choice
-              value={name}
-              onChange={setName}
-              options={[
-                [KEEP, 'Leave as is'],
-                ['set', 'Set to…'],
-                [CLEAR, 'Clear'],
-              ]}
+        <div className="grid items-end gap-2 md:grid-cols-[minmax(10rem,1.4fr)_5rem_7rem_7rem_7rem_auto_minmax(8rem,1.2fr)]">
+          <Cell label="Name on back">
+            <input
+              value={name.value}
+              placeholder={name.mixed ? 'Mixed — type to set all' : 'Same name on all'}
+              className={name.mixed ? 'placeholder:italic' : ''}
+              onChange={(e) => onPatch({ playerNameAsPrinted: e.target.value })}
             />
-            {name === 'set' && (
-              <input
-                autoFocus
-                value={nameText}
-                onChange={(e) => setNameText(e.target.value)}
-                placeholder="Same name on every selected row"
-                className="mt-1.5"
+            <div className="mt-1.5 flex gap-1.5">
+              <Chip
+                state={noNameState}
+                label="No name"
+                onClick={() => onPatch({ noName: noNameState !== 'on' })}
               />
-            )}
-          </Row>
-
-          <Row label="No name on back">
-            <Choice
-              value={noName}
-              onChange={setNoName}
-              options={[
-                [KEEP, 'Leave as is'],
-                ['1', 'Yes — no name'],
-                ['0', 'No — print the name'],
-              ]}
-            />
-          </Row>
-
-          <Row label="Number">
-            <Choice
-              value={number}
-              onChange={setNumber}
-              options={[
-                [KEEP, 'Leave as is'],
-                ['set', 'Set to…'],
-                [CLEAR, 'Clear'],
-              ]}
-            />
-            {number === 'set' && (
-              <input
-                value={numberText}
-                onChange={(e) => setNumberText(e.target.value)}
-                placeholder="Same number on every selected row"
-                className="mt-1.5"
-              />
-            )}
-          </Row>
-
-          {mixedCuts ? (
-            <div className="py-2.5">
-              <p className="text-sm text-muted">
-                <span className="font-semibold text-amber-200">Jersey size not offered:</span> this
-                selection mixes skaters and goalies, which use different size lists. Select them
-                separately to set jersey sizes.
-              </p>
             </div>
-          ) : (
-            cut !== 'none' && (
-              <Row label={cut === 'goalies' ? 'Goalie jersey size' : 'Jersey size'}>
-                <SizeChoice value={jersey} options={jerseySizesFor(cut === 'goalies')} onChange={setJersey} />
-              </Row>
-            )
-          )}
+          </Cell>
 
-          {showSocks && (
-            <Row label="Sock size">
-              <SizeChoice value={sock} options={SOCK_SIZES} onChange={setSock} />
-            </Row>
-          )}
-          {showPantShells && (
-            <Row label="Pant shell size">
-              <SizeChoice value={pant} options={PANT_SHELL_SIZES} onChange={setPant} />
-            </Row>
-          )}
+          <Cell label="#">
+            <input
+              value={number.value}
+              placeholder={number.mixed ? 'Mixed' : '—'}
+              className={number.mixed ? 'placeholder:italic' : ''}
+              onChange={(e) => onPatch({ number: e.target.value })}
+            />
+          </Cell>
+
+          <Cell label={cut === 'goalies' ? 'Goalie jersey' : 'Jersey'}>
+            {cut === 'mixed' ? (
+              <span
+                title="Skaters and goalies use different size lists. Select them separately to set jersey sizes."
+                className="block rounded-lg border border-dashed border-amber-500/50 px-2 py-2 text-center text-xs text-amber-200"
+              >
+                Mixed cuts
+              </span>
+            ) : cut === 'none' ? (
+              <span className="block py-2 text-center text-xs text-muted">—</span>
+            ) : (
+              <Select
+                value={jersey.value}
+                mixed={jersey.mixed}
+                options={jerseySizesFor(cut === 'goalies')}
+                onChange={(x) => onPatch({ jerseySize: x })}
+              />
+            )}
+          </Cell>
+
+          <Cell label="Sock" hidden={!showSocks}>
+            <Select value={sock.value} mixed={sock.mixed} options={SOCK_SIZES} onChange={(x) => onPatch({ sockSize: x })} />
+          </Cell>
+
+          <Cell label="Pant" hidden={!showPantShells}>
+            <Select value={pant.value} mixed={pant.mixed} options={PANT_SHELL_SIZES} onChange={(x) => onPatch({ pantShellSize: x })} />
+          </Cell>
 
           {homeAway ? (
-            <>
-              <Row label="Home jersey">
-                <TickChoice value={homeJersey} onChange={setHomeJersey} />
-              </Row>
-              <Row label="Away jersey">
-                <TickChoice value={awayJersey} onChange={setAwayJersey} />
-              </Row>
-              {showSocks && (
-                <Row label="Home socks">
-                  <TickChoice value={homeSocks} onChange={setHomeSocks} />
-                </Row>
-              )}
-              {showSocks && (
-                <Row label="Away socks">
-                  <TickChoice value={awaySocks} onChange={setAwaySocks} />
-                </Row>
-              )}
-            </>
+            <div className="flex items-end gap-2">
+              <Cell label="Home J">
+                <Tick state={tick('homeJersey')} onChange={(on) => onPatch({ homeJersey: on ? 1 : 0 })} />
+              </Cell>
+              <Cell label="Away J">
+                <Tick state={tick('awayJersey')} onChange={(on) => onPatch({ awayJersey: on ? 1 : 0 })} />
+              </Cell>
+              <Cell label="Home S" hidden={!showSocks}>
+                <Tick state={tick('homeSocks')} onChange={(on) => onPatch({ homeSocks: on ? 1 : 0 })} />
+              </Cell>
+              <Cell label="Away S" hidden={!showSocks}>
+                <Tick state={tick('awaySocks')} onChange={(on) => onPatch({ awaySocks: on ? 1 : 0 })} />
+              </Cell>
+            </div>
           ) : (
-            <>
-              <Row label="Jerseys each">
-                <QtyChoice value={jerseyQty} onChange={setJerseyQty} />
-              </Row>
-              {showSocks && (
-                <Row label="Sock pairs each">
-                  <QtyChoice value={sockQty} onChange={setSockQty} />
-                </Row>
-              )}
-            </>
+            <div className="flex items-end gap-2">
+              <Cell label="Jerseys">
+                <Qty {...qty('jerseysPerPlayer')} onChange={(x) => onPatch({ jerseysPerPlayer: x })} />
+              </Cell>
+              <Cell label="Socks" hidden={!showSocks}>
+                <Qty {...qty('socksPerPlayer')} onChange={(x) => onPatch({ socksPerPlayer: x })} />
+              </Cell>
+            </div>
           )}
 
-          <Row label="Notes">
-            <Choice
-              value={notes}
-              onChange={setNotes}
-              options={[
-                [KEEP, 'Leave as is'],
-                ['set', 'Set to…'],
-                [CLEAR, 'Clear'],
-              ]}
+          <Cell label="Notes">
+            <input
+              value={notes.value}
+              placeholder={notes.mixed ? 'Mixed — type to set all' : 'Same note on all'}
+              className={notes.mixed ? 'placeholder:italic' : ''}
+              onChange={(e) => onPatch({ notes: e.target.value })}
             />
-            {notes === 'set' && (
-              <input
-                value={notesText}
-                onChange={(e) => setNotesText(e.target.value)}
-                placeholder="Same note on every selected row"
-                className="mt-1.5"
-              />
-            )}
-          </Row>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-2">
-          <span className="text-xs text-muted">
-            {changes === 0 ? 'Nothing selected to change yet.' : `${changes} field${changes === 1 ? '' : 's'} will change.`}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-line bg-surface-2 px-4 py-2 text-sm font-semibold"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={changes === 0}
-              onClick={() => onApply(patch)}
-              className="rounded-lg bg-ppc-gold px-4 py-2 text-sm font-semibold text-black hover:bg-ppc-gold-dim disabled:opacity-40"
-            >
-              Apply to {count}
-            </button>
-          </div>
+          </Cell>
         </div>
       </div>
     </div>
@@ -288,79 +186,94 @@ export function RosterBulkEdit({
 
 /* ---------------------------------------------------------------- */
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Cell({ label, children, hidden = false }: { label: string; children: React.ReactNode; hidden?: boolean }) {
+  if (hidden) return null;
   return (
-    <div className="flex items-start justify-between gap-3 py-2.5">
-      <span className="pt-2 text-sm text-muted">{label}</span>
-      <div className="w-56 shrink-0">{children}</div>
-    </div>
+    <label className="block min-w-0">
+      <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</span>
+      {children}
+    </label>
   );
 }
 
-function Choice({
+/** A select whose "Mixed" state is a real, visible option, not a lie about the first row. */
+function Select({
   value,
-  onChange,
+  mixed,
   options,
+  onChange,
 }: {
   value: string;
+  mixed: boolean;
+  options: readonly string[];
   onChange: (v: string) => void;
-  options: Array<[value: string, label: string]>;
 }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full">
-      {options.map(([v, l]) => (
-        <option key={v} value={v}>
-          {l}
+    <select
+      value={mixed ? '__mixed__' : value}
+      onChange={(e) => e.target.value !== '__mixed__' && onChange(e.target.value)}
+      className={mixed ? 'italic text-amber-200' : ''}
+    >
+      {mixed && <option value="__mixed__">Mixed</option>}
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
         </option>
       ))}
     </select>
   );
 }
 
-function SizeChoice({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: readonly string[];
-  onChange: (v: string) => void;
-}) {
+function Qty({ value, mixed, onChange }: { value: string; mixed: boolean; onChange: (n: number) => void }) {
   return (
-    <Choice
+    <input
+      type="number"
+      min={0}
       value={value}
-      onChange={onChange}
-      options={[[KEEP, 'Leave as is'], [CLEAR, 'Clear the size'], ...options.map((o): [string, string] => [o, o])]}
+      placeholder={mixed ? 'Mixed' : '0'}
+      className={`w-20 ${mixed ? 'placeholder:italic' : ''}`}
+      onChange={(e) => onChange(Number(e.target.value) || 0)}
     />
   );
 }
 
-function TickChoice({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** Three-state tick: on, off, or mixed (a dash in amber). Clicking mixed turns everyone on. */
+function Tick({ state, onChange }: { state: 'on' | 'off' | 'mixed'; onChange: (on: boolean) => void }) {
   return (
-    <Choice
-      value={value}
-      onChange={onChange}
-      options={[
-        [KEEP, 'Leave as is'],
-        ['1', 'Tick all'],
-        ['0', 'Untick all'],
-      ]}
-    />
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={state === 'mixed' ? 'mixed' : state === 'on'}
+      onClick={() => onChange(state !== 'on')}
+      className={`flex h-9 w-16 items-center justify-center rounded-lg border text-sm font-bold transition-colors ${
+        state === 'on'
+          ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold'
+          : state === 'mixed'
+            ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+            : 'border-line bg-surface-2 text-muted hover:border-ppc-gold/50'
+      }`}
+    >
+      {state === 'on' ? '✓' : state === 'mixed' ? '±' : '—'}
+    </button>
   );
 }
 
-function QtyChoice({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function Chip({ state, label, onClick }: { state: 'on' | 'off' | 'mixed'; label: string; onClick: () => void }) {
   return (
-    <Choice
-      value={value}
-      onChange={onChange}
-      options={[
-        [KEEP, 'Leave as is'],
-        ['0', '0'],
-        ['1', '1'],
-        ['2', '2'],
-        ['3', '3'],
-      ]}
-    />
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded px-2 py-1 text-[0.7rem] font-bold uppercase tracking-wide ${
+        state === 'on'
+          ? 'bg-ppc-gold text-black'
+          : state === 'mixed'
+            ? 'bg-amber-500/30 text-amber-100'
+            : 'bg-surface-2 text-muted hover:text-foreground'
+      }`}
+    >
+      {label}
+      {state === 'mixed' ? ' ±' : ''}
+    </button>
   );
 }

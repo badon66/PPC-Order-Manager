@@ -27,6 +27,10 @@ import { stagePagePaths } from '@/lib/data/stage-pages';
 import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 import { isNoName } from '@/lib/roster-edit';
+import type { AssetRole } from '@/lib/types';
+
+/** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
+const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
 
 export const dynamic = 'force-dynamic';
 // Sending the final-payment email downloads and attaches finished-jersey
@@ -332,6 +336,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             <Field label="Number Details">{order.numberDetails}</Field>
           </div>
         )}
+        {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
+            <ArtworkGallery assets={assets.filter((a) => NUMBER_ROLES.includes(a.role))} teamName={order.teamName} />
+          </div>
+        )}
       </Section>
 
       <Section title="Add-Ons & Customization">
@@ -519,7 +529,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo']} teamName={order.teamName} />
+        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo', ...NUMBER_ROLES]} teamName={order.teamName} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

@@ -158,6 +158,16 @@ export interface PublicOrderView {
 
   /** Where the order sits, laid out step by step, for the customer's own page. */
   timeline: TimelineStep[];
+
+  /*
+   * Is the team's form still open, and which parts of it. Enough to remind
+   * them on this page; NOT the form's link. The share sheet is forwarded to
+   * the manufacturer and whoever else, and the form URL is built from the
+   * roster token, which is the credential that writes the roster. A reminder
+   * travels safely; the key doesn't.
+   */
+  clientFormOpen: boolean;
+  clientFormSections: ClientLinkSections;
 }
 
 export interface Repository {

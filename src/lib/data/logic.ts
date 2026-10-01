@@ -723,6 +723,9 @@ export function publicViewOf(
     // page URL is built from the roster token — the write credential. See
     // rosterLinkView, which is the one place that link belongs.
     timeline: timelineOf(o, history),
+    // Open = switched on by Keenan and the order hasn't reached production.
+    clientFormOpen: o.requestClientDetails && !clientEditingLocked(o.status),
+    clientFormSections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
   };
 }
 

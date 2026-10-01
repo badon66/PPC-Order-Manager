@@ -243,3 +243,15 @@ test('sizeBreakdown keeps an off-list size rather than losing it', () => {
   const { buckets } = sizeBreakdown(['L', 'Goalie XL'], ['S', 'M', 'L']);
   assert.deepEqual(buckets, [{ size: 'L', count: 1 }, { size: 'Goalie XL', count: 1 }]);
 });
+
+/* ------------------------------------------------------------------ *
+ * Shared value (what the bulk bar shows)
+ * ------------------------------------------------------------------ */
+
+test('sharedValue: the common value, MIXED when rows disagree, undefined when none selected', async () => {
+  const { sharedValue, MIXED } = await import('@/lib/roster-edit');
+  const rows = [row({ jerseySize: 'L' }), row({ jerseySize: 'L' }), row({ jerseySize: 'M' })];
+  assert.equal(sharedValue(rows, new Set([rows[0].id, rows[1].id]), 'jerseySize'), 'L');
+  assert.equal(sharedValue(rows, new Set(ids(rows)), 'jerseySize'), MIXED);
+  assert.equal(sharedValue(rows, new Set(), 'jerseySize'), undefined);
+});

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { describeSet, extraRowCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { describeSet, extraRowCount, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { StatusBadge } from '@/components/ui';
 import type {
   CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
@@ -840,7 +841,21 @@ export function OrderForm({
         </WizardFrame>
       ) : (
         <div className="flex gap-6">
-          <SectionNav sections={sections} activeId={activeId} onJump={jump} />
+          <SectionNav
+            sections={sections}
+            activeId={activeId}
+            onJump={jump}
+            blurb={{
+              teamName: draft.teamName,
+              status: <StatusBadge status={draft.status} />,
+              invoiceNumber: draft.invoiceNumber,
+              line: [
+                ORDER_MODE_META[draft.orderMode].label,
+                `${rosterSlotCount(draft)} player${rosterSlotCount(draft) === 1 ? '' : 's'}`,
+                draft.estimatedFinishDate ? `due ${formatLong(draft.estimatedFinishDate)}` : null,
+              ].filter(Boolean).join(' \u00b7 '),
+            }}
+          />
           <div className="min-w-0 flex-1 space-y-4">
             {sections.map((def) => (
               <SectionCard key={def.id} def={def} anchored>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import {
   blankRosterEntry, nextRowClaims, orderIncludesPantShells, orderIncludesSocks, stripSpaces,
@@ -14,7 +14,7 @@ import { SizeSelect } from './fields';
 import { CaptaincyPicker } from '@/components/captaincy';
 import { RosterTally, buildTallies } from './roster-tally';
 import { RosterBreakdown } from './roster-breakdown';
-import { RosterBulkEdit } from './roster-bulk-edit';
+import { RosterBulkBar } from './roster-bulk-edit';
 
 /**
  * Roster editor.
@@ -65,8 +65,29 @@ export function RosterTable({
    */
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
-  const [bulkOpen, setBulkOpen] = useState(false);
   const ids = entries.map((e) => e.id);
+
+  /*
+   * The bulk bar is stuck to the bottom of the screen while the roster is on
+   * screen, and leaves when you scroll off to another part of the form. The
+   * selection itself survives: scroll back and the bar is there again with the
+   * same players. Clearing is an explicit act (Done), never a side effect of
+   * scrolling.
+   */
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(true);
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
+      // A sliver of the roster still showing counts as "in it"; the bar's own
+      // height is excluded so it can't hide the thing that keeps it open.
+      rootMargin: '0px 0px -120px 0px',
+      threshold: 0,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   function clickRow(id: string, shift: boolean) {
     setSelected((cur) => nextSelection(cur, ids, id, anchor, shift));
@@ -78,10 +99,10 @@ export function RosterTable({
   }
   const allSelected = entries.length > 0 && selected.size === entries.length;
 
+  /** One field, every selected row, immediately: the bar edits like a row does. */
   function applyBulk(patch: BulkPatch) {
     const cut = selectionCut(entries, selected);
     onChange(applyBulkPatch(entries, selected, patch, cut === 'goalies' ? true : cut === 'skaters' ? false : null));
-    setBulkOpen(false);
   }
 
   // Columns for things this order doesn't include are hidden outright rather
@@ -168,7 +189,7 @@ export function RosterTable({
   const sockOnly = entries.filter((e) => e.sockOnly).length;
 
   return (
-    <div className="space-y-3">
+    <div ref={areaRef} className={`space-y-3 ${selected.size > 0 ? 'pb-40' : ''}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-auto text-sm text-muted">
           {skaters} skater{skaters === 1 ? '' : 's'} · {goalies} goalie{goalies === 1 ? '' : 's'}
@@ -176,22 +197,9 @@ export function RosterTable({
         </span>
 
         {selected.size > 0 && (
-          <>
-            <button
-              type="button"
-              onClick={() => setBulkOpen(true)}
-              className="rounded-lg border border-ppc-gold bg-ppc-gold/10 px-3 py-2 text-sm font-semibold text-ppc-gold"
-            >
-              Edit {selected.size} selected
-            </button>
-            <button
-              type="button"
-              onClick={() => selectAll(false)}
-              className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold text-muted hover:text-foreground"
-            >
-              Clear
-            </button>
-          </>
+          <span className="rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-2 text-sm font-semibold text-ppc-gold">
+            {selected.size} selected
+          </span>
         )}
 
         <button
@@ -661,15 +669,16 @@ export function RosterTable({
         </>
       )}
 
-      {bulkOpen && selected.size > 0 && (
-        <RosterBulkEdit
-          count={selected.size}
+      {selected.size > 0 && inView && (
+        <RosterBulkBar
+          entries={entries}
+          selected={selected}
           cut={selectionCut(entries, selected)}
           homeAway={homeAway}
           showSocks={showSocks}
           showPantShells={showPantShells}
-          onApply={applyBulk}
-          onClose={() => setBulkOpen(false)}
+          onPatch={applyBulk}
+          onClear={() => selectAll(false)}
         />
       )}
     </div>

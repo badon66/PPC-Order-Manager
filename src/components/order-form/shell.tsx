@@ -96,19 +96,48 @@ export function StartChooser({ onPick }: { onPick: (m: ViewMode) => void }) {
  * Sections mode: sticky side nav with scroll-spy
  * ------------------------------------------------------------------ */
 
+/**
+ * What's pinned above the section list: which order you're in.
+ *
+ * Twelve sections down a long form, every field looks like every other
+ * order's field. The team name and a line of facts stay in the corner of your
+ * eye so you never save a size into the wrong team's roster.
+ */
+export interface OrderBlurb {
+  teamName: string;
+  status: ReactNode;
+  /** One short line: "Home/Away · 18 players · due Oct 14". */
+  line: string;
+  invoiceNumber?: string;
+}
+
 export function SectionNav({
   sections,
   activeId,
   onJump,
+  blurb,
 }: {
   sections: SectionDef[];
   activeId: string;
   onJump: (id: string) => void;
+  blurb?: OrderBlurb;
 }) {
   return (
     <>
       {/* Desktop sidebar */}
       <nav aria-label="Form sections" className="sticky top-20 hidden max-h-[calc(100vh-6rem)] w-52 shrink-0 space-y-0.5 overflow-y-auto lg:block">
+        {blurb && (
+          <div className="mb-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+            <div className="truncate text-sm font-bold text-ppc-gold" title={blurb.teamName}>
+              {blurb.teamName || 'Untitled order'}
+            </div>
+            <div className="mt-1.5">{blurb.status}</div>
+            <div className="mt-1.5 text-xs leading-snug text-muted">{blurb.line}</div>
+            {blurb.invoiceNumber && (
+              <div className="mt-1 text-[0.7rem] text-muted">Inv. {blurb.invoiceNumber}</div>
+            )}
+          </div>
+        )}
         {sections.map((s) => (
           <button
             key={s.id}
@@ -129,6 +158,12 @@ export function SectionNav({
 
       {/* Phone: sticky jump menu */}
       <div className="sticky top-[3.4rem] z-20 -mx-4 border-b border-line bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
+        {blurb && (
+          <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+            <span className="truncate font-bold text-ppc-gold">{blurb.teamName || 'Untitled order'}</span>
+            {blurb.status}
+          </div>
+        )}
         <select
           value={activeId}
           onChange={(e) => onJump(e.target.value)}
