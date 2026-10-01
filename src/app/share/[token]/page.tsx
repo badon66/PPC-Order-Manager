@@ -7,7 +7,7 @@ import {
   PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
   CAPTAIN_PATCH_STYLE_META, tierById,
 } from '@/lib/constants';
-import { Card, Field, Section, Stat, YesNo } from '@/components/ui';
+import { Card, Field, Section, Stat } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
@@ -271,54 +271,68 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
           <div className="mt-4">
             <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
-            <ArtworkGallery assets={assets.filter((a) => NUMBER_ROLES.includes(a.role))} teamName={view.teamName} />
+            {/* Home and away side by side, each half the width, not stacked. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {NUMBER_ROLES.filter((r) => assets.some((a) => a.role === r)).map((r) => (
+                <ArtworkGallery key={r} assets={assets.filter((a) => a.role === r)} teamName={view.teamName} />
+              ))}
+            </div>
           </div>
         )}
       </Section>
 
       <Section title="Add-Ons & Customization">
-        <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Filtered the same way the order form filters them, so the customer
-              isn't told "No" to an option that doesn't exist on their build. */}
-          {addonsForJerseyType(view.jerseyType).map(({ key, label }) => (
-            <div key={key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-              <span className="text-muted">{label}</span>
-              <YesNo value={Boolean(view.addons[key as keyof typeof view.addons])} />
-            </div>
-          ))}
-          {hasPantShells &&
-            PANT_TOGGLES.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-                <span className="text-muted">{label}</span>
-                <YesNo value={Boolean(view.addons[key as keyof typeof view.addons])} />
-              </div>
-            ))}
-          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-            <span className="text-muted">Laces Style</span>
-            <span className="font-semibold">{LACES_LABELS[view.addons.lacesStyle]}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-            <span className="text-muted">Shoulder Cut</span>
-            <span className="font-semibold">{SHOULDER_CUT_LABELS[view.addons.shoulderCut]}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-            <span className="text-muted">Stitch-on Shoulder Trim</span>
-            <YesNo value={view.addons.stitchedShoulderTrim} />
-          </div>
-          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-            <span className="text-muted">Name Style</span>
-            <span className="font-semibold">{NAME_STYLE_LABELS[view.addons.nameStyle]}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-            <span className="text-muted">Shoulder Logos</span>
-            <span className={view.addons.hasShoulderLogos ? 'font-semibold text-ppc-gold' : 'text-muted'}>
-              {view.addons.hasShoulderLogos
-                ? view.shoulderLogosSame
-                  ? 'Same both sides'
-                  : 'Left / right differ'
-                : 'None'}
-            </span>
-          </div>
+        {/*
+          * Two lists instead of a grid of label/Yes/No rows. In the grid, each
+          * "Yes" landed right beside the next row's name and read as part of it.
+          * What's on the jersey is the thing to see at a glance, so it gets the
+          * gold chips; what isn't is one muted line underneath.
+          */}
+        {(() => {
+          const toggles = [
+            ...addonsForJerseyType(view.jerseyType),
+            ...(hasPantShells ? PANT_TOGGLES : []),
+            { key: 'stitchedShoulderTrim', label: 'Stitch-on Shoulder Trim' },
+          ] as Array<{ key: string; label: string }>;
+          const on = toggles.filter((t) => Boolean(view.addons[t.key as keyof typeof view.addons]));
+          const off = toggles.filter((t) => !view.addons[t.key as keyof typeof view.addons]);
+          return (
+            <>
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">Included on this order</div>
+              {on.length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {on.map((t) => (
+                    <span
+                      key={t.key}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
+                    >
+                      <span aria-hidden>&#10003;</span> {t.label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted">No add-ons on this order.</p>
+              )}
+              {off.length > 0 && (
+                <p className="mt-3 text-xs text-muted">
+                  <span className="font-semibold">Not included:</span> {off.map((t) => t.label).join(' \u00b7 ')}
+                </p>
+              )}
+            </>
+          );
+        })()}
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Laces">{LACES_LABELS[view.addons.lacesStyle]}</Field>
+          <Field label="Shoulder Cut">{SHOULDER_CUT_LABELS[view.addons.shoulderCut]}</Field>
+          <Field label="Name Style">{NAME_STYLE_LABELS[view.addons.nameStyle]}</Field>
+          <Field label="Shoulder Logos">
+            {view.addons.hasShoulderLogos
+              ? view.shoulderLogosSame
+                ? 'Same both sides'
+                : 'Left / right differ'
+              : 'None'}
+          </Field>
         </div>
 
         {view.addons.hasCaptainPatches && (
@@ -344,6 +358,16 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             view.extraJerseyDetails.length ? ` + ${view.extraJerseyDetails.length} spare` : ''
           }${view.extraJerseyDetails.length > 1 ? 's' : ''})`}
         >
+          <div className="mb-3 flex justify-end">
+            {/* The same file Keenan's side produces, keyed by this page's token
+                instead of the order id. No sign-in, no money in it. */}
+            <a
+              href={`/api/share/${token}/roster.csv`}
+              className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
+            >
+              Download roster (CSV)
+            </a>
+          </div>
           <div className="-mx-4 overflow-x-auto px-4">
             <table className="w-full min-w-[34rem] text-sm">
               <thead>

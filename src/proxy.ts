@@ -14,6 +14,7 @@ import { SESSION_COOKIE, isValidSession } from '@/lib/session';
  *   /share/...   customer's read-only order view
  *   /roster/...  customer's roster submission form
  *   /api/public-upload/<token>  file uploads from that form (token-gated itself)
+ *   /api/share/<token>/...  downloads off the share sheet (token-gated itself)
  *   /api/intake  website enquiries coming in (origin-gated; see src/lib/data/intake-logic.ts)
  *
  * Both customer routes are addressed by a long random per-order token rather
@@ -23,7 +24,7 @@ import { SESSION_COOKIE, isValidSession } from '@/lib/session';
  * addresses, the order list, and every write.
  */
 
-const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake'];
+const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake', '/api/share/'];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
