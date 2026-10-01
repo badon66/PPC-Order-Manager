@@ -565,6 +565,8 @@ export interface Order {
   pantNumber: boolean;
   lacesStyle: LacesStyle;
   shoulderCut: ShoulderCut;
+  /** Stitched trim along the shoulder seam. Sits with the shoulder cut because that's where you decide it. */
+  stitchedShoulderTrim: boolean;
   nameStyle: NameStyle;
 
   hasCaptainPatches: boolean;

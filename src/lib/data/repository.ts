@@ -110,7 +110,7 @@ export interface PublicOrderView {
     | 'dimpledShoulders' | 'reinforcedElbows' | 'underarmVents' | 'frontCrest'
     | 'armNumbers' | 'printedSizingTag' | 'ppcBackBranding' | 'stopSignPatch'
     | 'rubberizedPpcCrest' | 'stitchedSublimatedLogos' | 'twillBorderNumbers'
-    | 'pantLogo' | 'pantNumber' | 'lacesStyle' | 'shoulderCut' | 'nameStyle'
+    | 'pantLogo' | 'pantNumber' | 'lacesStyle' | 'shoulderCut' | 'stitchedShoulderTrim' | 'nameStyle'
     | 'hasCaptainPatches' | 'hasShoulderLogos'
   >;
   /*

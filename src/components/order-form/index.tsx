@@ -555,6 +555,7 @@ export function OrderForm({
           onChange={(v) => v && set('shoulderCut', v)}
           choices={(Object.keys(SHOULDER_CUT_LABELS) as ShoulderCut[]).map((v) => ({ value: v, label: SHOULDER_CUT_LABELS[v] }))}
         />
+        <Toggle label="Stitch-on shoulder trim" checked={draft.stitchedShoulderTrim} onChange={(v) => set('stitchedShoulderTrim', v)} />
         <Toggle label="Captain Patches (C's / A's)" checked={draft.hasCaptainPatches} onChange={(v) => set('hasCaptainPatches', v)} />
         {draft.hasCaptainPatches && (
           <div className="space-y-3 rounded-lg border border-line bg-surface-2 p-3">

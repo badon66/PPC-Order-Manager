@@ -55,6 +55,7 @@ export function healOrder(o: Order): Order {
   o.rubberizedPpcCrest ??= false;
   o.stitchedSublimatedLogos ??= false;
   o.twillBorderNumbers ??= false;
+  o.stitchedShoulderTrim ??= false;
   o.jerseyTier ??= null;
   o.requestClientDetails ??= false;
   o.productionStartDate ??= null;
@@ -683,6 +684,7 @@ export function publicViewOf(
       pantNumber: o.pantNumber,
       lacesStyle: o.lacesStyle,
       shoulderCut: o.shoulderCut,
+      stitchedShoulderTrim: o.stitchedShoulderTrim,
       nameStyle: o.nameStyle,
       hasCaptainPatches: o.hasCaptainPatches,
       hasShoulderLogos: o.hasShoulderLogos,

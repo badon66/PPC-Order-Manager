@@ -88,6 +88,7 @@ export function seedDatabase(): Database {
     ppcBackBranding: true,
     lacesStyle: 'hanging',
     shoulderCut: 'rounded',
+    stitchedShoulderTrim: false,
     nameStyle: 'name_bars',
     contactFirstName: 'Dana',
     contactLastName: 'Whitfield',

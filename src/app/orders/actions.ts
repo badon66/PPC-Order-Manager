@@ -112,7 +112,7 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'armNumbers', 'printedSizingTag', 'ppcBackBranding', 'stopSignPatch',
   'rubberizedPpcCrest', 'stitchedSublimatedLogos', 'twillBorderNumbers',
   'jerseyTier',
-  'pantLogo', 'pantNumber', 'lacesStyle', 'shoulderCut', 'nameStyle',
+  'pantLogo', 'pantNumber', 'lacesStyle', 'shoulderCut', 'stitchedShoulderTrim', 'nameStyle',
   'hasCaptainPatches', 'captainPatchStyle', 'captainCQuantity', 'captainAQuantity',
   'captainPatchNotes', 'hasShoulderLogos', 'shoulderLogosSame',
   'designReferenceNotes', 'collarReferenceNotes', 'mainCrestNotes',

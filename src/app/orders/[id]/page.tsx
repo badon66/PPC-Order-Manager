@@ -370,6 +370,10 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             ))}
           <LabelRow label="Laces Style" value={LACES_LABELS[order.lacesStyle]} />
           <LabelRow label="Shoulder Cut" value={SHOULDER_CUT_LABELS[order.shoulderCut]} />
+          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
+            <span className="text-muted">Stitch-on Shoulder Trim</span>
+            <YesNo value={order.stitchedShoulderTrim} />
+          </div>
           <LabelRow label="Name Style" value={NAME_STYLE_LABELS[order.nameStyle]} />
           <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
             <span className="text-muted">Shoulder Logos</span>

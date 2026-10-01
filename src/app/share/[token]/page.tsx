@@ -268,6 +268,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <span className="font-semibold">{SHOULDER_CUT_LABELS[view.addons.shoulderCut]}</span>
           </div>
           <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
+            <span className="text-muted">Stitch-on Shoulder Trim</span>
+            <YesNo value={view.addons.stitchedShoulderTrim} />
+          </div>
+          <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
             <span className="text-muted">Name Style</span>
             <span className="font-semibold">{NAME_STYLE_LABELS[view.addons.nameStyle]}</span>
           </div>
