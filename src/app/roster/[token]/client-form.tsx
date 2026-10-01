@@ -1,7 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
+import {
+  ARTWORK_ACCEPT, CONTACT_EMAIL, PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL,
+  SOCK_SIZES, VECTOR_FORMATS, jerseySizesFor,
+} from '@/lib/constants';
 import type {
   ClientLinkSections, ExtraJersey, RosterAnswer, SubmittedContact, SubmittedInspiration, SubmittedLogo,
   SubmittedPlayer, SubmittedRosterFile,
@@ -277,8 +280,37 @@ export function ClientForm({
   return (
     <div className="space-y-5">
       {sections.logos && (
-        <Step n={stepNums.logos} title="Logos" hint={variant ? ROUTE_COPY[variant].logosHint : 'Team logo, sponsor logos, crest files. The higher the resolution, the better it prints.'}>
+        <Step n={stepNums.logos} title="Logos" hint={variant ? ROUTE_COPY[variant].logosHint : 'Team logo, sponsor logos, crest files.'}>
+          {/*
+            * Promoted out of the 12px hint and into the body on purpose. This
+            * is the single most common thing that goes wrong on an order, and
+            * important information in muted small text does not get read.
+            */}
+          <div className="mb-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3.5">
+            <p className="text-sm font-bold text-ppc-gold">
+              Logos need to be vector files ({VECTOR_FORMATS.join(', ')})
+            </p>
+            <p className="mt-1.5 text-sm text-muted">
+              A vector file redraws itself at any size and stays sharp, whether it&apos;s a
+              3&quot; shoulder patch or a full chest crest. A JPG or PNG saved off a website,
+              or a screenshot, goes fuzzy the moment it&apos;s blown up to jersey size — so
+              those unfortunately can&apos;t be used for the print, even a big one.
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              Not sure what you&apos;ve got, or can&apos;t find the original? No stress — upload
+              whatever you have and{' '}
+              <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-ppc-gold hover:underline">
+                get in touch
+              </a>{' '}
+              and we&apos;ll sort it out with you. We can usually track down or rebuild a logo.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              AI and EPS files can&apos;t be shown in a browser, so you&apos;ll just see the file
+              type after uploading rather than a picture. That&apos;s normal — it uploaded fine.
+            </p>
+          </div>
           <FileList<SubmittedLogo>
+            accept={ARTWORK_ACCEPT}
             previews={previews}
             onPreview={addPreview}
             token={token}
@@ -691,7 +723,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 
 function FileList<T extends { fileUrl: string; fileName: string }>({
   token, items, blank, onChange, addLabel, emptyHint, render, previews, onPreview,
-  accept = 'image/*,.pdf,.svg', purpose = 'artwork',
+  accept = ARTWORK_ACCEPT, purpose = 'artwork',
 }: {
   token: string;
   /** What the file picker offers; the server's allow-list is what actually decides. */
@@ -760,10 +792,29 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
   );
 }
 
+/*
+ * A vector file has no preview, so it shows its format instead.
+ *
+ * Gold for the formats we want (AI, EPS, SVG, PDF) so an upload that went right
+ * looks like it went right — a grey box reading "FILE" after sending an .ai reads
+ * as a failure, and people re-upload a JPG to "fix" it.
+ */
 function Thumb({ url, name }: { url: string; name: string }) {
   if (/\.(png|jpe?g|webp|gif|svg)$/i.test(name)) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />;
   }
-  return <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-surface text-[0.6rem] font-bold text-muted">FILE</span>;
+  const m = /\.([a-z0-9]{2,5})$/i.exec(name);
+  const badge = m ? m[1].toUpperCase() : 'FILE';
+  const vector = /^(AI|EPS|PS|PDF|SVG|CDR)$/.test(badge);
+  return (
+    <span
+      title={name}
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold ${
+        vector ? 'bg-ppc-gold/15 text-ppc-gold' : 'bg-surface text-muted'
+      }`}
+    >
+      {badge}
+    </span>
+  );
 }

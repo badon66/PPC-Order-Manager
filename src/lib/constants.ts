@@ -455,6 +455,38 @@ export function isLogoRole(role: AssetRole): boolean {
   return LOGO_ROLES.includes(role);
 }
 
+/* ------------------------------------------------------------------ *
+ * Artwork file types
+ * ------------------------------------------------------------------ */
+
+/** Where a team is pointed when their logo isn't in a usable format. */
+export const CONTACT_EMAIL = 'info@powerplaycustoms.ca';
+
+/**
+ * Vector formats a logo can arrive as, in the order worth listing them.
+ *
+ * Vector is the requirement, not resolution. "The higher the resolution, the
+ * better it prints" invited exactly the wrong thing — people sent a big JPG
+ * believing they'd solved it. Resolution isn't the axis that matters: a vector
+ * file has no resolution, it redraws itself at any size.
+ */
+export const VECTOR_FORMATS = ['.AI', '.EPS', '.SVG', '.PDF'] as const;
+
+/**
+ * What the file picker offers for artwork.
+ *
+ * Deliberately wide. The picker hiding a file the team actually has is the
+ * worst outcome here — they conclude it can't be sent and email a screenshot
+ * instead. Every real vector format is listed, and the server's allow-list in
+ * `lib/storage.ts` is what actually decides. Note .ai and .eps commonly arrive
+ * with an empty or octet-stream MIME type, so extension matters more than type.
+ */
+export const ARTWORK_ACCEPT =
+  'image/*,.svg,.pdf,.ai,.eps,.ps,.cdr,.sketch,.afdesign,.afphoto,.psd,.indd';
+
+/** Artwork, plus the font files only Keenan's own form needs to take. */
+export const ARTWORK_ACCEPT_WITH_FONTS = `${ARTWORK_ACCEPT},.ttf,.otf,.woff,.woff2`;
+
 export const MAX_FILES_PER_REFERENCE_GROUP = 4;
 
 /**

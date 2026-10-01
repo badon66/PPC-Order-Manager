@@ -30,6 +30,36 @@ const ALLOWED = new Set([
   'application/pdf',
   'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
   'application/octet-stream', // some browsers send this for .ttf/.otf
+  /*
+   * Vector deliverables — the formats a logo is actually usable in.
+   *
+   * There is no agreed MIME type for any of them. Illustrator files turn up as
+   * application/postscript, application/illustrator, application/pdf (an .ai
+   * saved PDF-compatible, which is the default), or nothing at all; EPS has at
+   * least four spellings in the wild. Listing them all is cheaper than
+   * guessing, and `VECTOR_EXTENSIONS` below catches whatever a browser leaves
+   * blank.
+   */
+  'application/postscript',
+  'application/illustrator', 'application/x-illustrator',
+  'application/eps', 'application/x-eps', 'image/eps', 'image/x-eps',
+  'application/coreldraw', 'application/x-cdr', 'image/x-coreldraw',
+  'image/vnd.adobe.photoshop', 'application/x-photoshop',
+  'application/x-indesign',
+]);
+
+/**
+ * Artwork extensions trusted regardless of the MIME type the browser reports.
+ *
+ * A .ai dragged out of Illustrator frequently arrives with type '' or
+ * application/octet-stream, so a MIME-only check rejected the single most
+ * important file a team can send us. The extension is the reliable signal for
+ * these formats; the size cap and the private bucket are what actually contain
+ * the risk, not the type string.
+ */
+const VECTOR_EXTENSIONS = new Set([
+  '.ai', '.eps', '.ps', '.svg', '.pdf', '.cdr',
+  '.sketch', '.afdesign', '.afphoto', '.psd', '.indd',
 ]);
 
 /**
@@ -95,11 +125,15 @@ function checkAllowed(
     );
   }
   const allowed = purpose === 'roster' ? ROSTER_ALLOWED : ALLOWED;
-  if (file.type && !allowed.has(file.type)) {
+  // An artwork file whose extension is a known vector format is taken on the
+  // extension alone — see VECTOR_EXTENSIONS.
+  const ext = path.extname(file.name).toLowerCase();
+  const byExtension = purpose === 'artwork' && VECTOR_EXTENSIONS.has(ext);
+  if (file.type && !allowed.has(file.type) && !byExtension) {
     throw new Error(
       purpose === 'roster'
         ? `"${file.name}" is a ${file.type} file. Upload a spreadsheet, a PDF, a Word file, or a photo of the list.`
-        : `"${file.name}" is a ${file.type} file. Upload an image, PDF, or font file.`,
+        : `"${file.name}" is a ${file.type} file. Upload an image, a vector file (AI, EPS, SVG, PDF), or a font file.`,
     );
   }
 }

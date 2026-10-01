@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
+import { ARTWORK_ACCEPT, MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -222,7 +222,7 @@ function LogoCard({
           type="file"
           multiple
           hidden
-          accept="image/*,.pdf,.svg"
+          accept={ARTWORK_ACCEPT}
           onChange={(e) => {
             if (e.target.files?.length) handleFiles(e.target.files);
             e.target.value = '';

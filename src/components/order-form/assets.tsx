@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
+import { ARTWORK_ACCEPT_WITH_FONTS, MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -163,7 +163,7 @@ export function AssetGroup({
           type="file"
           multiple
           hidden
-          accept="image/*,.pdf,.svg,.ttf,.otf,.woff,.woff2"
+          accept={ARTWORK_ACCEPT_WITH_FONTS}
           onChange={(e) => {
             if (e.target.files?.length) handleFiles(e.target.files);
             e.target.value = '';
@@ -222,12 +222,32 @@ export function AssetGroup({
   );
 }
 
+/*
+ * A vector file gets its format, not the word "FILE".
+ *
+ * No browser draws an .ai or .eps in an <img>, so there is nothing to preview
+ * — but "FILE" throws away the one fact worth knowing at a glance, which is
+ * whether what we were sent is usable. "AI" and "EPS" read as good news; "JPG"
+ * on a crest is a problem you want to see without opening anything.
+ */
+function badgeFor(fileName: string): string {
+  const m = /\.([a-z0-9]{2,5})$/i.exec(fileName);
+  return m ? m[1].toUpperCase() : 'FILE';
+}
+
 function Thumb({ fileName, url }: { fileName: string; url: string }) {
   const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(fileName);
   if (!isImage) {
+    const badge = badgeFor(fileName);
+    const vector = /^(AI|EPS|PS|PDF|SVG|CDR)$/.test(badge);
     return (
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-surface-2 text-[0.6rem] font-bold text-muted">
-        FILE
+      <span
+        title={fileName}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold ${
+          vector ? 'bg-ppc-gold/15 text-ppc-gold' : 'bg-surface-2 text-muted'
+        }`}
+      >
+        {badge}
       </span>
     );
   }
