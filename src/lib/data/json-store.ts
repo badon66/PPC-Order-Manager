@@ -10,8 +10,9 @@ import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
+import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
 
@@ -166,6 +167,7 @@ export const jsonStore: Repository = {
       const idx = db.orders.findIndex((o) => o.id === id);
       if (idx === -1) throw new Error(`Order ${id} not found`);
       const before = db.orders[idx];
+      patch = stampCompletion(before, patch, today());
 
       db.history.push(...updateLogEntries(before, patch, actor));
 

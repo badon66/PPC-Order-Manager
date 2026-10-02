@@ -409,6 +409,8 @@ export function blankOrder(): Order {
     lacesStyle: 'none',
     shoulderCut: 'rounded',
     stitchedShoulderTrim: false,
+    orderValue: null,
+    completedAt: null,
     nameStyle: 'free_standing_letters',
 
     hasCaptainPatches: false,

@@ -564,6 +564,18 @@ export interface Order {
   pantLogo: boolean;
   pantNumber: boolean;
   lacesStyle: LacesStyle;
+  /* Money. KEENAN ONLY.
+   *
+   * These never leave the access-coded side. Not in PublicOrderView, not on
+   * /share or /roster, not in the roster CSV, not in ApprovalRecord. The test
+   * in tests/money/leak.test.ts fails the build if any of them do. */
+
+  /** What the order is worth, CAD before tax. null = not priced yet. */
+  orderValue: number | null;
+
+  /** The day it was marked Completed. Stamped by `stampCompletion`; editable to correct. */
+  completedAt: CalendarDate | null;
+
   shoulderCut: ShoulderCut;
   /** Stitched trim along the shoulder seam. Sits with the shoulder cut because that's where you decide it. */
   stitchedShoulderTrim: boolean;

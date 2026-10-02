@@ -9,8 +9,9 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
+import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 
 /**
@@ -207,6 +208,7 @@ export const supabaseStore: Repository = {
   async updateOrder(id, patch, actor) {
     const before = await orderById(id, true);
     if (!before) throw new Error(`Order ${id} not found`);
+    patch = stampCompletion(before, patch, today());
 
     const after: Order = { ...before, ...patch, updatedAt: new Date().toISOString() };
 

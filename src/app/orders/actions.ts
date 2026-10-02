@@ -103,6 +103,7 @@ const DATE_FIELDS = [
 const EDITABLE: ReadonlyArray<keyof Order> = [
   'teamName', 'invoiceNumber', 'datePaid', 'googleDriveLink', 'status',
   'estimatedFinishDate', 'trackingCode', 'isSample',
+  'orderValue', 'completedAt',
   'contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone',
   'shippingStreet', 'shippingSecondary', 'shippingCity', 'shippingProvince',
   'shippingPostal', 'requestClientDetails', 'clientLinkSections',

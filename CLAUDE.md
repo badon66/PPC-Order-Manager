@@ -37,11 +37,17 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 
 ## Non-negotiables
 
-- **No pricing, money, or invoicing anywhere.** Not a dollar field, not a
-  total, not a "helpful" cost estimate. Deliberate. Don't add it.
-  The one exception, decided 2026-09-25: the three request emails (initial
-  deposit, pre-production deposit, final payment) carry an amount Keenan types
-  into the send panel. It goes into that email and nowhere else.
+- **Money is Keenan's and nobody else's.** Decided 2026-10-02, replacing the
+  old "no money anywhere" rule. Money fields (`orderValue`, `completedAt`, the
+  list prices in `lib/pricing.ts`, the board's Outgoing / YTD panel) live
+  behind the access code. They must NEVER appear in `PublicOrderView` /
+  `publicViewOf`, on `/share/<token>` or `/roster/<token>`, in the roster CSV
+  (either route), in `ApprovalRecord`, or in any future factory pack. The
+  client and the manufacturer never see a price. `tests/money/leak.test.ts`
+  checks every one of those surfaces by value AND by key name; a new money
+  field means adding it to that test in the same commit.
+  The payment-request emails still carry the amount Keenan types into the
+  send panel, and that amount goes into that email and nowhere else.
 - **Customer update emails are offered, never sent, on a status change.** The
   panel on the order page asks first; only the approval receipt is automatic.
   Leaving the pre-production deposit gate in either direction counts as the

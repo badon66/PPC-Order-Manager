@@ -89,6 +89,8 @@ export function seedDatabase(): Database {
     lacesStyle: 'hanging',
     shoulderCut: 'rounded',
     stitchedShoulderTrim: false,
+    orderValue: null,
+    completedAt: null,
     nameStyle: 'name_bars',
     contactFirstName: 'Dana',
     contactLastName: 'Whitfield',

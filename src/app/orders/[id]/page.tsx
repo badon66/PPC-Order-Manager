@@ -27,6 +27,7 @@ import { stagePagePaths } from '@/lib/data/stage-pages';
 import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 import { isNoName } from '@/lib/roster-edit';
+import { formatCad } from '@/lib/pricing';
 import type { AssetRole } from '@/lib/types';
 
 /** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
@@ -204,7 +205,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             <p className="mb-2 text-xs font-medium text-muted">What the customer sees</p>
             <Timeline steps={timeline} compact />
           </div>
-          <div>
+          <div id="customer-emails" className="scroll-mt-24">
             <p className="mb-2 text-xs font-medium text-muted">Customer emails</p>
             <SendUpdatePanel
               orderId={order.id}
@@ -223,6 +224,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Team Name">{order.teamName}</Field>
           <Field label="Invoice Number">{order.invoiceNumber}</Field>
+          {/* Keenan's page only. Never on /share. */}
+          <Field label="Order Value (before tax)">{formatCad(order.orderValue)}</Field>
           <Field label="Date Paid">{formatLong(order.datePaid)}</Field>
           <Field label="Production Start">{formatLong(order.productionStartDate)}</Field>
           <Field label="Estimated Finish">{formatLong(order.estimatedFinishDate)}</Field>

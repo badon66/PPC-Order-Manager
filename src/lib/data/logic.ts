@@ -56,6 +56,8 @@ export function healOrder(o: Order): Order {
   o.stitchedSublimatedLogos ??= false;
   o.twillBorderNumbers ??= false;
   o.stitchedShoulderTrim ??= false;
+  o.orderValue ??= null;
+  o.completedAt ??= null;
   o.jerseyTier ??= null;
   o.requestClientDetails ??= false;
   o.productionStartDate ??= null;
@@ -144,6 +146,20 @@ export function str(v: unknown): string | null {
 
 export function logEntry(entry: Omit<ChangeLogEntry, 'id' | 'at'>): ChangeLogEntry {
   return { ...entry, id: newId(), at: new Date().toISOString() };
+}
+
+/**
+ * The patch an update should actually apply.
+ *
+ * Marking an order Completed stamps the day it happened, unless the patch
+ * already carries one or the order was already complete. Store-agnostic, so
+ * both backends stamp it the same way; without it "sales this year" has no
+ * date to count by.
+ */
+export function stampCompletion(before: Order, patch: Partial<Order>, today: CalendarDate): Partial<Order> {
+  const becomesComplete = patch.status === 'completed' && before.status !== 'completed';
+  if (!becomesComplete || patch.completedAt || before.completedAt) return patch;
+  return { ...patch, completedAt: today };
 }
 
 /** The history lines an order update produces. Empty when nothing changed. */

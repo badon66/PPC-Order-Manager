@@ -3,8 +3,10 @@ import { repo } from '@/lib/data';
 import { computeTotals, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
-  DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, OPEN_STATUSES, STATUS_META, STATUS_OPTIONS, statusBucket,
+  ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, statusBucket,
 } from '@/lib/constants';
+import { formatCad } from '@/lib/pricing';
+import { OrderCardShell } from '@/components/order-card-shell';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
 import type { Order, OrderStatus, RosterEntry } from '@/lib/types';
@@ -32,9 +34,44 @@ type Search = {
   q?: string;
   /** Pin one stage's jobs to the top of the grid. */
   pin?: string;
+  /** Show drafts (incomplete + draft) too. */
+  drafts?: string;
   /** Show finished ones too. `completed=1` is kept from the old URL shape. */
   completed?: string;
+  /** Which completed ones: month | last | two | year | all. */
+  range?: string;
 };
+
+/** Completed-date windows, as offered in the Completed dropdown. */
+const RANGES = [
+  ['month', 'This month'],
+  ['last', 'Last month'],
+  ['two', 'Two months ago'],
+  ['year', 'This year'],
+  ['all', 'All time'],
+] as const;
+type Range = (typeof RANGES)[number][0];
+
+/** [first day, last day] of a window, inclusive, as ISO dates. */
+function windowFor(range: Range, now: string): [string, string] | null {
+  const [y, m] = now.split('-').map(Number);
+  const iso = (yy: number, mm: number, d: number) =>
+    `${yy}-${String(mm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const month = (offset: number): [string, string] => {
+    const d = new Date(Date.UTC(y, m - 1 - offset, 1));
+    const yy = d.getUTCFullYear();
+    const mm = d.getUTCMonth() + 1;
+    const last = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+    return [iso(yy, mm, 1), iso(yy, mm, last)];
+  };
+  switch (range) {
+    case 'month': return month(0);
+    case 'last': return month(1);
+    case 'two': return month(2);
+    case 'year': return [iso(y, 1, 1), iso(y, 12, 31)];
+    default: return null;
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Card
@@ -65,7 +102,8 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         : 'bg-ppc-gold text-black';
 
   return (
-    <Card className="flex flex-col p-4 transition-colors hover:border-ppc-gold/50">
+    <OrderCardShell order={order}>
+    <Card className="flex h-full flex-col p-4 transition-colors hover:border-ppc-gold/50">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold leading-tight">{order.teamName || 'Untitled order'}</h3>
         <div className="flex items-center gap-1.5">
@@ -82,6 +120,10 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         />
         <Row label="Total Jerseys" value={String(totals.totalJerseys)} />
         {shipTo && <Row label="Ship To" value={shipTo} />}
+        {/* Keenan's board only. This card never renders on a public page. */}
+        {STATUS_META[order.status].order >= STATUS_META.design_talk.order && (
+          <Row label="Value" value={formatCad(order.orderValue)} />
+        )}
       </dl>
 
       {order.estimatedFinishDate ? (
@@ -121,6 +163,7 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         </Button>
       </div>
     </Card>
+    </OrderCardShell>
   );
 }
 
@@ -137,17 +180,18 @@ function Row({ label, value }: { label: string; value: string }) {
  * Controls
  * ------------------------------------------------------------------ */
 
-/** One stage, its count, and whether it's pinned to the top of the grid. */
 function StageButton({
   status,
   count,
   href,
   pinned,
+  small = false,
 }: {
   status: OrderStatus;
   count: number;
   href: string;
   pinned: boolean;
+  small?: boolean;
 }) {
   const meta = STATUS_META[status];
   const skin = pinned
@@ -155,12 +199,13 @@ function StageButton({
     : count === 0
       ? 'border-line bg-surface-2/40 text-muted opacity-50'
       : 'border-line bg-surface-2 hover:border-ppc-gold/60';
+  const size = small ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm';
   return (
     <Link
       href={href}
       aria-pressed={pinned}
       title={pinned ? `Unpin ${meta.label}` : `Bring ${meta.label} to the top`}
-      className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${skin}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border font-semibold transition-colors ${size} ${skin}`}
     >
       <span aria-hidden>{meta.emoji}</span>
       {meta.label}
@@ -175,39 +220,79 @@ function StageButton({
   );
 }
 
+function Money({ label, value, hint }: { label: string; value: number; hint: string }) {
+  return (
+    <div className="min-w-[9rem] rounded-lg border border-line bg-surface-2 px-3 py-2 text-right">
+      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</div>
+      <div className="text-lg font-bold tabular-nums text-ppc-gold">{formatCad(value)}</div>
+      <div className="text-[0.65rem] text-muted">{hint}</div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ *
  * Page
  * ------------------------------------------------------------------ */
 
+const PRICED_FROM = STATUS_META.design_talk.order;
+
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const search = sp.q ?? '';
-  const pin = (STATUS_OPTIONS as string[]).includes(sp.pin ?? '') ? (sp.pin as OrderStatus) : null;
+  const allStatuses = [...UNFINALIZED_STATUSES, ...ACTIVE_STATUSES, 'completed' as OrderStatus];
+  const pin = (allStatuses as string[]).includes(sp.pin ?? '') ? (sp.pin as OrderStatus) : null;
+  const showDrafts = sp.drafts === '1' || (pin !== null && (UNFINALIZED_STATUSES as string[]).includes(pin));
   const showCompleted = sp.completed === '1' || pin === 'completed';
+  const range: Range = (RANGES.map((r) => r[0]) as string[]).includes(sp.range ?? '') ? (sp.range as Range) : 'month';
   const now = today();
 
-  // Everything is fetched, then counted here: a button's count has to describe
-  // the rows behind it, and that can't be computed from rows a query dropped.
   const all = await repo.listOrders({ status: 'all', includeCompleted: true, search });
   const countOf = (s: OrderStatus) => all.filter((o) => o.status === s).length;
-  const openCount = all.filter((o) => statusBucket(o.status) !== 'completed').length;
-  const completedCount = countOf('completed');
+  const draftsCount = all.filter((o) => statusBucket(o.status) === 'unfinalized').length;
 
-  const linkTo = (patch: Partial<Record<'pin' | 'completed', string | null>>) => {
+  /*
+   * Money, Keenan's eyes only (this page is behind the access code).
+   *   outgoing  every open job from Design Talk on — what's in the pipeline
+   *   YTD       completed this calendar year, by the day it was completed
+   * An unpriced order contributes nothing, and says so in the hint.
+   */
+  const priced = (o: Order) => (o.orderValue ?? 0);
+  const openPriced = all.filter((o) => statusBucket(o.status) !== 'completed' && STATUS_META[o.status].order >= PRICED_FROM);
+  const outgoing = openPriced.reduce((n, o) => n + priced(o), 0);
+  const unpriced = openPriced.filter((o) => o.orderValue === null).length;
+  const yearStart = `${now.slice(0, 4)}-01-01`;
+  const ytdOrders = all.filter((o) => o.status === 'completed' && (o.completedAt ?? '') >= yearStart);
+  const ytd = ytdOrders.reduce((n, o) => n + priced(o), 0);
+
+  // Completed, windowed by the day it was marked complete.
+  const win = windowFor(range, now);
+  const completedInRange = all.filter(
+    (o) => o.status === 'completed' && (!win || ((o.completedAt ?? '') >= win[0] && (o.completedAt ?? '') <= win[1])),
+  );
+
+  const linkTo = (patch: Partial<Record<'pin' | 'drafts' | 'completed' | 'range', string | null>>) => {
     const p = new URLSearchParams();
     if (search) p.set('q', search);
-    const nextPin = 'pin' in patch ? patch.pin : pin;
-    const nextCompleted = 'completed' in patch ? patch.completed : showCompleted ? '1' : null;
-    if (nextPin) p.set('pin', nextPin);
-    if (nextCompleted) p.set('completed', '1');
+    const next = {
+      pin: 'pin' in patch ? patch.pin : pin,
+      drafts: 'drafts' in patch ? patch.drafts : showDrafts ? '1' : null,
+      completed: 'completed' in patch ? patch.completed : showCompleted ? '1' : null,
+      range: 'range' in patch ? patch.range : range !== 'month' ? range : null,
+    };
+    if (next.pin) p.set('pin', next.pin);
+    if (next.drafts) p.set('drafts', '1');
+    if (next.completed) p.set('completed', '1');
+    if (next.range) p.set('range', next.range);
     const qs = p.toString();
     return qs ? `/orders?${qs}` : '/orders';
   };
 
-  const visible: OrderStatus[] = showCompleted ? [...OPEN_STATUSES, 'completed'] : OPEN_STATUSES;
-  const shown = all.filter((o) => visible.includes(o.status));
+  const shown = [
+    ...all.filter((o) => (ACTIVE_STATUSES as string[]).includes(o.status)),
+    ...(showDrafts ? all.filter((o) => statusBucket(o.status) === 'unfinalized') : []),
+    ...(showCompleted ? completedInRange : []),
+  ];
 
-  // Rosters only for what's rendered.
   const bundles = await Promise.all(
     shown.map(async (o) => {
       const b = await repo.getOrder(o.id);
@@ -215,11 +300,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     }),
   );
 
-  /*
-   * One sort, three keys: the pinned stage first, then pipeline position
-   * (earliest stage at the top, In Production and beyond at the bottom), then
-   * soonest finish date within a stage with undated ones last.
-   */
+  // Pinned stage first; then pipeline position; then soonest finish date.
   const rank = (s: OrderStatus) => (pin && s === pin ? -1 : STATUS_META[s].order);
   bundles.sort((a, b) => {
     const r = rank(a.order.status) - rank(b.order.status);
@@ -231,66 +312,98 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     return b.order.updatedAt.localeCompare(a.order.updatedAt);
   });
 
-  // The buttons, in pipeline order; Completed last, and it doubles as the
-  // toggle that reveals finished work.
-  const stageButtons = STATUS_OPTIONS.filter((s) => s !== 'completed');
+  // The working stages across the top; In Production and Completed sit with
+  // search, because that's where the eye goes to find a specific job.
+  const topStages = ACTIVE_STATUSES.filter((s) => s !== 'in_production');
+  const activeCount = all.filter((o) => statusBucket(o.status) === 'active').length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Orders</h1>
           <p className="text-sm text-muted">
-            {openCount} open job{openCount === 1 ? '' : 's'}
+            {activeCount} live job{activeCount === 1 ? '' : 's'}
             {search && ` matching “${search}”`}
           </p>
         </div>
         <NewOrderButton label="+ New Order" />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {stageButtons.map((s) => (
-          <StageButton
-            key={s}
-            status={s}
-            count={countOf(s)}
-            pinned={pin === s}
-            href={linkTo({ pin: pin === s ? null : s })}
-          />
-        ))}
-        <StageButton
-          status="completed"
-          count={completedCount}
-          pinned={showCompleted}
-          href={linkTo({ pin: null, completed: showCompleted ? null : '1' })}
-        />
+      {/* Stages on the left, money on the right. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {topStages.map((s) => (
+            <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
+          ))}
+          <details className="relative">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold hover:border-ppc-gold/60">
+              Drafts <span className="rounded-md bg-surface px-1.5 py-0.5 text-xs tabular-nums">{draftsCount}</span> ▾
+            </summary>
+            <div className="absolute left-0 z-30 mt-1 flex flex-col gap-1 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+              {UNFINALIZED_STATUSES.map((s) => (
+                <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s, drafts: '1' })} small />
+              ))}
+              <Link href={linkTo({ pin: null, drafts: showDrafts ? null : '1' })} className="px-2 py-1 text-xs text-muted hover:text-ppc-gold">
+                {showDrafts ? 'Hide drafts' : 'Show all drafts'}
+              </Link>
+            </div>
+          </details>
+        </div>
+
+        <div className="flex gap-2">
+          <Money label="Outgoing" value={outgoing} hint={unpriced ? `${unpriced} unpriced` : `${openPriced.length} open jobs`} />
+          <Money label="Year to date" value={ytd} hint={`${ytdOrders.length} completed in ${now.slice(0, 4)}`} />
+        </div>
       </div>
 
-      <form className="flex items-center gap-2" action="/orders">
-        <input
-          name="q"
-          defaultValue={search}
-          placeholder="Search by team name or invoice number..."
-          className="min-w-[12rem] flex-1"
-        />
-        {pin && <input type="hidden" name="pin" value={pin} />}
-        {showCompleted && <input type="hidden" name="completed" value="1" />}
-        <Button type="submit">Search</Button>
-      </form>
+      {/* Search, with In Production and Completed beside it. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <form className="flex items-center gap-2" action="/orders">
+          <input name="q" defaultValue={search} placeholder="Team or invoice…" className="w-56" />
+          {pin && <input type="hidden" name="pin" value={pin} />}
+          {showDrafts && <input type="hidden" name="drafts" value="1" />}
+          {showCompleted && <input type="hidden" name="completed" value="1" />}
+          {range !== 'month' && <input type="hidden" name="range" value={range} />}
+          <Button type="submit">Search</Button>
+        </form>
+        <StageButton status="in_production" count={countOf('in_production')} pinned={pin === 'in_production'} href={linkTo({ pin: pin === 'in_production' ? null : 'in_production' })} />
+        <details className="relative">
+          <summary className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${showCompleted ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold' : 'border-line bg-surface-2 hover:border-ppc-gold/60'}`}>
+            {STATUS_META.completed.emoji} Completed
+            <span className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${showCompleted ? 'bg-ppc-gold text-black' : 'bg-surface'}`}>{completedInRange.length}</span> ▾
+          </summary>
+          <div className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+            <div className="px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Date completed</div>
+            {RANGES.map(([key, label]) => (
+              <Link
+                key={key}
+                href={linkTo({ pin: null, completed: '1', range: key === 'month' ? null : key })}
+                className={`block rounded px-2 py-1 text-sm ${showCompleted && range === key ? 'bg-ppc-gold/15 font-semibold text-ppc-gold' : 'hover:bg-surface-2'}`}
+              >
+                {label}
+              </Link>
+            ))}
+            {showCompleted && (
+              <Link href={linkTo({ pin: null, completed: null, range: null })} className="mt-1 block border-t border-line px-2 py-1 text-xs text-muted hover:text-ppc-gold">
+                Hide completed
+              </Link>
+            )}
+          </div>
+        </details>
+      </div>
 
-      {pin && pin !== 'completed' && (
+      {pin && (
         <p className="text-sm text-muted">
           <span className="font-semibold text-ppc-gold">{STATUS_META[pin].label}</span> pinned to the top.{' '}
-          <Link href={linkTo({ pin: null })} className="font-semibold text-ppc-gold hover:underline">
-            Unpin
-          </Link>
+          <Link href={linkTo({ pin: null })} className="font-semibold text-ppc-gold hover:underline">Unpin</Link>
         </p>
       )}
 
       {bundles.length === 0 ? (
         <EmptyState
-          title={search ? 'Nothing matches that search.' : 'No open jobs right now.'}
-          hint={search ? 'Try a different team name or invoice number.' : 'Start a new order, or show Completed to see finished work.'}
+          title={search ? 'Nothing matches that search.' : 'No live jobs right now.'}
+          hint={search ? 'Try a different team name or invoice number.' : 'Start a new order, or open Drafts or Completed.'}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
