@@ -180,49 +180,49 @@ function Row({ label, value }: { label: string; value: string }) {
  * Controls
  * ------------------------------------------------------------------ */
 
+/*
+ * One chip, three uses: a stage button, the Drafts summary, the Completed
+ * summary. The dropdowns used to be a size smaller than the button beside
+ * them, which read as two different kinds of thing. They aren't.
+ */
+const CHIP =
+  'inline-flex h-10 cursor-pointer list-none items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-semibold transition-colors';
+const CHIP_ON = 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold';
+const CHIP_OFF = 'border-line bg-surface-2 hover:border-ppc-gold/60';
+const CHIP_EMPTY = 'border-line bg-surface-2/40 text-muted opacity-50';
+const COUNT = 'rounded-md px-1.5 py-0.5 text-xs tabular-nums';
+const COUNT_ON = 'bg-ppc-gold text-black';
+
 function StageButton({
   status,
   count,
   href,
   pinned,
-  small = false,
 }: {
   status: OrderStatus;
   count: number;
   href: string;
   pinned: boolean;
-  small?: boolean;
 }) {
   const meta = STATUS_META[status];
-  const skin = pinned
-    ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold'
-    : count === 0
-      ? 'border-line bg-surface-2/40 text-muted opacity-50'
-      : 'border-line bg-surface-2 hover:border-ppc-gold/60';
-  const size = small ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm';
+  const skin = pinned ? CHIP_ON : count === 0 ? CHIP_EMPTY : CHIP_OFF;
   return (
     <Link
       href={href}
       aria-pressed={pinned}
       title={pinned ? `Unpin ${meta.label}` : `Bring ${meta.label} to the top`}
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border font-semibold transition-colors ${size} ${skin}`}
+      className={`${CHIP} ${skin}`}
     >
       <span aria-hidden>{meta.emoji}</span>
       {meta.label}
-      <span
-        className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${
-          pinned ? 'bg-ppc-gold text-black' : count ? 'bg-surface text-fg' : 'text-muted'
-        }`}
-      >
-        {count}
-      </span>
+      <span className={`${COUNT} ${pinned ? COUNT_ON : count ? 'bg-surface text-fg' : 'text-muted'}`}>{count}</span>
     </Link>
   );
 }
 
 function Money({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <div className="min-w-[9rem] rounded-lg border border-line bg-surface-2 px-3 py-2 text-right">
+    <div className="min-w-[10rem] rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-right">
       <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</div>
       <div className="text-lg font-bold tabular-nums text-ppc-gold">{formatCad(value)}</div>
       <div className="text-[0.65rem] text-muted">{hint}</div>
@@ -330,67 +330,80 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <NewOrderButton label="+ New Order" />
       </div>
 
-      {/* Stages on the left, money on the right. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
+      {/*
+        * Row one: every stage you can pin, left, spread across the width;
+        * money on the right. Row two: the search box takes the whole width
+        * the grid below it has, with In Production, Drafts and Completed in
+        * one matching set at its right end.
+        */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
           {topStages.map((s) => (
             <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
           ))}
-          <details className="relative">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold hover:border-ppc-gold/60">
-              Drafts <span className="rounded-md bg-surface px-1.5 py-0.5 text-xs tabular-nums">{draftsCount}</span> ▾
-            </summary>
-            <div className="absolute left-0 z-30 mt-1 flex flex-col gap-1 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
-              {UNFINALIZED_STATUSES.map((s) => (
-                <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s, drafts: '1' })} small />
-              ))}
-              <Link href={linkTo({ pin: null, drafts: showDrafts ? null : '1' })} className="px-2 py-1 text-xs text-muted hover:text-ppc-gold">
-                {showDrafts ? 'Hide drafts' : 'Show all drafts'}
-              </Link>
-            </div>
-          </details>
         </div>
-
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Money label="Outgoing" value={outgoing} hint={unpriced ? `${unpriced} unpriced` : `${openPriced.length} open jobs`} />
           <Money label="Year to date" value={ytd} hint={`${ytdOrders.length} completed in ${now.slice(0, 4)}`} />
         </div>
       </div>
 
-      {/* Search, with In Production and Completed beside it. */}
       <div className="flex flex-wrap items-center gap-2">
-        <form className="flex items-center gap-2" action="/orders">
-          <input name="q" defaultValue={search} placeholder="Team or invoice…" className="w-56" />
+        <form className="flex min-w-[16rem] flex-1 items-center gap-2" action="/orders">
+          <input name="q" defaultValue={search} placeholder="Search by team name or invoice number…" className="flex-1" />
           {pin && <input type="hidden" name="pin" value={pin} />}
           {showDrafts && <input type="hidden" name="drafts" value="1" />}
           {showCompleted && <input type="hidden" name="completed" value="1" />}
           {range !== 'month' && <input type="hidden" name="range" value={range} />}
           <Button type="submit">Search</Button>
         </form>
-        <StageButton status="in_production" count={countOf('in_production')} pinned={pin === 'in_production'} href={linkTo({ pin: pin === 'in_production' ? null : 'in_production' })} />
-        <details className="relative">
-          <summary className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${showCompleted ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold' : 'border-line bg-surface-2 hover:border-ppc-gold/60'}`}>
-            {STATUS_META.completed.emoji} Completed
-            <span className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${showCompleted ? 'bg-ppc-gold text-black' : 'bg-surface'}`}>{completedInRange.length}</span> ▾
-          </summary>
-          <div className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
-            <div className="px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Date completed</div>
-            {RANGES.map(([key, label]) => (
-              <Link
-                key={key}
-                href={linkTo({ pin: null, completed: '1', range: key === 'month' ? null : key })}
-                className={`block rounded px-2 py-1 text-sm ${showCompleted && range === key ? 'bg-ppc-gold/15 font-semibold text-ppc-gold' : 'hover:bg-surface-2'}`}
-              >
-                {label}
+
+        <div className="flex shrink-0 gap-2">
+          <StageButton status="in_production" count={countOf('in_production')} pinned={pin === 'in_production'} href={linkTo({ pin: pin === 'in_production' ? null : 'in_production' })} />
+
+          <details className="relative">
+            <summary className={`${CHIP} ${showDrafts ? CHIP_ON : CHIP_OFF}`}>
+              <span aria-hidden>{STATUS_META.draft.emoji}</span>
+              Drafts
+              <span className={`${COUNT} ${showDrafts ? COUNT_ON : 'bg-surface text-fg'}`}>{draftsCount}</span>
+              <span aria-hidden className="text-xs">▾</span>
+            </summary>
+            <div className="absolute right-0 z-30 mt-1 flex w-56 flex-col gap-1 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+              {UNFINALIZED_STATUSES.map((s) => (
+                <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s, drafts: '1' })} />
+              ))}
+              <Link href={linkTo({ pin: null, drafts: showDrafts ? null : '1' })} className="px-2 py-1 text-xs text-muted hover:text-ppc-gold">
+                {showDrafts ? 'Hide drafts' : 'Show all drafts'}
               </Link>
-            ))}
-            {showCompleted && (
-              <Link href={linkTo({ pin: null, completed: null, range: null })} className="mt-1 block border-t border-line px-2 py-1 text-xs text-muted hover:text-ppc-gold">
-                Hide completed
-              </Link>
-            )}
-          </div>
-        </details>
+            </div>
+          </details>
+
+          <details className="relative">
+            <summary className={`${CHIP} ${showCompleted ? CHIP_ON : CHIP_OFF}`}>
+              <span aria-hidden>{STATUS_META.completed.emoji}</span>
+              Completed
+              <span className={`${COUNT} ${showCompleted ? COUNT_ON : 'bg-surface text-fg'}`}>{completedInRange.length}</span>
+              <span aria-hidden className="text-xs">▾</span>
+            </summary>
+            <div className="absolute right-0 z-30 mt-1 w-52 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+              <div className="px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Date completed</div>
+              {RANGES.map(([key, label]) => (
+                <Link
+                  key={key}
+                  href={linkTo({ pin: null, completed: '1', range: key === 'month' ? null : key })}
+                  className={`block rounded px-2 py-1 text-sm ${showCompleted && range === key ? 'bg-ppc-gold/15 font-semibold text-ppc-gold' : 'hover:bg-surface-2'}`}
+                >
+                  {label}
+                </Link>
+              ))}
+              {showCompleted && (
+                <Link href={linkTo({ pin: null, completed: null, range: null })} className="mt-1 block border-t border-line px-2 py-1 text-xs text-muted hover:text-ppc-gold">
+                  Hide completed
+                </Link>
+              )}
+            </div>
+          </details>
+        </div>
       </div>
 
       {pin && (
