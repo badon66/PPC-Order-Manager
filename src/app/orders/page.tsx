@@ -3,8 +3,7 @@ import { repo } from '@/lib/data';
 import { computeTotals, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
-  ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META,
-  UNFINALIZED_STATUSES, statusBucket,
+  DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, OPEN_STATUSES, STATUS_META, STATUS_OPTIONS, statusBucket,
 } from '@/lib/constants';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
@@ -15,23 +14,24 @@ export const dynamic = 'force-dynamic';
 /**
  * The order board.
  *
- * This page answers "what am I working on", not "what have I ever made". By
- * default it shows only live jobs — the four stages where something is owed to
- * somebody — and the finished and not-yet-real ones sit behind toggles that
- * say how many they're hiding.
+ * One grid of every open job, earliest stage at the top and In Production and
+ * beyond at the bottom. No section headers: with twelve statuses the headers
+ * were most of the page, and the cards' own status badges already say what
+ * stage each one is at.
  *
- * The old version was one flat grid sorted by last-touched, with completed
- * orders behind a toggle. On a list of 18 that's a wall; twelve of them were
- * finished work. Grouping by stage and defaulting to active turns the same
- * data into a pipeline you can read in one look.
+ * The row of buttons across the top is one per stage with its live count.
+ * Pressing one PINS that stage's jobs to the top of the grid; everything else
+ * stays underneath in its usual order. It's a "bring these to me", not a
+ * filter that hides the rest, so you never lose sight of the board. Press it
+ * again to unpin.
+ *
+ * Completed jobs stay behind a toggle. They're reference, not work.
  */
 
 type Search = {
   q?: string;
-  /** Drill into one stage from the pipeline strip. */
-  stage?: string;
-  /** Show the not-yet-real ones too. */
-  unfinalized?: string;
+  /** Pin one stage's jobs to the top of the grid. */
+  pin?: string;
   /** Show finished ones too. `completed=1` is kept from the old URL shape. */
   completed?: string;
 };
@@ -137,57 +137,40 @@ function Row({ label, value }: { label: string; value: string }) {
  * Controls
  * ------------------------------------------------------------------ */
 
-/** A stage chip in the pipeline strip: label, count, and its own on state. */
-function StageChip({
-  label,
+/** One stage, its count, and whether it's pinned to the top of the grid. */
+function StageButton({
+  status,
   count,
   href,
-  active,
-  tone = 'default',
+  pinned,
 }: {
-  label: string;
+  status: OrderStatus;
   count: number;
   href: string;
-  active: boolean;
-  tone?: 'default' | 'muted';
+  pinned: boolean;
 }) {
-  const base = 'flex min-w-[7.5rem] flex-1 flex-col rounded-xl border px-3 py-2.5 text-left transition-colors';
-  const skin = active
-    ? 'border-ppc-gold bg-ppc-gold/10'
+  const meta = STATUS_META[status];
+  const skin = pinned
+    ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold'
     : count === 0
-      ? 'border-line bg-surface-2/50 opacity-50'
+      ? 'border-line bg-surface-2/40 text-muted opacity-50'
       : 'border-line bg-surface-2 hover:border-ppc-gold/60';
   return (
-    <Link href={href} className={`${base} ${skin}`}>
+    <Link
+      href={href}
+      aria-pressed={pinned}
+      title={pinned ? `Unpin ${meta.label}` : `Bring ${meta.label} to the top`}
+      className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${skin}`}
+    >
+      <span aria-hidden>{meta.emoji}</span>
+      {meta.label}
       <span
-        className={`text-xl font-bold tabular-nums ${
-          active ? 'text-ppc-gold' : tone === 'muted' ? 'text-muted' : ''
+        className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${
+          pinned ? 'bg-ppc-gold text-black' : count ? 'bg-surface text-fg' : 'text-muted'
         }`}
       >
         {count}
       </span>
-      <span className="text-[0.7rem] font-semibold uppercase leading-tight tracking-wide text-muted">
-        {label}
-      </span>
-    </Link>
-  );
-}
-
-/** A show/hide switch for a whole bucket, which says what it's hiding. */
-function BucketToggle({ label, count, href, on }: { label: string; count: number; href: string; on: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-semibold sm:flex-none ${
-        on ? 'border-ppc-gold bg-ppc-gold/10 text-ppc-gold' : 'border-line bg-surface-2 hover:border-ppc-gold/60'
-      }`}
-    >
-      <span
-        className={`inline-block h-2 w-2 rounded-full ${on ? 'bg-ppc-gold' : 'bg-neutral-600'}`}
-        aria-hidden
-      />
-      {label}
-      <span className="tabular-nums text-muted">{count}</span>
     </Link>
   );
 }
@@ -199,57 +182,32 @@ function BucketToggle({ label, count, href, on }: { label: string; count: number
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const search = sp.q ?? '';
-  const stage = (ACTIVE_STATUSES as string[]).concat(UNFINALIZED_STATUSES, 'completed').includes(sp.stage ?? '')
-    ? (sp.stage as OrderStatus)
-    : null;
-  const showUnfinalized = sp.unfinalized === '1';
-  const showCompleted = sp.completed === '1';
+  const pin = (STATUS_OPTIONS as string[]).includes(sp.pin ?? '') ? (sp.pin as OrderStatus) : null;
+  const showCompleted = sp.completed === '1' || pin === 'completed';
   const now = today();
 
-  /*
-   * Everything is fetched, then bucketed here rather than filtered in the
-   * store. The counts on the chips have to describe what's behind them, and a
-   * count can't be computed from rows the query already dropped.
-   */
+  // Everything is fetched, then counted here: a button's count has to describe
+  // the rows behind it, and that can't be computed from rows a query dropped.
   const all = await repo.listOrders({ status: 'all', includeCompleted: true, search });
-
   const countOf = (s: OrderStatus) => all.filter((o) => o.status === s).length;
-  const unfinalizedCount = all.filter((o) => statusBucket(o.status) === 'unfinalized').length;
-  const completedCount = all.filter((o) => statusBucket(o.status) === 'completed').length;
-  const activeCount = all.filter((o) => statusBucket(o.status) === 'active').length;
+  const openCount = all.filter((o) => statusBucket(o.status) !== 'completed').length;
+  const completedCount = countOf('completed');
 
-  /** Build a URL that keeps everything except what's being changed. */
-  const linkTo = (patch: Partial<Record<'stage' | 'unfinalized' | 'completed', string | null>>) => {
+  const linkTo = (patch: Partial<Record<'pin' | 'completed', string | null>>) => {
     const p = new URLSearchParams();
     if (search) p.set('q', search);
-    const next = {
-      stage: 'stage' in patch ? patch.stage : stage,
-      unfinalized: 'unfinalized' in patch ? patch.unfinalized : showUnfinalized ? '1' : null,
-      completed: 'completed' in patch ? patch.completed : showCompleted ? '1' : null,
-    };
-    if (next.stage) p.set('stage', next.stage);
-    if (next.unfinalized) p.set('unfinalized', '1');
-    if (next.completed) p.set('completed', '1');
+    const nextPin = 'pin' in patch ? patch.pin : pin;
+    const nextCompleted = 'completed' in patch ? patch.completed : showCompleted ? '1' : null;
+    if (nextPin) p.set('pin', nextPin);
+    if (nextCompleted) p.set('completed', '1');
     const qs = p.toString();
     return qs ? `/orders?${qs}` : '/orders';
   };
 
-  /*
-   * Which statuses are on screen. Drilling into one stage overrides the
-   * toggles — you asked for that stage, so that's what you get.
-   */
-  const visible: OrderStatus[] = stage
-    ? [stage]
-    : [
-        ...(showUnfinalized ? UNFINALIZED_STATUSES : []),
-        ...ACTIVE_STATUSES,
-        ...(showCompleted ? (['completed'] as OrderStatus[]) : []),
-      ];
-
+  const visible: OrderStatus[] = showCompleted ? [...OPEN_STATUSES, 'completed'] : OPEN_STATUSES;
   const shown = all.filter((o) => visible.includes(o.status));
 
-  // Rosters only for what's rendered — the full set is 135 assets and 200+
-  // roster rows, and none of it is needed to count a chip.
+  // Rosters only for what's rendered.
   const bundles = await Promise.all(
     shown.map(async (o) => {
       const b = await repo.getOrder(o.id);
@@ -258,24 +216,24 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   );
 
   /*
-   * Within a stage, soonest deadline first — that's the order the work has to
-   * be done in. Undated ones go last rather than first, where an empty string
-   * would sort them.
+   * One sort, three keys: the pinned stage first, then pipeline position
+   * (earliest stage at the top, In Production and beyond at the bottom), then
+   * soonest finish date within a stage with undated ones last.
    */
-  const groups = visible
-    .map((s) => ({
-      status: s,
-      rows: bundles
-        .filter((b) => b.order.status === s)
-        .sort((a, b) => {
-          const da = a.order.estimatedFinishDate ?? '';
-          const db2 = b.order.estimatedFinishDate ?? '';
-          if (da && db2 && da !== db2) return da.localeCompare(db2);
-          if (da !== db2) return da ? -1 : 1;
-          return b.order.updatedAt.localeCompare(a.order.updatedAt);
-        }),
-    }))
-    .filter((g) => g.rows.length > 0);
+  const rank = (s: OrderStatus) => (pin && s === pin ? -1 : STATUS_META[s].order);
+  bundles.sort((a, b) => {
+    const r = rank(a.order.status) - rank(b.order.status);
+    if (r !== 0) return r;
+    const da = a.order.estimatedFinishDate ?? '';
+    const db2 = b.order.estimatedFinishDate ?? '';
+    if (da && db2 && da !== db2) return da.localeCompare(db2);
+    if (da !== db2) return da ? -1 : 1;
+    return b.order.updatedAt.localeCompare(a.order.updatedAt);
+  });
+
+  // The buttons, in pipeline order; Completed last, and it doubles as the
+  // toggle that reveals finished work.
+  const stageButtons = STATUS_OPTIONS.filter((s) => s !== 'completed');
 
   return (
     <div className="space-y-5">
@@ -283,99 +241,63 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <div>
           <h1 className="text-2xl font-bold">Orders</h1>
           <p className="text-sm text-muted">
-            {activeCount} live job{activeCount === 1 ? '' : 's'}
+            {openCount} open job{openCount === 1 ? '' : 's'}
             {search && ` matching “${search}”`}
           </p>
         </div>
         <NewOrderButton label="+ New Order" />
       </div>
 
-      {/*
-        * The pipeline, left to right in the order work moves through it.
-        * Two-up on a phone rather than wrapped: four chips in a flex row left
-        * a lone orphan on the second line every time.
-        */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {ACTIVE_STATUSES.map((s) => (
-          <StageChip
+      <div className="flex flex-wrap gap-2">
+        {stageButtons.map((s) => (
+          <StageButton
             key={s}
-            label={STATUS_META[s].label}
+            status={s}
             count={countOf(s)}
-            active={stage === s}
-            href={linkTo({ stage: stage === s ? null : s })}
+            pinned={pin === s}
+            href={linkTo({ pin: pin === s ? null : s })}
           />
         ))}
-      </div>
-
-      {/*
-        * Search and the bucket switches share a row on a laptop and stack on a
-        * phone. Left to wrap on its own, the Search button landed on a line of
-        * its own between the two toggles.
-        */}
-      <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
-        <form className="flex items-center gap-2 sm:flex-1" action="/orders">
-          <input
-            name="q"
-            defaultValue={search}
-            placeholder="Search by team name or invoice number..."
-            className="min-w-[12rem] flex-1"
-          />
-          {stage && <input type="hidden" name="stage" value={stage} />}
-          {showUnfinalized && <input type="hidden" name="unfinalized" value="1" />}
-          {showCompleted && <input type="hidden" name="completed" value="1" />}
-          <Button type="submit">Search</Button>
-        </form>
-
-        <div className="flex gap-2">
-        <BucketToggle
-          label="Not finalized"
-          count={unfinalizedCount}
-          on={showUnfinalized}
-          href={linkTo({ stage: null, unfinalized: showUnfinalized ? null : '1' })}
-        />
-        <BucketToggle
-          label="Completed"
+        <StageButton
+          status="completed"
           count={completedCount}
-          on={showCompleted}
-          href={linkTo({ stage: null, completed: showCompleted ? null : '1' })}
+          pinned={showCompleted}
+          href={linkTo({ pin: null, completed: showCompleted ? null : '1' })}
         />
-        </div>
       </div>
 
-      {stage && (
+      <form className="flex items-center gap-2" action="/orders">
+        <input
+          name="q"
+          defaultValue={search}
+          placeholder="Search by team name or invoice number..."
+          className="min-w-[12rem] flex-1"
+        />
+        {pin && <input type="hidden" name="pin" value={pin} />}
+        {showCompleted && <input type="hidden" name="completed" value="1" />}
+        <Button type="submit">Search</Button>
+      </form>
+
+      {pin && pin !== 'completed' && (
         <p className="text-sm text-muted">
-          Showing <span className="font-semibold text-fg">{STATUS_META[stage].label}</span> only.{' '}
-          <Link href={linkTo({ stage: null })} className="font-semibold text-ppc-gold hover:underline">
-            Back to all live jobs
+          <span className="font-semibold text-ppc-gold">{STATUS_META[pin].label}</span> pinned to the top.{' '}
+          <Link href={linkTo({ pin: null })} className="font-semibold text-ppc-gold hover:underline">
+            Unpin
           </Link>
         </p>
       )}
 
-      {groups.length === 0 ? (
+      {bundles.length === 0 ? (
         <EmptyState
-          title={search ? 'Nothing matches that search.' : 'No live jobs right now.'}
-          hint={
-            search
-              ? 'Try a different team name or invoice number, or switch on the other buckets.'
-              : 'Switch on “Not finalized” or “Completed” to see the rest, or start a new order.'
-          }
+          title={search ? 'Nothing matches that search.' : 'No open jobs right now.'}
+          hint={search ? 'Try a different team name or invoice number.' : 'Start a new order, or show Completed to see finished work.'}
         />
       ) : (
-        groups.map((g) => (
-          <section key={g.status} className="space-y-3">
-            <div className="flex items-baseline gap-2 border-b border-line pb-2">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-ppc-gold">
-                {STATUS_META[g.status].label}
-              </h2>
-              <span className="text-sm tabular-nums text-muted">{g.rows.length}</span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {g.rows.map(({ order, roster }) => (
-                <OrderCard key={order.id} order={order} roster={roster} now={now} />
-              ))}
-            </div>
-          </section>
-        ))
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {bundles.map(({ order, roster }) => (
+            <OrderCard key={order.id} order={order} roster={roster} now={now} />
+          ))}
+        </div>
       )}
     </div>
   );
