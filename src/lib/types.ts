@@ -570,7 +570,11 @@ export interface Order {
    * /share or /roster, not in the roster CSV, not in ApprovalRecord. The test
    * in tests/money/leak.test.ts fails the build if any of them do. */
 
-  /** What the order is worth, CAD before tax. null = not priced yet. */
+  /**
+   * Manual override of the order's value, CAD before tax. null = priced
+   * automatically from the tier and quantities (lib/pricing.ts). Set only when
+   * the list price isn't the deal.
+   */
   orderValue: number | null;
 
   /** The day it was marked Completed. Stamped by `stampCompletion`; editable to correct. */

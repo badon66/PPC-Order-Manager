@@ -7,7 +7,7 @@ import {
   CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
 import { describeSet, extraRowCount, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
-import { estimateOrderValue, formatCad } from '@/lib/pricing';
+import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
 import type {
   CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
@@ -283,39 +283,55 @@ export function OrderForm({
           <TextField label="Invoice Number" value={draft.invoiceNumber} onChange={(v) => set('invoiceNumber', v)} placeholder="e.g. PPC1801" error={errors.invoiceNumber} warning={warnings.invoiceNumber} />
           <TextField label="Date Paid" type="date" value={draft.datePaid ?? ''} onChange={(v) => set('datePaid', v || null)} error={errors.datePaid} />
           {/*
-            * KEENAN ONLY. Whole dollars before tax. The estimate beside it is
-            * list price times quantity from lib/pricing.ts, a figure to
-            * correct rather than a blank to fill; it is never applied on its
-            * own.
+            * KEENAN ONLY. Priced automatically from the tier and quantities
+            * (lib/pricing.ts). The field is an override: type a number and
+            * that's the deal; clear it and the list price is back.
             */}
           <div>
-            <span className="text-xs font-medium text-muted">Order Value (CAD, before tax)</span>
-            <input
-              className="mt-1"
-              inputMode="numeric"
-              value={draft.orderValue ?? ''}
-              placeholder="Not priced yet"
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9]/g, '');
-                set('orderValue', v === '' ? null : Number(v));
-              }}
-            />
+            <span className="text-xs font-medium text-muted">
+              Order Value (CAD, before tax){draft.orderValue === null ? ' — list price' : ' — set by hand'}
+            </span>
             {(() => {
-              const est = estimateOrderValue(draft, roster);
-              if (!est || est.total === 0) return null;
+              const lp = listPrice(draft);
               return (
-                <div className="mt-1.5 text-xs text-muted">
-                  List estimate{' '}
-                  <button
-                    type="button"
-                    onClick={() => set('orderValue', est.total)}
-                    title={est.lines.map((l) => `${l.qty} × ${l.label} @ ${formatCad(l.unit)}`).join('\n') + '\n' + est.caveats.join('\n')}
-                    className="font-semibold text-ppc-gold hover:underline"
-                  >
-                    {formatCad(est.total)}
-                  </button>
-                  {' '}— click to use. {est.caveats[0]}
-                </div>
+                <>
+                  <input
+                    className="mt-1"
+                    inputMode="numeric"
+                    value={draft.orderValue ?? ''}
+                    placeholder={lp ? formatCad(lp.total) : 'Pick a jersey tier to price'}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^0-9]/g, '');
+                      set('orderValue', v === '' ? null : Number(v));
+                    }}
+                  />
+                  {lp && (
+                    <details className="mt-1.5 text-xs text-muted">
+                      <summary className="cursor-pointer select-none">
+                        List price {formatCad(lp.total)}
+                        {draft.orderValue !== null && (
+                          <>
+                            {' '}·{' '}
+                            <button type="button" onClick={() => set('orderValue', null)} className="font-semibold text-ppc-gold hover:underline">
+                              use list price
+                            </button>
+                          </>
+                        )}
+                      </summary>
+                      <ul className="mt-1.5 space-y-0.5 border-l-2 border-line pl-3">
+                        {lp.lines.map((l) => (
+                          <li key={l.label} className="flex justify-between gap-3 tabular-nums">
+                            <span>{l.qty} × {l.label} @ {formatCad(l.unit)}</span>
+                            <span className={l.amount < 0 ? 'text-emerald-300' : ''}>{formatCad(l.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {lp.caveats.map((c) => (
+                        <p key={c} className="mt-1">{c}</p>
+                      ))}
+                    </details>
+                  )}
+                </>
               );
             })()}
           </div>

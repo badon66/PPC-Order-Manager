@@ -5,7 +5,7 @@ import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
   ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, statusBucket,
 } from '@/lib/constants';
-import { formatCad } from '@/lib/pricing';
+import { formatCad, isOverridden, orderValueOf } from '@/lib/pricing';
 import { OrderCardShell } from '@/components/order-card-shell';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
@@ -122,7 +122,7 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         {shipTo && <Row label="Ship To" value={shipTo} />}
         {/* Keenan's board only. This card never renders on a public page. */}
         {STATUS_META[order.status].order >= STATUS_META.design_talk.order && (
-          <Row label="Value" value={formatCad(order.orderValue)} />
+          <Row label={isOverridden(order) ? 'Value (set)' : 'Value'} value={formatCad(orderValueOf(order))} />
         )}
       </dl>
 
@@ -220,12 +220,15 @@ function StageButton({
   );
 }
 
+/** Same height as the chips it sits beside. Label and figure on one line; the hint on hover. */
 function Money({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <div className="min-w-[10rem] rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-right">
-      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</div>
-      <div className="text-lg font-bold tabular-nums text-ppc-gold">{formatCad(value)}</div>
-      <div className="text-[0.65rem] text-muted">{hint}</div>
+    <div
+      title={hint}
+      className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 text-sm"
+    >
+      <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</span>
+      <span className="font-bold tabular-nums text-ppc-gold">{formatCad(value)}</span>
     </div>
   );
 }
@@ -256,10 +259,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
    *   YTD       completed this calendar year, by the day it was completed
    * An unpriced order contributes nothing, and says so in the hint.
    */
-  const priced = (o: Order) => (o.orderValue ?? 0);
+  const priced = (o: Order) => orderValueOf(o) ?? 0;
   const openPriced = all.filter((o) => statusBucket(o.status) !== 'completed' && STATUS_META[o.status].order >= PRICED_FROM);
   const outgoing = openPriced.reduce((n, o) => n + priced(o), 0);
-  const unpriced = openPriced.filter((o) => o.orderValue === null).length;
+  const unpriced = openPriced.filter((o) => orderValueOf(o) === null).length;
   const yearStart = `${now.slice(0, 4)}-01-01`;
   const ytdOrders = all.filter((o) => o.status === 'completed' && (o.completedAt ?? '') >= yearStart);
   const ytd = ytdOrders.reduce((n, o) => n + priced(o), 0);

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { STATUS_META, STATUS_OPTIONS } from '@/lib/constants';
 import { formatLong } from '@/lib/dates';
-import { formatCad } from '@/lib/pricing';
+import { formatCad, listPrice } from '@/lib/pricing';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { saveOrder } from '@/app/orders/actions';
 import type { Order, OrderStatus } from '@/lib/types';
@@ -31,6 +31,8 @@ export type QuickEditOrder = Pick<
   | 'id' | 'teamName' | 'invoiceNumber' | 'status' | 'orderValue' | 'trackingCode'
   | 'approvedDate' | 'datePaid' | 'productionStartDate' | 'productionFinishDate'
   | 'estimatedFinishDate' | 'completedAt' | 'createdAt'
+  | 'jerseyTier' | 'jerseyType' | 'sockType' | 'pantShellType' | 'sets' | 'orderMode'
+  | 'stitchedSublimatedLogos' | 'shoulderCut' | 'hasCaptainPatches' | 'captainCQuantity' | 'captainAQuantity'
 >;
 
 export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onClose: () => void }) {
@@ -42,6 +44,7 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
   const [value, setValue] = useState(order.orderValue === null ? '' : String(order.orderValue));
   const [error, setError] = useState<string | null>(null);
   const [savedStatus, setSavedStatus] = useState<OrderStatus | null>(null);
+  const lp = listPrice(order);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -128,12 +131,14 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Order value (CAD, before tax)</span>
+            <span className="mb-1 block text-xs font-medium text-muted">
+              Order value (CAD){value === '' ? ' — list price' : ' — set by hand'}
+            </span>
             <input
               inputMode="numeric"
               value={value}
-              onChange={(e) => setValue(e.target.value.replace(/[^0-9.]/g, ''))}
-              placeholder="—"
+              onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder={lp ? formatCad(lp.total) : 'No tier to price'}
               className="w-full"
             />
           </label>
@@ -193,7 +198,11 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
             </Link>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted">{formatCad(order.orderValue)} on file</span>
+            {value !== '' && lp && (
+              <button type="button" onClick={() => setValue('')} className="text-xs font-semibold text-ppc-gold hover:underline">
+                Use list price {formatCad(lp.total)}
+              </button>
+            )}
             <button
               type="button"
               disabled={!dirty || pending}
