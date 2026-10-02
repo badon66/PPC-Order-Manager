@@ -99,6 +99,8 @@ export interface PublicOrderView {
   isSample: boolean;
   jerseyType: Order['jerseyType'];
   sockType: Order['sockType'];
+  /** Multi-panel (pro cut) socks — a build detail the manufacturer needs. */
+  multiPanelSocks: boolean;
   pantShellType: Order['pantShellType'];
   numberDetails: string;
   /**

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { describeSet, extraRowCount, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { describeSet, extraRowCount, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
 import type {
@@ -558,6 +558,14 @@ export function OrderForm({
           onChange={(v) => set('sockType', v)}
           choices={(Object.keys(SOCK_TYPE_LABELS) as SockType[]).map((v) => ({ value: v, label: SOCK_TYPE_LABELS[v] }))}
         />
+        {/* A sock build detail, so it lives with the sock type and only when there are socks. */}
+        {orderIncludesSocks(draft) && (
+          <Toggle
+            label="Multi-panel sock construction (pro cut)"
+            checked={draft.multiPanelSocks}
+            onChange={(v) => set('multiPanelSocks', v)}
+          />
+        )}
         {hasPantShells && (
           <p className="text-xs text-muted">
             Pant shell build is set in the <span className="font-semibold text-ppc-gold">Pants &amp; Pant Shells</span> section.

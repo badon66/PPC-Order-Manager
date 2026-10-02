@@ -3,9 +3,10 @@ import { repo } from '@/lib/data';
 import { computeTotals, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
-  ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, statusBucket,
+  ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, awaitingFinish, statusBucket,
 } from '@/lib/constants';
 import { formatCad, isOverridden, orderValueOf } from '@/lib/pricing';
+import { hasDeposit, paymentLabel, paymentsOn } from '@/lib/payments';
 import { OrderCardShell } from '@/components/order-card-shell';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
@@ -88,11 +89,13 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
    * three weeks late looked exactly like one due in March. It's the single
    * most decision-shaped fact on the card, so it's coloured by what it means.
    *
-   * Urgency is only claimed for live jobs. A draft carrying a date from six
-   * weeks ago is not late — nobody is waiting on it — and painting it red
-   * teaches you to ignore red on the cards where it does mean something.
+   * Urgency is only claimed for live jobs still being finished. A draft
+   * carrying a date from six weeks ago is not late — nobody is waiting on it
+   * — and a shipped order past its estimate is not late either, it's
+   * shipped. Painting either red teaches you to ignore red where it matters.
    */
-  const urgent = bucket === 'active';
+  const urgent = bucket === 'active' && awaitingFinish(order.status);
+  const shippedOut = !awaitingFinish(order.status);
   const dueTone = !urgent
     ? 'bg-surface-2 text-muted border border-line'
     : due === 'overdue'
@@ -112,6 +115,32 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         </div>
       </div>
 
+      {/*
+        * Money and factory, at a glance. KEENAN'S BOARD ONLY. Three dots for
+        * the three payments, lit as they come in; a factory mark once it's
+        * gone to Michael. Full words on hover.
+        */}
+      {STATUS_META[order.status].order >= STATUS_META.design_talk.order && (() => {
+        const pay = paymentsOn(order);
+        const dots = [pay.initialDeposit, pay.productionDeposit, pay.finalPayment];
+        return (
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <span title={paymentLabel(pay)} className="inline-flex items-center gap-1 rounded-md border border-line bg-surface-2 px-1.5 py-0.5">
+              <span aria-hidden>💵</span>
+              {dots.map((on, i) => (
+                <span key={i} aria-hidden className={`inline-block h-2 w-2 rounded-full ${on ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
+              ))}
+              <span className={pay.initialDeposit ? 'text-emerald-300' : 'text-muted'}>{paymentLabel(pay)}</span>
+            </span>
+            {order.sentToFactoryAt && (
+              <span title={`Sent to factory ${formatShort(order.sentToFactoryAt)}`} className="inline-flex items-center gap-1 rounded-md border border-ppc-gold/40 bg-ppc-gold/10 px-1.5 py-0.5 text-ppc-gold">
+                <span aria-hidden>🏭</span> {formatShort(order.sentToFactoryAt)}
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
       <dl className="mt-3 space-y-1.5 text-sm">
         <Row label="Invoice" value={order.invoiceNumber || '—'} />
         <Row
@@ -126,7 +155,13 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         )}
       </dl>
 
-      {order.estimatedFinishDate ? (
+      {shippedOut ? (
+        /* The promise is over. Show the day it went out, not how it compared. */
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-sm font-bold text-emerald-200">
+          <span>{order.completedAt ? formatShort(order.completedAt) : '—'}</span>
+          <span>{order.status === 'completed' ? 'Completed' : 'Shipped'}</span>
+        </div>
+      ) : order.estimatedFinishDate ? (
         <div
           className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-sm font-bold ${dueTone}`}
         >
@@ -239,21 +274,24 @@ function Money({
   label: string;
   value: number;
   hint: string;
-  tone: 'pipeline' | 'banked';
+  tone: 'pipeline' | 'confirmed' | 'banked';
   icon: string;
 }) {
+  // Three steps of the same gold: outlined (might), tinted (will), solid (did).
   const skin =
     tone === 'banked'
       ? 'border-ppc-gold bg-ppc-gold text-black shadow-[0_0_0_1px_rgba(0,0,0,0.25)_inset]'
-      : 'border-ppc-gold/70 bg-ppc-gold/10 text-ppc-gold';
+      : tone === 'confirmed'
+        ? 'border-ppc-gold bg-ppc-gold/25 text-ppc-gold'
+        : 'border-ppc-gold/60 bg-ppc-gold/5 text-ppc-gold';
   const sub = tone === 'banked' ? 'text-black/70' : 'text-ppc-gold/80';
   return (
-    <div className={`flex min-w-[13rem] items-center gap-3 rounded-xl border-2 px-4 py-2.5 ${skin}`}>
-      <span aria-hidden className="text-2xl leading-none">{icon}</span>
+    <div className={`flex min-w-[15rem] items-center gap-3 rounded-xl border-2 px-5 py-3 ${skin}`}>
+      <span aria-hidden className="text-3xl leading-none">{icon}</span>
       <div className="min-w-0 flex-1">
-        <div className={`text-[0.65rem] font-bold uppercase tracking-widest ${sub}`}>{label}</div>
-        <div className="text-2xl font-black leading-tight tabular-nums">{formatCad(value)}</div>
-        <div className={`text-[0.7rem] leading-tight ${sub}`}>{hint}</div>
+        <div className={`text-[0.7rem] font-bold uppercase tracking-widest ${sub}`}>{label}</div>
+        <div className="text-3xl font-black leading-tight tabular-nums">{formatCad(value)}</div>
+        <div className={`text-xs leading-tight ${sub}`}>{hint}</div>
       </div>
     </div>
   );
@@ -285,12 +323,24 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
    *   YTD       completed this calendar year, by the day it was completed
    * An unpriced order contributes nothing, and says so in the hint.
    */
+  /*
+   *   pipeline   every open job from Design Talk on — the big number
+   *   confirmed  the open jobs with a deposit in — money that's real
+   *   YTD        completed this year, PLUS anything in production or beyond
+   *              that isn't finished yet: it's sold, it's being made, it
+   *              counts for the year it's being made in
+   */
   const priced = (o: Order) => orderValueOf(o) ?? 0;
-  const openPriced = all.filter((o) => statusBucket(o.status) !== 'completed' && STATUS_META[o.status].order >= PRICED_FROM);
-  const outgoing = openPriced.reduce((n, o) => n + priced(o), 0);
-  const unpriced = openPriced.filter((o) => orderValueOf(o) === null).length;
+  const open = all.filter((o) => statusBucket(o.status) !== 'completed');
+  const pipeline = open.filter((o) => STATUS_META[o.status].order >= PRICED_FROM);
+  const confirmed = pipeline.filter(hasDeposit);
+  const pipelineTotal = pipeline.reduce((n, o) => n + priced(o), 0);
+  const confirmedTotal = confirmed.reduce((n, o) => n + priced(o), 0);
+  const unpriced = pipeline.filter((o) => orderValueOf(o) === null).length;
   const yearStart = `${now.slice(0, 4)}-01-01`;
-  const ytdOrders = all.filter((o) => o.status === 'completed' && (o.completedAt ?? '') >= yearStart);
+  const ytdDone = all.filter((o) => o.status === 'completed' && (o.completedAt ?? '') >= yearStart);
+  const ytdMaking = open.filter((o) => STATUS_META[o.status].order >= STATUS_META.in_production.order);
+  const ytdOrders = [...ytdDone, ...ytdMaking];
   const ytd = ytdOrders.reduce((n, o) => n + priced(o), 0);
 
   // Completed, windowed by the day it was marked complete.
@@ -371,24 +421,31 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
           ))}
         </div>
-        <div className="flex shrink-0 gap-3">
+        <div className="flex shrink-0 flex-wrap gap-3">
           <Money
-            label="Outgoing"
+            label="Pipeline"
             icon="🔄"
             tone="pipeline"
-            value={outgoing}
+            value={pipelineTotal}
             hint={
               unpriced
-                ? `${openPriced.length} open · ${unpriced} not yet priced`
-                : `${openPriced.length} open job${openPriced.length === 1 ? '' : 's'} in the pipeline`
+                ? `${pipeline.length} open from Design Talk on · ${unpriced} unpriced`
+                : `${pipeline.length} open job${pipeline.length === 1 ? '' : 's'} from Design Talk on`
             }
+          />
+          <Money
+            label="Confirmed"
+            icon="💵"
+            tone="confirmed"
+            value={confirmedTotal}
+            hint={`${confirmed.length} with a deposit in`}
           />
           <Money
             label="Year to date"
             icon="🏆"
             tone="banked"
             value={ytd}
-            hint={`${ytdOrders.length} order${ytdOrders.length === 1 ? '' : 's'} completed in ${now.slice(0, 4)}`}
+            hint={`${ytdDone.length} completed + ${ytdMaking.length} in production, ${now.slice(0, 4)}`}
           />
         </div>
       </div>

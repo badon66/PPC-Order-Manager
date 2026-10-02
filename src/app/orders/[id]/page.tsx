@@ -333,7 +333,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <Field label="Jersey Type">
             {order.jerseyType ? JERSEY_TYPE_LABELS[order.jerseyType] : ''}
           </Field>
-          <Field label="Sock Type">{order.sockType ? SOCK_TYPE_LABELS[order.sockType] : ''}</Field>
+          <Field label="Sock Type">
+            {order.sockType ? SOCK_TYPE_LABELS[order.sockType] : ''}
+            {order.sockType && order.multiPanelSocks && (
+              <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Multi-panel</span>
+            )}
+          </Field>
           <Field label="Pant Shell Type">
             {order.pantShellType ? PANT_SHELL_TYPE_LABELS[order.pantShellType] : ''}
           </Field>

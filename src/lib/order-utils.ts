@@ -409,8 +409,11 @@ export function blankOrder(): Order {
     lacesStyle: 'none',
     shoulderCut: 'rounded',
     stitchedShoulderTrim: false,
+    multiPanelSocks: false,
     orderValue: null,
     completedAt: null,
+    paymentsReceived: [],
+    sentToFactoryAt: null,
     nameStyle: 'free_standing_letters',
 
     hasCaptainPatches: false,

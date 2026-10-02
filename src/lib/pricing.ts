@@ -29,6 +29,8 @@ export const SOCK_LIST_PRICE: Record<Exclude<SockType, null>, number> = {
   reversible_sublimated: 30,
   embroidered: 35,
 };
+/** "Socks, pro cut" in the reference: multi-panel construction, $5 more a pair on either build. */
+export const MULTI_PANEL_SOCK_EXTRA = 5;
 
 export const SHELL_LIST_PRICE: Record<Exclude<PantShellType, null>, number> = {
   sublimated: 55,
@@ -69,6 +71,7 @@ type Priceable = Pick<
   Order,
   | 'jerseyTier' | 'jerseyType' | 'sockType' | 'pantShellType' | 'sets' | 'orderMode'
   | 'stitchedSublimatedLogos' | 'shoulderCut' | 'hasCaptainPatches' | 'captainCQuantity' | 'captainAQuantity'
+  | 'multiPanelSocks'
 >;
 
 /** List price for the order as it stands. null when there's no tier to price from. */
@@ -105,8 +108,8 @@ export function listPrice(order: Priceable): Pricing | null {
 
   const socks = t.totalSockPairs;
   if (socks > 0 && order.sockType) {
-    const unit = SOCK_LIST_PRICE[order.sockType];
-    lines.push({ label: 'Socks', qty: socks, unit, amount: socks * unit });
+    const unit = SOCK_LIST_PRICE[order.sockType] + (order.multiPanelSocks ? MULTI_PANEL_SOCK_EXTRA : 0);
+    lines.push({ label: order.multiPanelSocks ? 'Socks, multi-panel (pro cut)' : 'Socks', qty: socks, unit, amount: socks * unit });
   }
   const shells = t.totalPantShells;
   if (shells > 0 && order.pantShellType) {

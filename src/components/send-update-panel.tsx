@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
-import { MONEY_STAGES, formatAmount, type DueUpdate } from '@/lib/data/customer-updates-logic';
+import { MANUAL_MESSAGE_ID, MONEY_STAGES, formatAmount, type DueUpdate } from '@/lib/data/customer-updates-logic';
 import {
   ALREADY_PAID_DETAIL, PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
   type CustomerEmailRecord, type PaymentKind, type UpdateStage, type ViewableAsset,
 } from '@/lib/types';
 import { formatTimestamp } from '@/lib/dates';
 import { sendUpdateAction } from '@/app/orders/[id]/update-actions';
+import { markUpdateSentAction } from '@/app/orders/mark-sent-action';
+import { useRouter } from 'next/navigation';
 import { FinishedPhotos } from '@/components/finished-photos';
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -24,7 +26,13 @@ function paymentKindFromDetail(detail: string | undefined): PaymentKind | null {
 /**
  * "Email the customer this update?" One card per due email: recipient,
  * subject, a preview, the amount box for the three request emails, Send and
- * Not now. Below it, what has already gone, each with Resend.
+ * Not now. Below it, what has already gone, each with Resend (or, for one
+ * marked sent by hand, the chance to send it properly).
+ *
+ * Three ways off a card. "Send" sends. "Already sent" records that the team
+ * already knows — a text, a call, an email from Keenan's own inbox — so the
+ * card is gone for good and shows under "Sent to the customer" as done by
+ * hand. "Not now" just hides it for this browser.
  *
  * "Not now" is remembered per order in localStorage (`ppc-updates-hidden-<id>`)
  * so dismissing a card sticks across a refresh. The server always renders the
@@ -80,6 +88,22 @@ export function SendUpdatePanel({
     sent.some((r) => r.stage === 'payment_received' && r.detail === PAYMENT_KIND_LABEL.final_payment),
   );
   const [, start] = useTransition();
+  const router = useRouter();
+
+  /** "Already sent": record it server-side so `dueUpdates` stops offering it, then refresh. */
+  function alreadySent(stage: UpdateStage) {
+    setMsg(null);
+    setInFlight(stage);
+    start(async () => {
+      try {
+        const r = await markUpdateSentAction(orderId, stage);
+        if (!r.ok) setMsg({ stage, text: r.error ?? 'Could not record that', ok: false });
+        else router.refresh();
+      } finally {
+        setInFlight(null);
+      }
+    });
+  }
 
   // payment_received is handled in its own block below, never in the
   // dismissable due/chip list — see the doc comment above.
@@ -225,6 +249,15 @@ export function SendUpdatePanel({
               <button type="button" disabled={!canSend || sending} className="rounded-lg bg-ppc-gold px-3.5 py-2 text-sm font-semibold text-black disabled:opacity-50" onClick={() => send(d.stage, { alreadyPaid: paidAlready })}>
                 {sending ? 'Sending…' : 'Send'}
               </button>
+              <button
+                type="button"
+                disabled={sending}
+                title="The team already knows — you told them another way. Clears this for good."
+                className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold hover:border-ppc-gold/60 disabled:opacity-50"
+                onClick={() => alreadySent(d.stage)}
+              >
+                Already sent
+              </button>
               <button type="button" className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-muted" onClick={() => setHidden((h) => new Set(h).add(d.stage))}>
                 Not now
               </button>
@@ -239,9 +272,19 @@ export function SendUpdatePanel({
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {chips.map((d) => (
-            <button key={d.stage} type="button" className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted hover:border-ppc-gold/60 hover:text-ppc-gold" onClick={() => setHidden((h) => { const n = new Set(h); n.delete(d.stage); return n; })}>
-              {UPDATE_STAGE_LABEL[d.stage]} email not sent · Send
-            </button>
+            <span key={d.stage} className="inline-flex items-center overflow-hidden rounded-full border border-line text-xs font-semibold text-muted">
+              <button type="button" className="px-3 py-1 hover:text-ppc-gold" onClick={() => setHidden((h) => { const n = new Set(h); n.delete(d.stage); return n; })}>
+                {UPDATE_STAGE_LABEL[d.stage]} email not sent · Send
+              </button>
+              <button
+                type="button"
+                title="Clear this for good — the team already knows."
+                className="border-l border-line px-2.5 py-1 hover:text-ppc-gold"
+                onClick={() => alreadySent(d.stage)}
+              >
+                Already sent
+              </button>
+            </span>
           ))}
         </div>
       )}
@@ -330,7 +373,9 @@ export function SendUpdatePanel({
                     {UPDATE_STAGE_LABEL[r.stage]}
                     {r.detail ? ` · ${r.detail}` : ''}
                   </span>
-                  <span className="text-muted">{formatTimestamp(r.sentAt)} · {r.to}</span>
+                  <span className="text-muted">
+                    {formatTimestamp(r.sentAt)} · {r.messageId === MANUAL_MESSAGE_ID ? 'marked sent by hand' : r.to}
+                  </span>
                   {isMoney && (
                     <span className="flex items-center gap-1">
                       <label htmlFor={`resend-amount-${r.stage}-${n}`} className="text-xs font-medium text-muted">Amount</label>
@@ -358,7 +403,7 @@ export function SendUpdatePanel({
                     className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50"
                     onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined, alreadyPaid: rowPaid })}
                   >
-                    {sending ? 'Sending…' : 'Resend'}
+                    {sending ? 'Sending…' : r.messageId === MANUAL_MESSAGE_ID ? 'Send it properly' : 'Resend'}
                   </button>
                   <span aria-live="polite">
                     {msg?.stage === r.stage && <span className={`text-xs ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}

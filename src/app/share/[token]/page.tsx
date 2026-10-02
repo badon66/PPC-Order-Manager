@@ -258,7 +258,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <Field label="Number of Sets">{view.numberOfSets}</Field>
           )}
           <Field label="Jersey Type">{view.jerseyType ? JERSEY_TYPE_LABELS[view.jerseyType] : ''}</Field>
-          <Field label="Sock Type">{view.sockType ? SOCK_TYPE_LABELS[view.sockType] : ''}</Field>
+          <Field label="Sock Type">
+            {view.sockType ? SOCK_TYPE_LABELS[view.sockType] : ''}
+            {view.sockType && view.multiPanelSocks && (
+              <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Multi-panel</span>
+            )}
+          </Field>
           <Field label="Pant Shell Type">
             {view.pantShellType ? PANT_SHELL_TYPE_LABELS[view.pantShellType] : ''}
           </Field>

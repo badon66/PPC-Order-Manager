@@ -580,6 +580,22 @@ export interface Order {
   /** The day it was marked Completed. Stamped by `stampCompletion`; editable to correct. */
   completedAt: CalendarDate | null;
 
+  /**
+   * Which payments Keenan has marked received, from the quick-edit popup.
+   * The deliberate record; `paymentsOn` in lib/payments.ts reads this first and
+   * only then infers from status position and sent emails. Never an amount.
+   */
+  paymentsReceived: PaymentKind[];
+
+  /** The day the job went to Michael. Set by the "Sent off to factory" button. */
+  sentToFactoryAt: CalendarDate | null;
+
+  /**
+   * Multi-panel (pro cut) sock construction. Only means anything when the
+   * order has socks; the form hides it otherwise and the price ignores it.
+   */
+  multiPanelSocks: boolean;
+
   shoulderCut: ShoulderCut;
   /** Stitched trim along the shoulder seam. Sits with the shoulder cut because that's where you decide it. */
   stitchedShoulderTrim: boolean;

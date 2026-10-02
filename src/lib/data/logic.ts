@@ -3,7 +3,7 @@ import type {
   ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
-import { STATUS_META, captaincyLabel } from '@/lib/constants';
+import { STATUS_META, awaitingFinish, captaincyLabel } from '@/lib/constants';
 import { nextHomeAwayClaims } from '@/lib/roster-edit';
 import {
   approvalOpen, extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
@@ -56,8 +56,11 @@ export function healOrder(o: Order): Order {
   o.stitchedSublimatedLogos ??= false;
   o.twillBorderNumbers ??= false;
   o.stitchedShoulderTrim ??= false;
+  o.multiPanelSocks ??= false;
   o.orderValue ??= null;
   o.completedAt ??= null;
+  o.paymentsReceived ??= [];
+  o.sentToFactoryAt ??= null;
   o.jerseyTier ??= null;
   o.requestClientDetails ??= false;
   o.productionStartDate ??= null;
@@ -151,15 +154,19 @@ export function logEntry(entry: Omit<ChangeLogEntry, 'id' | 'at'>): ChangeLogEnt
 /**
  * The patch an update should actually apply.
  *
- * Marking an order Completed stamps the day it happened, unless the patch
- * already carries one or the order was already complete. Store-agnostic, so
- * both backends stamp it the same way; without it "sales this year" has no
- * date to count by.
+ * `completedAt` is the day the job was DONE, and done means shipped: the day
+ * the box left is the day the work finished, whatever housekeeping status it
+ * sits in afterwards. So the stamp lands the first time an order reaches
+ * Shipped or beyond (Completed directly, if Shipped was skipped), and never
+ * moves again on its own. Keenan can still edit it.
+ *
+ * Store-agnostic, so both backends stamp it the same way; without it "sales
+ * this year" has no date to count by.
  */
 export function stampCompletion(before: Order, patch: Partial<Order>, today: CalendarDate): Partial<Order> {
-  const becomesComplete = patch.status === 'completed' && before.status !== 'completed';
-  if (!becomesComplete || patch.completedAt || before.completedAt) return patch;
-  return { ...patch, completedAt: today };
+  if (!patch.status || patch.completedAt || before.completedAt) return patch;
+  const crosses = !awaitingFinish(patch.status) && awaitingFinish(before.status);
+  return crosses ? { ...patch, completedAt: today } : patch;
 }
 
 /** The history lines an order update produces. Empty when nothing changed. */
@@ -682,6 +689,7 @@ export function publicViewOf(
     isSample: o.isSample,
     jerseyType: o.jerseyType,
     sockType: o.sockType,
+    multiPanelSocks: o.multiPanelSocks,
     pantShellType: o.pantShellType,
     numberDetails: o.numberDetails,
     addons: {

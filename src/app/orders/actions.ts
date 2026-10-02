@@ -103,7 +103,7 @@ const DATE_FIELDS = [
 const EDITABLE: ReadonlyArray<keyof Order> = [
   'teamName', 'invoiceNumber', 'datePaid', 'googleDriveLink', 'status',
   'estimatedFinishDate', 'trackingCode', 'isSample',
-  'orderValue', 'completedAt',
+  'orderValue', 'completedAt', 'paymentsReceived', 'sentToFactoryAt',
   'contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone',
   'shippingStreet', 'shippingSecondary', 'shippingCity', 'shippingProvince',
   'shippingPostal', 'requestClientDetails', 'clientLinkSections',
@@ -113,7 +113,7 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'armNumbers', 'printedSizingTag', 'ppcBackBranding', 'stopSignPatch',
   'rubberizedPpcCrest', 'stitchedSublimatedLogos', 'twillBorderNumbers',
   'jerseyTier',
-  'pantLogo', 'pantNumber', 'lacesStyle', 'shoulderCut', 'stitchedShoulderTrim', 'nameStyle',
+  'pantLogo', 'pantNumber', 'lacesStyle', 'shoulderCut', 'stitchedShoulderTrim', 'multiPanelSocks', 'nameStyle',
   'hasCaptainPatches', 'captainPatchStyle', 'captainCQuantity', 'captainAQuantity',
   'captainPatchNotes', 'hasShoulderLogos', 'shoulderLogosSame',
   'designReferenceNotes', 'collarReferenceNotes', 'mainCrestNotes',

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { repo } from '@/lib/data';
 import { dueLabel, dueStatus, formatShort, monthKey, monthLabel, today } from '@/lib/dates';
-import { DUE_SOON_WINDOW_DAYS, OPEN_STATUSES } from '@/lib/constants';
+import { DUE_SOON_WINDOW_DAYS, OPEN_STATUSES, awaitingFinish } from '@/lib/constants';
 import { Card, EmptyState, StatusBadge } from '@/components/ui';
 import type { Order } from '@/lib/types';
 
@@ -59,7 +59,8 @@ function QueueRow({ order, now }: { order: Order; now: string }) {
 export default async function QueuePage() {
   const now = today();
   const all = await repo.listOrders({ status: 'all', includeCompleted: false });
-  const active = all.filter((o) => ACTIVE.has(o.status));
+  // Shipped is open but finished: its date is history, not a deadline.
+  const active = all.filter((o) => ACTIVE.has(o.status) && awaitingFinish(o.status));
 
   const overdue = active
     .filter((o) => dueStatus(o.estimatedFinishDate, DUE_SOON_WINDOW_DAYS, now) === 'overdue')

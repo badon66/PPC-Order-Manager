@@ -64,6 +64,19 @@ export const ACTIVE_STATUSES: OrderStatus[] = [
 /** Everything that isn't finished — what the production queue schedules. */
 export const OPEN_STATUSES: OrderStatus[] = [...UNFINALIZED_STATUSES, ...ACTIVE_STATUSES];
 
+/**
+ * Is the job still being finished?
+ *
+ * A finish date is a promise about when the jerseys will be done. Once the
+ * box has shipped the promise has been kept or missed and either way it is
+ * over — a shipped order three weeks past its estimate is not "late", it's
+ * shipped. So lateness (red bars, the queue's Overdue list) applies only
+ * before Shipped, and from Shipped on the card shows the day it went out.
+ */
+export function awaitingFinish(s: OrderStatus): boolean {
+  return STATUS_META[s].order < STATUS_META.shipped.order;
+}
+
 export type StatusBucket = 'unfinalized' | 'active' | 'completed';
 
 export function statusBucket(s: OrderStatus): StatusBucket {

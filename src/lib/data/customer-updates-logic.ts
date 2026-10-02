@@ -28,6 +28,13 @@ export const MONEY_STAGES: ReadonlySet<UpdateStage> = new Set<UpdateStage>([
   'initial_deposit_requested', 'production_deposit_requested', 'final_payment_requested',
 ]);
 
+/**
+ * `messageId` on a sent-email row that was recorded by hand ("Already sent")
+ * rather than by an actual send. Tells the panel not to show a recipient or
+ * offer a plain Resend for it.
+ */
+export const MANUAL_MESSAGE_ID = 'manual';
+
 export interface DueUpdate {
   stage: UpdateStage;
   /** The panel must collect an amount before this one can send. */
