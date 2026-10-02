@@ -220,15 +220,41 @@ function StageButton({
   );
 }
 
-/** Same height as the chips it sits beside. Label and figure on one line; the hint on hover. */
-function Money({ label, value, hint }: { label: string; value: number; hint: string }) {
+/*
+ * The money, Keenan's eyes only.
+ *
+ * Deliberately NOT the same shape as the stage chips: those are buttons you
+ * press, these are figures you read. Bigger, gold, and the two differ from
+ * each other — Outgoing is the pipeline (outlined, it's money that isn't in
+ * yet), Year to date is the bank (solid, it is). The sub-line stays visible:
+ * "3 unpriced" is the thing that explains why the number looks low.
+ */
+function Money({
+  label,
+  value,
+  hint,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  tone: 'pipeline' | 'banked';
+  icon: string;
+}) {
+  const skin =
+    tone === 'banked'
+      ? 'border-ppc-gold bg-ppc-gold text-black shadow-[0_0_0_1px_rgba(0,0,0,0.25)_inset]'
+      : 'border-ppc-gold/70 bg-ppc-gold/10 text-ppc-gold';
+  const sub = tone === 'banked' ? 'text-black/70' : 'text-ppc-gold/80';
   return (
-    <div
-      title={hint}
-      className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 text-sm"
-    >
-      <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted">{label}</span>
-      <span className="font-bold tabular-nums text-ppc-gold">{formatCad(value)}</span>
+    <div className={`flex min-w-[13rem] items-center gap-3 rounded-xl border-2 px-4 py-2.5 ${skin}`}>
+      <span aria-hidden className="text-2xl leading-none">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className={`text-[0.65rem] font-bold uppercase tracking-widest ${sub}`}>{label}</div>
+        <div className="text-2xl font-black leading-tight tabular-nums">{formatCad(value)}</div>
+        <div className={`text-[0.7rem] leading-tight ${sub}`}>{hint}</div>
+      </div>
     </div>
   );
 }
@@ -345,9 +371,25 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
           ))}
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Money label="Outgoing" value={outgoing} hint={unpriced ? `${unpriced} unpriced` : `${openPriced.length} open jobs`} />
-          <Money label="Year to date" value={ytd} hint={`${ytdOrders.length} completed in ${now.slice(0, 4)}`} />
+        <div className="flex shrink-0 gap-3">
+          <Money
+            label="Outgoing"
+            icon="🔄"
+            tone="pipeline"
+            value={outgoing}
+            hint={
+              unpriced
+                ? `${openPriced.length} open · ${unpriced} not yet priced`
+                : `${openPriced.length} open job${openPriced.length === 1 ? '' : 's'} in the pipeline`
+            }
+          />
+          <Money
+            label="Year to date"
+            icon="🏆"
+            tone="banked"
+            value={ytd}
+            hint={`${ytdOrders.length} order${ytdOrders.length === 1 ? '' : 's'} completed in ${now.slice(0, 4)}`}
+          />
         </div>
       </div>
 
