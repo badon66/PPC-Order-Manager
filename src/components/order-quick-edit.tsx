@@ -51,6 +51,9 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [value, setValue] = useState(order.orderValue === null ? '' : String(order.orderValue));
   const [paid, setPaid] = useState<PaymentKind[]>(order.paymentsReceived ?? []);
+  // Only a click on a payment button puts payments in the patch. Saving a
+  // never-marked order without touching them must not write "marked none".
+  const [paidTouched, setPaidTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<UpdateStage>>(() => new Set());
 
@@ -78,7 +81,7 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
     [order, status, hidden],
   );
 
-  const samePaid = paid.length === (order.paymentsReceived ?? []).length && paid.every((k) => (order.paymentsReceived ?? []).includes(k));
+  const samePaid = !paidTouched;
   const dirty =
     teamName !== order.teamName ||
     invoiceNumber !== order.invoiceNumber ||
@@ -167,6 +170,7 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
   }
 
   function togglePaid(k: PaymentKind) {
+    setPaidTouched(true);
     setPaid((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]));
   }
 
@@ -223,8 +227,11 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
             <div className="mt-2 flex flex-wrap gap-2">
               {PAYMENT_KINDS.map((k) => {
                 const on = paid.includes(k);
-                // Implied by where the order sits or an email that went out, but not ticked here.
-                const implied = !on && inferred[k === 'initial_deposit' ? 'initialDeposit' : k === 'production_deposit' ? 'productionDeposit' : 'finalPayment'];
+                // A guess from where the order sits, shown faint until he ticks. Only
+                // while nothing has been marked: once he has, the ticks are the truth.
+                const implied =
+                  !on && !paidTouched && inferred.source === 'inferred' &&
+                  inferred[k === 'initial_deposit' ? 'initialDeposit' : k === 'production_deposit' ? 'productionDeposit' : 'finalPayment'];
                 return (
                   <button
                     key={k}
@@ -244,7 +251,9 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-muted">Tick what&apos;s actually in. A faint tick means it looks paid from the order&apos;s stage but hasn&apos;t been marked.</p>
+            <p className="mt-2 text-xs text-muted">
+              Tick what&apos;s actually in. A faint <span className="font-mono">~</span> is a guess from the order&apos;s stage; once you tick anything, only your ticks count.
+            </p>
           </div>
 
           <div className="rounded-lg border border-line bg-surface-2 p-3">

@@ -24,6 +24,13 @@ export interface SectionDef {
   blurb: string;
   /** Drives the tick in the side nav / wizard list. */
   complete: boolean;
+  /**
+   * May use the whole column. Off by default: a section made of text boxes
+   * is capped so a Team Name field doesn't stretch to half a metre on the
+   * ultrawide. On for the ones that are tables or picture grids, which want
+   * every pixel they can get.
+   */
+  wide?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -230,7 +237,7 @@ export function SectionCard({
   return (
     <section
       id={anchored ? `sec-${def.id}` : undefined}
-      className="scroll-mt-24 rounded-xl border border-line bg-surface"
+      className={`scroll-mt-24 rounded-xl border border-line bg-surface ${def.wide ? '' : 'max-w-6xl'}`}
     >
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-base">

@@ -16,11 +16,13 @@ import type { Order } from '@/lib/types';
  */
 
 const SENTINEL = 7391;
-const MONEY_KEY = /value|price|cost|amount|money|invoice_total|paid_amount|deposit/i;
+const MONEY_KEY = /value|price|cost|amount|money|invoice_total|paid_amount|deposit|payments|factory/i;
 
 function pricedOrder(): Order {
   const o = blankOrder();
   o.orderValue = SENTINEL;
+  o.paymentsReceived = ['initial_deposit'];
+  o.sentToFactoryAt = '2026-10-01';
   o.teamName = 'Leak Test';
   return o;
 }
@@ -60,18 +62,29 @@ test('the roster CSV (what the manufacturer gets) carries no money', () => {
   assert.doesNotMatch(csv.split('\n')[0], /value|price|cost/i);
 });
 
-test('stampCompletion dates the first move to Completed, and only that', () => {
-  const o = blankOrder();
-  o.status = 'shipped';
-  const p = stampCompletion(o, { status: 'completed' }, '2026-10-02');
-  assert.equal(p.completedAt, '2026-10-02');
-  // explicit date wins
-  assert.equal(stampCompletion(o, { status: 'completed', completedAt: '2026-09-30' }, '2026-10-02').completedAt, '2026-09-30');
-  // already complete: untouched
-  const done = { ...o, status: 'completed' as const, completedAt: '2026-09-01' as const };
-  assert.equal(stampCompletion(done, { status: 'completed' }, '2026-10-02').completedAt, undefined);
+test('stampCompletion: the completion date is the day it SHIPPED', () => {
+  const making = { ...blankOrder(), status: 'in_production' as const };
+  // in production -> shipped: stamped
+  assert.equal(stampCompletion(making, { status: 'shipped' }, '2026-10-02').completedAt, '2026-10-02');
+  // in production -> completed directly (shipped skipped): stamped
+  assert.equal(stampCompletion(making, { status: 'completed' }, '2026-10-02').completedAt, '2026-10-02');
+  // shipped -> completed later: NOT restamped, the ship day stands
+  const shipped = { ...blankOrder(), status: 'shipped' as const, completedAt: '2026-09-20' as const };
+  assert.equal(stampCompletion(shipped, { status: 'completed' }, '2026-10-02').completedAt, undefined);
+  // an explicit date in the patch wins
+  assert.equal(stampCompletion(making, { status: 'shipped', completedAt: '2026-09-30' }, '2026-10-02').completedAt, '2026-09-30');
+  // moving between two unfinished stages never stamps
+  assert.equal(stampCompletion(making, { status: 'waiting_for_final_approval' }, '2026-10-02').completedAt, undefined);
   // a non-status change never stamps
-  assert.equal(stampCompletion(o, { teamName: 'x' }, '2026-10-02').completedAt, undefined);
+  assert.equal(stampCompletion(making, { teamName: 'x' }, '2026-10-02').completedAt, undefined);
+});
+
+test('awaitingFinish: a deadline means something only before Shipped', async () => {
+  const { awaitingFinish } = await import('@/lib/constants');
+  assert.equal(awaitingFinish('in_production'), true);
+  assert.equal(awaitingFinish('waiting_for_payment'), true);
+  assert.equal(awaitingFinish('shipped'), false);
+  assert.equal(awaitingFinish('completed'), false);
 });
 
 /* ------------------------------------------------------------------ *
@@ -138,4 +151,15 @@ test('orderValueOf: override wins, list price otherwise, null with no tier', () 
   assert.equal(orderValueOf(o), 18 * 95);
   assert.equal(orderValueOf({ ...o, orderValue: 1500 }), 1500);
   assert.equal(orderValueOf({ ...o, jerseyTier: null }), null);
+});
+
+test('list price: multi-panel socks are the pro-cut price, +$5 a pair, and only with socks', () => {
+  const o = sized({ sockType: 'sublimated', multiPanelSocks: true });
+  o.sets = [{ ...o.sets[0], playerJerseys: 12, goalieJerseys: 0, sockPairs: 12 }];
+  const line = listPrice(o)!.lines.find((l) => /Socks/.test(l.label))!;
+  assert.equal(line.unit, 35);
+  assert.match(line.label, /multi-panel/i);
+  // no socks on the order: the flag changes nothing
+  const none = sized({ multiPanelSocks: true });
+  assert.equal(listPrice(none)!.lines.some((l) => /Socks/.test(l.label)), false);
 });

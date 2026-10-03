@@ -255,19 +255,20 @@ export function OrderForm({
     { id: 'mode', title: 'Order Mode', icon: '🔀', blurb: 'One set, home and away, or several sets.', complete: true },
     { id: 'totals', title: 'Order Totals', icon: '🔢', blurb: 'How many of everything, per set.', complete: anyQty },
     { id: 'build', title: 'Build Type', icon: '👕', blurb: 'Sublimated, reversible, or embroidered — per item.', complete: draft.jerseyType !== null },
-    { id: 'numbers', title: 'Numbers & Names', icon: '🔟', blurb: 'Name style, number styling, and reference images.', complete: Boolean(draft.numberDetails) || assets.some((a) => a.role.startsWith('number_reference')) },
+    { id: 'numbers', title: 'Numbers & Names', icon: '🔟', wide: true, blurb: 'Name style, number styling, and reference images.', complete: Boolean(draft.numberDetails) || assets.some((a) => a.role.startsWith('number_reference')) },
     { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: addonsForJerseyType(draft.jerseyType).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
-    { id: 'artwork', title: 'Logos & Artwork', icon: '🎨', blurb: 'Design references, crest, shoulder logos, sponsor logos, fonts.', complete: hasArtwork },
+    { id: 'artwork', title: 'Logos & Artwork', icon: '🎨', wide: true, blurb: 'Design references, crest, shoulder logos, sponsor logos, fonts.', complete: hasArtwork },
     ...(hasPantShells
       ? [{
           id: 'pants',
           title: 'Pants & Pant Shells',
           icon: '🩳',
+          wide: true, // carries artwork groups
           blurb: 'Shell build, plus pant logo and number with their artwork.',
           complete: Boolean(draft.pantShellType),
         } as SectionDef]
       : []),
-    { id: 'roster', title: `Player Roster (${roster.length})`, icon: '👥', blurb: 'Names, numbers, sizes — or import a CSV.', complete: roster.length > 0 },
+    { id: 'roster', title: `Player Roster (${roster.length})`, icon: '👥', wide: true, blurb: 'Names, numbers, sizes — or import a CSV.', complete: roster.length > 0 },
     { id: 'notes', title: 'Notes & Approval', icon: '✅', blurb: 'Special instructions and customer sign-off.', complete: Boolean(draft.approvedBy || draft.approvedDate || draft.specialNotes) },
   ];
 

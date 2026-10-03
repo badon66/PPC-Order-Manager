@@ -34,6 +34,37 @@ body {
 }
 
 /*
+ * Keenan's monitor.
+ *
+ * The admin side is used on a 3440px ultrawide. At the app's normal 72rem and
+ * 16px it filled a third of the screen. On a big screen the admin pages do two
+ * things: scale up (root font-size, so every rem in the app — text, spacing,
+ * controls, the fixed overlays — grows together, with no component edits) and
+ * widen (the header row and main column). Three steps so a 1080p or 1440p
+ * monitor gets a gentler version of the same.
+ *
+ * `data-surface` is stamped on <html> by the root layout from a header the
+ * proxy sets (lib/surface.ts). "public" is the customer pages, standard size
+ * for everybody, always. "sales" is the calling screen, which has its own
+ * full-height layout below and is left alone. Only "admin" scales.
+ *
+ * Media queries are in px on purpose: a query in rem would use the initial
+ * 16px anyway, and spelling it out keeps that from looking like a mistake.
+ */
+@media (min-width: 1920px) {
+  html[data-surface="admin"] { font-size: 108%; }
+  html[data-surface="admin"] :is(header > div, main) { max-width: 96rem; }
+}
+@media (min-width: 2560px) {
+  html[data-surface="admin"] { font-size: 117%; }
+  html[data-surface="admin"] :is(header > div, main) { max-width: 108rem; }
+}
+@media (min-width: 3200px) {
+  html[data-surface="admin"] { font-size: 125%; }
+  html[data-surface="admin"] :is(header > div, main) { max-width: 120rem; }
+}
+
+/*
  * Sales is used on an ultra-wide monitor. Its layout renders a `.sales-wide`
  * wrapper, and while that is on the page the header row and the main column
  * widen from the app's 72rem to 120rem. Orders and Production are untouched.
@@ -97,4 +128,7 @@ input[type="checkbox"], input[type="radio"] {
 /* The calling screen switches to four full-height columns here (docs/call-view-prompt.md). */
 @theme {
   --breakpoint-wide: 100rem;
+  /* Big monitors. Breakpoints resolve against the initial 16px, so these are 1920px and 2560px. */
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 160rem;
 }

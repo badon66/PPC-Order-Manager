@@ -412,7 +412,7 @@ export function blankOrder(): Order {
     multiPanelSocks: false,
     orderValue: null,
     completedAt: null,
-    paymentsReceived: [],
+    paymentsReceived: null,
     sentToFactoryAt: null,
     nameStyle: 'free_standing_letters',
 

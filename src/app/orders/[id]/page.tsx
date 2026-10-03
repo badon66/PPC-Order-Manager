@@ -28,6 +28,10 @@ import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 import { isNoName } from '@/lib/roster-edit';
 import { formatCad, isOverridden, listPrice, orderValueOf } from '@/lib/pricing';
+import { paymentsOn } from '@/lib/payments';
+import { stageSummary } from '@/lib/data/stage-track';
+import { DateLadder, StageNow, StageTrack } from '@/components/stage-track';
+import { today } from '@/lib/dates';
 import type { AssetRole } from '@/lib/types';
 
 /** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
@@ -106,6 +110,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const stagePaths = stagePagePaths(order.rosterToken);
   const timeline = timelineOf(order, history, { designUrl: stagePaths.design, detailsUrl: stagePaths.details });
   const due = dueUpdates(order, history);
+  const stage = stageSummary(order, history, today());
   const finishedPhotos = assets.filter((a) => a.role === 'finished_photo');
   const showPhotos = STATUS_META[order.status].order >= STATUS_META.waiting_for_final_approval.order;
   const preview = mailInputFor(order, history, settings, BASE_URL, {});
@@ -190,6 +195,24 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/*
+        * The order's position, first. The track reads left to right; the four
+        * cards under it say what's happening, what's next, when, and what on
+        * this order needs a hand. See components/stage-track.tsx.
+        */}
+      <Section title="Where it’s at">
+        <StageTrack summary={stage} />
+        <div className="mt-5">
+          <StageNow
+            summary={stage}
+            payments={paymentsOn(order)}
+            valueLabel={formatCad(orderValueOf(order))}
+            productionStart={order.productionStartDate}
+            productionFinish={order.productionFinishDate}
+          />
+        </div>
+      </Section>
+
       <Section title="Operational">
         <OperationalControls
           orderId={order.id}
@@ -201,9 +224,35 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           trackingCode={order.trackingCode}
         />
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <div>
-            <p className="mb-2 text-xs font-medium text-muted">What the customer sees</p>
-            <Timeline steps={timeline} compact />
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted">Dates</p>
+              <DateLadder
+                rungs={[
+                  ['Created', order.createdAt.slice(0, 10)],
+                  ['Signed off', order.approvedDate],
+                  ['Sent to factory', order.sentToFactoryAt],
+                  ['Production start', order.productionStartDate],
+                  ['Production finished', order.productionFinishDate],
+                  ['Estimated finish', order.estimatedFinishDate],
+                  ['Paid in full', order.datePaid],
+                  ['Shipped / completed', order.completedAt],
+                ]}
+              />
+            </div>
+          {/*
+            * The team's version of the same track, folded. The admin track
+            * above has replaced it as the thing to read; this stays one click
+            * away for "what exactly are they being told right now".
+            */}
+          <details className="self-start rounded-lg border border-line bg-surface-2 p-3">
+            <summary className="cursor-pointer select-none text-xs font-medium text-muted hover:text-ppc-gold">
+              What the customer sees
+            </summary>
+            <div className="mt-3">
+              <Timeline steps={timeline} compact />
+            </div>
+          </details>
           </div>
           <div id="customer-emails" className="scroll-mt-24">
             <p className="mb-2 text-xs font-medium text-muted">Customer emails</p>

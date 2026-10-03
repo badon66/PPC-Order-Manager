@@ -104,7 +104,7 @@ export function everInStatus(status: OrderStatus, history: ChangeLogEntry[], cur
 }
 
 /** The day the order most recently entered a status, from the log. */
-function enteredOn(status: OrderStatus, history: ChangeLogEntry[]): string | null {
+export function enteredOn(status: OrderStatus, history: ChangeLogEntry[]): string | null {
   const hits = history
     .filter((h) => h.action === 'status_changed' && h.toValue === status)
     .sort((a, b) => b.at.localeCompare(a.at));

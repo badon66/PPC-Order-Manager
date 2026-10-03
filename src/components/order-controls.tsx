@@ -86,7 +86,7 @@ export function OperationalControls({
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-5">
       <div>
         <label className="text-xs font-medium text-muted">Order Status</label>
         <select

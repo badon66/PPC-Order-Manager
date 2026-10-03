@@ -59,7 +59,7 @@ export function healOrder(o: Order): Order {
   o.multiPanelSocks ??= false;
   o.orderValue ??= null;
   o.completedAt ??= null;
-  o.paymentsReceived ??= [];
+  o.paymentsReceived ??= null;
   o.sentToFactoryAt ??= null;
   o.jerseyTier ??= null;
   o.requestClientDetails ??= false;

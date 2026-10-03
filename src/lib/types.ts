@@ -582,10 +582,11 @@ export interface Order {
 
   /**
    * Which payments Keenan has marked received, from the quick-edit popup.
-   * The deliberate record; `paymentsOn` in lib/payments.ts reads this first and
-   * only then infers from status position and sent emails. Never an amount.
+   * null = never marked, and lib/payments.ts infers from the order's position.
+   * An array, empty included, is his word and is not second-guessed. Never an
+   * amount.
    */
-  paymentsReceived: PaymentKind[];
+  paymentsReceived: PaymentKind[] | null;
 
   /** The day the job went to Michael. Set by the "Sent off to factory" button. */
   sentToFactoryAt: CalendarDate | null;

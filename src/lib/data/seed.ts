@@ -92,7 +92,7 @@ export function seedDatabase(): Database {
     multiPanelSocks: false,
     orderValue: null,
     completedAt: null,
-    paymentsReceived: [],
+    paymentsReceived: null,
     sentToFactoryAt: null,
     nameStyle: 'name_bars',
     contactFirstName: 'Dana',

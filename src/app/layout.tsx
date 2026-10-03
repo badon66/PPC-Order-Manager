@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { SURFACE_HEADER, asSurface } from '@/lib/surface';
 import { SESSION_COOKIE, isValidSession } from '@/lib/session';
 import { lock } from './unlock/actions';
 import './globals.css';
@@ -26,9 +27,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // get the wordmark and nothing else — no nav into the admin side.
   const jar = await cookies();
   const unlocked = await isValidSession(jar.get(SESSION_COOKIE)?.value);
+  // Stamped on <html> so globals.css can scale the admin side for the
+  // ultrawide and leave the customer pages at standard size. See lib/surface.ts.
+  const surface = asSurface((await headers()).get(SURFACE_HEADER));
 
   return (
-    <html lang="en">
+    <html lang="en" data-surface={surface}>
       <body>
         <header className="sticky top-0 z-40 border-b border-ppc-gold/40 bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">

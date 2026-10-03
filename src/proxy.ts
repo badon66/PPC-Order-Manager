@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { SESSION_COOKIE, isValidSession } from '@/lib/session';
+import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
 
 /**
  * The lock on the front door.
@@ -26,15 +27,27 @@ import { SESSION_COOKIE, isValidSession } from '@/lib/session';
 
 const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake', '/api/share/'];
 
+/**
+ * Pass the request on, telling the root layout which kind of screen this is
+ * (see lib/surface.ts). Set here, where public-ness is already decided, so the
+ * admin pages can scale up for Keenan's monitor and the customer pages never
+ * do. Overwrites anything a client sent under that name.
+ */
+function next(request: NextRequest, isPublic: boolean) {
+  const headers = new Headers(request.headers);
+  headers.set(SURFACE_HEADER, surfaceFor(request.nextUrl.pathname, isPublic));
+  return NextResponse.next({ request: { headers } });
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, '') || pathname.startsWith(p))) {
-    return NextResponse.next();
+    return next(request, true);
   }
 
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
-  if (await isValidSession(cookie)) return NextResponse.next();
+  if (await isValidSession(cookie)) return next(request, false);
 
   const url = request.nextUrl.clone();
   url.pathname = '/unlock';

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { repo } from '@/lib/data';
-import { computeTotals, shipToSummary } from '@/lib/order-utils';
+import { computeTotals, rosterSlotCount, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
   ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, awaitingFinish, statusBucket,
@@ -8,6 +8,7 @@ import {
 import { formatCad, isOverridden, orderValueOf } from '@/lib/pricing';
 import { hasDeposit, paymentLabel, paymentsOn } from '@/lib/payments';
 import { OrderCardShell } from '@/components/order-card-shell';
+import { StageMeter } from '@/components/stage-track';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
 import type { Order, OrderStatus, RosterEntry } from '@/lib/types';
@@ -115,28 +116,50 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
         </div>
       </div>
 
+      {/* Position on the track, without reading the badge. */}
+      <div className="mt-2.5">
+        <StageMeter status={order.status} />
+      </div>
+
       {/*
-        * Money and factory, at a glance. KEENAN'S BOARD ONLY. Three dots for
-        * the three payments, lit as they come in; a factory mark once it's
-        * gone to Michael. Full words on hover.
+        * Money under the phase, factory under the name. KEENAN'S BOARD ONLY.
+        * Three dots for the three payments, lit as they come in — solid when
+        * Keenan marked them, faint when it's a guess from the stage (see
+        * lib/payments.ts). The factory mark appears once it's gone to Michael.
         */}
       {STATUS_META[order.status].order >= STATUS_META.design_talk.order && (() => {
         const pay = paymentsOn(order);
         const dots = [pay.initialDeposit, pay.productionDeposit, pay.finalPayment];
+        const guess = pay.source === 'inferred';
+        const any = dots.some(Boolean);
         return (
-          <div className="mt-2 flex items-center gap-2 text-xs">
-            <span title={paymentLabel(pay)} className="inline-flex items-center gap-1 rounded-md border border-line bg-surface-2 px-1.5 py-0.5">
-              <span aria-hidden>💵</span>
-              {dots.map((on, i) => (
-                <span key={i} aria-hidden className={`inline-block h-2 w-2 rounded-full ${on ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
-              ))}
-              <span className={pay.initialDeposit ? 'text-emerald-300' : 'text-muted'}>{paymentLabel(pay)}</span>
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+            <span>
+              {order.sentToFactoryAt && (
+                <span title={`Sent to factory ${formatShort(order.sentToFactoryAt)}`} className="inline-flex h-6 items-center gap-1 rounded-md border border-ppc-gold/40 bg-ppc-gold/10 px-1.5 text-ppc-gold">
+                  <span aria-hidden className="leading-none">🏭</span>
+                  <span className="leading-none">{formatShort(order.sentToFactoryAt)}</span>
+                </span>
+              )}
             </span>
-            {order.sentToFactoryAt && (
-              <span title={`Sent to factory ${formatShort(order.sentToFactoryAt)}`} className="inline-flex items-center gap-1 rounded-md border border-ppc-gold/40 bg-ppc-gold/10 px-1.5 py-0.5 text-ppc-gold">
-                <span aria-hidden>🏭</span> {formatShort(order.sentToFactoryAt)}
+            <span
+              title={`${paymentLabel(pay)}${guess ? ' — from the order’s stage, not marked yet' : ''}`}
+              className="inline-flex h-6 items-center gap-1.5 rounded-md border border-line bg-surface-2 px-1.5"
+            >
+              <span aria-hidden className="text-[0.8rem] leading-none">💵</span>
+              <span className="inline-flex items-center gap-0.5">
+                {dots.map((on, i) => (
+                  <span
+                    key={i}
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${on ? (guess ? 'bg-emerald-400/50' : 'bg-emerald-400') : 'bg-neutral-600'}`}
+                  />
+                ))}
               </span>
-            )}
+              <span className={`leading-none ${any ? (guess ? 'text-emerald-300/70' : 'text-emerald-300') : 'text-muted'}`}>
+                {paymentLabel(pay)}{guess && any ? '?' : ''}
+              </span>
+            </span>
           </div>
         );
       })()}
@@ -256,42 +279,93 @@ function StageButton({
 }
 
 /*
- * The money, Keenan's eyes only.
+ * The two panels at the top right. KEENAN ONLY.
  *
- * Deliberately NOT the same shape as the stage chips: those are buttons you
- * press, these are figures you read. Bigger, gold, and the two differ from
- * each other — Outgoing is the pipeline (outlined, it's money that isn't in
- * yet), Year to date is the bank (solid, it is). The sub-line stays visible:
- * "3 unpriced" is the thing that explains why the number looks low.
+ * Left is money: Confirmed and Pipeline across the top (what's real, what
+ * might be), Year to date and Total sales across the bottom (what's done).
+ * Total sales is the biggest figure on the page, because it's the one.
+ * Right is the shop's count: orders, teams, players, jerseys, socks, shells,
+ * all from completed work. The two are the same height and shape so they
+ * read as a pair.
  */
-function Money({
+function Stat({
   label,
   value,
   hint,
-  tone,
-  icon,
+  size = 'md',
+  tone = 'gold',
 }: {
   label: string;
-  value: number;
-  hint: string;
-  tone: 'pipeline' | 'confirmed' | 'banked';
-  icon: string;
+  value: string;
+  hint?: string;
+  size?: 'md' | 'lg' | 'xl';
+  tone?: 'gold' | 'plain' | 'onGold';
 }) {
-  // Three steps of the same gold: outlined (might), tinted (will), solid (did).
-  const skin =
-    tone === 'banked'
-      ? 'border-ppc-gold bg-ppc-gold text-black shadow-[0_0_0_1px_rgba(0,0,0,0.25)_inset]'
-      : tone === 'confirmed'
-        ? 'border-ppc-gold bg-ppc-gold/25 text-ppc-gold'
-        : 'border-ppc-gold/60 bg-ppc-gold/5 text-ppc-gold';
-  const sub = tone === 'banked' ? 'text-black/70' : 'text-ppc-gold/80';
+  const num = size === 'xl' ? 'text-4xl' : size === 'lg' ? 'text-3xl' : 'text-2xl';
+  const colour = tone === 'gold' ? 'text-ppc-gold' : tone === 'onGold' ? 'text-black' : 'text-foreground';
+  const label2 = tone === 'onGold' ? 'text-black/70' : 'text-muted';
   return (
-    <div className={`flex min-w-[15rem] items-center gap-3 rounded-xl border-2 px-5 py-3 ${skin}`}>
-      <span aria-hidden className="text-3xl leading-none">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <div className={`text-[0.7rem] font-bold uppercase tracking-widest ${sub}`}>{label}</div>
-        <div className="text-3xl font-black leading-tight tabular-nums">{formatCad(value)}</div>
-        <div className={`text-xs leading-tight ${sub}`}>{hint}</div>
+    <div className="min-w-0">
+      <div className={`text-[0.65rem] font-bold uppercase tracking-widest ${label2}`}>{label}</div>
+      <div className={`${num} font-black leading-tight tabular-nums ${colour}`}>{value}</div>
+      {hint && <div className={`text-[0.7rem] leading-tight ${label2}`}>{hint}</div>}
+    </div>
+  );
+}
+
+function MoneyPanel({
+  confirmed,
+  pipeline,
+  ytd,
+  total,
+  hints,
+}: {
+  confirmed: number;
+  pipeline: number;
+  ytd: number;
+  total: number;
+  hints: { confirmed: string; pipeline: string; ytd: string; total: string };
+}) {
+  return (
+    <div className="flex min-w-[26rem] flex-col justify-between gap-3 rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-5 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Stat label="💵 Confirmed" value={formatCad(confirmed)} hint={hints.confirmed} size="lg" />
+        <Stat label="🔄 Pipeline" value={formatCad(pipeline)} hint={hints.pipeline} tone="plain" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 rounded-lg bg-ppc-gold px-4 py-3">
+        <Stat label="Year to date" value={formatCad(ytd)} hint={hints.ytd} tone="onGold" />
+        <Stat label="🏆 Total sales" value={formatCad(total)} hint={hints.total} size="xl" tone="onGold" />
+      </div>
+    </div>
+  );
+}
+
+function NumbersPanel({
+  completed,
+  teams,
+  players,
+  jerseys,
+  socks,
+  shells,
+}: {
+  completed: number;
+  teams: number;
+  players: number;
+  jerseys: number;
+  socks: number;
+  shells: number;
+}) {
+  const n = (x: number) => x.toLocaleString('en-CA');
+  return (
+    <div className="flex min-w-[26rem] flex-col justify-between gap-3 rounded-xl border-2 border-line bg-surface-2 px-5 py-4">
+      <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted">The numbers · all time</div>
+      <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+        <Stat label="Orders done" value={n(completed)} />
+        <Stat label="Teams happy" value={n(teams)} />
+        <Stat label="Players dressed" value={n(players)} />
+        <Stat label="Jerseys made" value={n(jerseys)} tone="plain" />
+        <Stat label="Socks made" value={n(socks)} tone="plain" />
+        <Stat label="Pant shells made" value={n(shells)} tone="plain" />
       </div>
     </div>
   );
@@ -342,6 +416,24 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const ytdMaking = open.filter((o) => STATUS_META[o.status].order >= STATUS_META.in_production.order);
   const ytdOrders = [...ytdDone, ...ytdMaking];
   const ytd = ytdOrders.reduce((n, o) => n + priced(o), 0);
+  // Total sales: everything that has reached the factory or beyond, ever.
+  // Same rule as YTD without the year.
+  const soldEver = all.filter((o) => STATUS_META[o.status].order >= STATUS_META.in_production.order);
+  const totalSales = soldEver.reduce((n, o) => n + priced(o), 0);
+
+  // The shop's numbers, from completed work. Totals come off the declared
+  // quantities (computeTotals needs no roster for that), players off the
+  // squad size, teams off distinct names.
+  const done = all.filter((o) => o.status === 'completed');
+  const doneTotals = done.map((o) => computeTotals(o, []));
+  const numbers = {
+    completed: done.length,
+    teams: new Set(done.map((o) => o.teamName.trim().toLowerCase()).filter(Boolean)).size,
+    players: done.reduce((n, o) => n + rosterSlotCount(o), 0),
+    jerseys: doneTotals.reduce((n, t) => n + t.totalJerseys, 0),
+    socks: doneTotals.reduce((n, t) => n + t.totalSockPairs, 0),
+    shells: doneTotals.reduce((n, t) => n + t.totalPantShells, 0),
+  };
 
   // Completed, windowed by the day it was marked complete.
   const win = windowFor(range, now);
@@ -415,38 +507,34 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         * the grid below it has, with In Production, Drafts and Completed in
         * one matching set at its right end.
         */}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+      {/*
+        * The chips want at least ~40rem before the money is allowed to share
+        * their row. On the ultrawide that's both on one line; on a laptop the
+        * money drops to its own row instead of squeezing the chips into a
+        * column one chip tall.
+        */}
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-[40rem] flex-wrap gap-2">
           {topStages.map((s) => (
             <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
           ))}
         </div>
-        <div className="flex shrink-0 flex-wrap gap-3">
-          <Money
-            label="Pipeline"
-            icon="🔄"
-            tone="pipeline"
-            value={pipelineTotal}
-            hint={
-              unpriced
+        <div className="ml-auto flex shrink-0 flex-wrap gap-3">
+          <MoneyPanel
+            confirmed={confirmedTotal}
+            pipeline={pipelineTotal}
+            ytd={ytd}
+            total={totalSales}
+            hints={{
+              confirmed: `${confirmed.length} open with a deposit in`,
+              pipeline: unpriced
                 ? `${pipeline.length} open from Design Talk on · ${unpriced} unpriced`
-                : `${pipeline.length} open job${pipeline.length === 1 ? '' : 's'} from Design Talk on`
-            }
+                : `${pipeline.length} open from Design Talk on`,
+              ytd: `${ytdDone.length} done + ${ytdMaking.length} in production, ${now.slice(0, 4)}`,
+              total: `${soldEver.length} order${soldEver.length === 1 ? '' : 's'} sold, all time`,
+            }}
           />
-          <Money
-            label="Confirmed"
-            icon="💵"
-            tone="confirmed"
-            value={confirmedTotal}
-            hint={`${confirmed.length} with a deposit in`}
-          />
-          <Money
-            label="Year to date"
-            icon="🏆"
-            tone="banked"
-            value={ytd}
-            hint={`${ytdDone.length} completed + ${ytdMaking.length} in production, ${now.slice(0, 4)}`}
-          />
+          <NumbersPanel {...numbers} />
         </div>
       </div>
 
@@ -521,7 +609,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           hint={search ? 'Try a different team name or invoice number.' : 'Start a new order, or open Drafts or Completed.'}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 4xl:grid-cols-5">
           {bundles.map(({ order, roster }) => (
             <OrderCard key={order.id} order={order} roster={roster} now={now} />
           ))}
