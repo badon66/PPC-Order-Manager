@@ -12,7 +12,7 @@ const base: UpdateMailInput = {
   products: { socks: true, pantShells: false },
   amount: '$250', howToPay: 'E-transfer to info@powerplaycustoms.ca (no fee), or by card (3% fee).',
   estimatedFinishDate: '2026-10-15', trackingCode: 'CP123456789CA',
-  paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', photos: [], finalPaid: false,
+  paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', mockupVersion: 'V1', photos: [], finalPaid: false,
   nextAfterApproval: 'production', approvedBy: 'Sam Carter',
   googleReviewUrl: 'https://g.page/r/abc/review', referralLine: 'Know another team? Send them our way.',
 };

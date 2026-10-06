@@ -77,7 +77,7 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
       dueUpdates(
         { ...order, status, customerEmails: order.customerEmails, trackingCode: order.trackingCode, approvedDate: order.approvedDate, approvalRecord: order.approvalRecord, contactEmail: order.contactEmail },
         [],
-      ).filter((d) => d.stage !== 'payment_received' && !hidden.has(d.stage)),
+      ).filter((d) => !d.repeatable && !hidden.has(d.stage)),
     [order, status, hidden],
   );
 

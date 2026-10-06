@@ -217,7 +217,8 @@ export function stageSummary(order: StageInput, history: ChangeLogEntry[], today
     if (pay.initialDeposit) attention.push('Initial deposit looks in but isn’t marked received.');
     if (pay.productionDeposit) attention.push('Pre-production deposit looks in but isn’t marked received.');
   }
-  const owed = dueUpdates(order, history).filter((d) => d.stage !== 'payment_received');
+  // Repeatable ones (payment received, mockup ready) are offers, not debts.
+  const owed = dueUpdates(order, history).filter((d) => !d.repeatable);
   if (owed.length) attention.push(`${owed.length} update${owed.length === 1 ? '' : 's'} owed to the team.`);
   if (!order.contactEmail.trim() && live) attention.push('No customer email on the order.');
 

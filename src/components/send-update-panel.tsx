@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
 import { MANUAL_MESSAGE_ID, MONEY_STAGES, formatAmount, type DueUpdate } from '@/lib/data/customer-updates-logic';
 import {
-  ALREADY_PAID_DETAIL, PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
-  type CustomerEmailRecord, type PaymentKind, type UpdateStage, type ViewableAsset,
+  ALREADY_PAID_DETAIL, MOCKUP_VERSIONS, PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
+  type CustomerEmailRecord, type MockupVersion, type PaymentKind, type UpdateStage, type ViewableAsset,
 } from '@/lib/types';
 import { formatTimestamp } from '@/lib/dates';
 import { sendUpdateAction } from '@/app/orders/[id]/update-actions';
@@ -43,7 +43,10 @@ function paymentKindFromDetail(detail: string | undefined): PaymentKind | null {
  * `payment_received` is repeatable and lives outside that dismiss flow
  * entirely: it's a quiet, always-there option (initial deposit, then
  * pre-production, then final payment can each be confirmed this way as they
- * arrive), not a one-shot reminder to earn a "Not now".
+ * arrive), not a one-shot reminder to earn a "Not now". `mockup_ready` is
+ * the same shape during Design Talk: one card, a V1–V4 picker that defaults
+ * to the round after the last one sent, sendable as many times as there are
+ * rounds.
  */
 export function SendUpdatePanel({
   orderId,
@@ -72,6 +75,7 @@ export function SendUpdatePanel({
   const [amount, setAmount] = useState<Partial<Record<UpdateStage, string>>>({});
   const [howToPay, setHowToPay] = useState(preview.howToPay);
   const [paymentKind, setPaymentKind] = useState<PaymentKind | null>(null);
+  const [mockupVersion, setMockupVersion] = useState<MockupVersion | null>(null);
   const [msg, setMsg] = useState<{ stage: string; text: string; ok: boolean } | null>(null);
   /** Resend of an old `payment_received` row whose `detail` doesn't match any
    *  known label — keyed by that row's position in the sorted sent list, so
@@ -107,8 +111,10 @@ export function SendUpdatePanel({
 
   // payment_received is handled in its own block below, never in the
   // dismissable due/chip list — see the doc comment above.
-  const generalDue = due.filter((d) => d.stage !== 'payment_received');
+  const generalDue = due.filter((d) => d.stage !== 'payment_received' && d.stage !== 'mockup_ready');
   const paymentReceived = due.find((d) => d.stage === 'payment_received') ?? null;
+  const mockupReady = due.find((d) => d.stage === 'mockup_ready') ?? null;
+  const effectiveMockupVersion: MockupVersion = mockupVersion ?? mockupReady?.mockupVersion ?? 'V1';
   const effectivePaymentKind: PaymentKind = paymentKind ?? paymentReceived?.paymentKind ?? 'final_payment';
 
   // Read the dismissed set once on mount. Anything no longer due (already
@@ -152,7 +158,7 @@ export function SendUpdatePanel({
     }
   }, [hidden, storageKey]);
 
-  function send(stage: UpdateStage, opts: { force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean } = {}) {
+  function send(stage: UpdateStage, opts: { force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean; mockupVersion?: MockupVersion } = {}) {
     setMsg(null);
     setInFlight(stage);
     start(async () => {
@@ -163,6 +169,7 @@ export function SendUpdatePanel({
           force: opts.force,
           paymentKind: opts.paymentKind,
           alreadyPaid: opts.alreadyPaid,
+          mockupVersion: opts.mockupVersion,
         });
         setMsg({ stage, text: r.ok ? (r.note ? `Sent. ${r.note}` : 'Sent.') : r.error ?? 'Could not send', ok: r.ok });
       } finally {
@@ -301,6 +308,64 @@ export function SendUpdatePanel({
         </div>
       )}
 
+      {mockupReady && (() => {
+        const d = mockupReady;
+        const v = effectiveMockupVersion;
+        const m = composeUpdateMail(d.stage, { ...preview, mockupVersion: v });
+        const sending = inFlight === d.stage;
+        const sentRounds = sent.filter((r) => r.stage === 'mockup_ready').map((r) => r.detail).filter(Boolean);
+        return (
+          <div className="rounded-xl border border-ppc-gold/50 bg-ppc-gold/5 p-4">
+            <p className="text-base font-bold">Mockup ready? Tell the team which round.</p>
+            <p className="text-sm text-muted">To {to || 'nobody yet'} · Subject: {m.subject}</p>
+            <p className="mt-1 text-xs text-muted">
+              Says the pictures follow in a separate email from you, and that you&apos;ll follow up for their thoughts.
+              {sentRounds.length > 0 && ` Already sent: ${sentRounds.join(', ')}.`}
+            </p>
+            {d.blocked && <p className="mt-2 text-sm text-amber-300">{d.blocked}</p>}
+            <div className="mt-3">
+              <span className="text-xs font-medium text-muted">Which round</span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {MOCKUP_VERSIONS.map((ver) => (
+                  <button
+                    key={ver}
+                    type="button"
+                    aria-pressed={v === ver}
+                    onClick={() => setMockupVersion(ver)}
+                    className={`rounded-lg border px-3.5 py-1.5 text-sm font-bold ${
+                      v === ver
+                        ? 'border-ppc-gold bg-ppc-gold text-black'
+                        : sentRounds.includes(ver)
+                          ? 'border-line bg-surface text-muted line-through'
+                          : 'border-line bg-surface hover:border-ppc-gold/60'
+                    }`}
+                  >
+                    {ver}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="mt-3 text-xs font-semibold text-ppc-gold hover:underline" onClick={() => setOpen(open === d.stage ? null : d.stage)}>
+              {open === d.stage ? 'Hide preview' : 'Preview'}
+            </button>
+            {open === d.stage && <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-surface p-3 text-xs">{m.text}</pre>}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={!!d.blocked || sending}
+                className="rounded-lg bg-ppc-gold px-3.5 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                onClick={() => send('mockup_ready', { mockupVersion: v })}
+              >
+                {sending ? 'Sending…' : `Send ${v}`}
+              </button>
+              <span aria-live="polite">
+                {msg?.stage === d.stage && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {paymentReceived && (() => {
         const d = paymentReceived;
         const kind = effectivePaymentKind;
@@ -365,6 +430,10 @@ export function SendUpdatePanel({
               const matchedKind = isPaymentReceived ? paymentKindFromDetail(r.detail) : null;
               const needsKindConfirm = isPaymentReceived && !matchedKind;
               const rowPaymentKind = matchedKind ?? resendKind[n] ?? effectivePaymentKind;
+              // A mockup row resends the round it recorded, never the picker's current choice.
+              const rowMockup = r.stage === 'mockup_ready' && (MOCKUP_VERSIONS as readonly string[]).includes(r.detail ?? '')
+                ? (r.detail as MockupVersion)
+                : undefined;
               const sending = inFlight === r.stage;
               const resendDisabled = sending || (isMoney && (amount[r.stage] ?? '').trim().length === 0);
               return (
@@ -401,7 +470,7 @@ export function SendUpdatePanel({
                     type="button"
                     disabled={resendDisabled}
                     className="text-xs font-semibold text-ppc-gold hover:underline disabled:opacity-50"
-                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined, alreadyPaid: rowPaid })}
+                    onClick={() => send(r.stage, { force: true, paymentKind: isPaymentReceived ? rowPaymentKind : undefined, alreadyPaid: rowPaid, mockupVersion: rowMockup })}
                   >
                     {sending ? 'Sending…' : r.messageId === MANUAL_MESSAGE_ID ? 'Send it properly' : 'Resend'}
                   </button>
@@ -415,7 +484,7 @@ export function SendUpdatePanel({
         </div>
       )}
 
-      {visible.length === 0 && chips.length === 0 && !paymentReceived && !showStandalonePhotos && sent.length === 0 && (
+      {visible.length === 0 && chips.length === 0 && !paymentReceived && !mockupReady && !showStandalonePhotos && sent.length === 0 && (
         <p className="text-sm text-muted">Nothing to send at this stage.</p>
       )}
     </div>

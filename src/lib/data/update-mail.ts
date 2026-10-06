@@ -1,4 +1,4 @@
-import type { PaymentKind, UpdateStage } from '@/lib/types';
+import type { MockupVersion, PaymentKind, UpdateStage } from '@/lib/types';
 import { PAYMENT_KIND_LABEL } from '@/lib/types';
 import { formatLong } from '@/lib/dates';
 import type { MailContent } from './intake-mail';
@@ -35,6 +35,8 @@ export interface UpdateMailInput {
   approvedBy: string;
   /** Which payment `payment_received` is confirming. */
   paymentKind: PaymentKind;
+  /** Which round `mockup_ready` is announcing. */
+  mockupVersion: MockupVersion;
   /** Finished-jersey photos to attach to `final_payment_requested`. Empty elsewhere. */
   photos: Array<{ cid: string; name: string }>;
   /** `final_payment_requested` for a team that already paid: the photos and "they ship next", no payment ask. */
@@ -106,6 +108,40 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         muted: "Free mockup the same day, and we keep going until it's right.",
         hero: false,
       };
+    case 'mockup_ready': {
+      /*
+       * Optional, during Design Talk, once per round. The mockup itself goes
+       * out from Keenan's own inbox right after, so this one does three jobs:
+       * says which round it is, says the pictures are on their way in a
+       * separate email (so nobody hunts this one for an attachment), and
+       * says how feedback works and that nothing is locked yet.
+       */
+      const v = i.mockupVersion;
+      const firstRound = v === 'V1';
+      return {
+        subject: `${v} of your mockup is ready — ${team}`,
+        preheader: firstRound
+          ? `${SPECIALIST} has drawn up the first look at your jerseys. It's on its way in a separate email.`
+          : `${SPECIALIST} has reworked your jerseys from your notes. ${v} is on its way in a separate email.`,
+        headline: `${v} is ready, ${first}.`,
+        lines: [
+          firstRound
+            ? `${SPECIALIST} has drawn up the first mockup of the ${team} jerseys.`
+            : `${SPECIALIST} has reworked the ${team} jerseys from your notes, and ${v} is ready.`,
+          `The mockup itself is coming in a separate email from ${SPECIALIST}, right behind this one. Keep an eye out for it.`,
+          "Take your time with it. When you've had a look, reply with anything you'd change, big or small: colours, logo placement, stripes, the lot. We keep going until it's right, and nothing is locked in until you sign off on the final proof.",
+        ],
+        box: {
+          eyebrow: "What's next",
+          text: `${SPECIALIST} will follow up in a couple of days to hear your thoughts, if we haven't already heard from you.`,
+          typed: false,
+        },
+        button: { href: i.designUrl, label: 'Add logos or inspiration' },
+        button2: { href: i.shareUrl, label: 'See your order' },
+        muted: `Easiest way to give feedback is to reply to this email. ${SPECIALIST} reads every one.`,
+        hero: false,
+      };
+    }
     case 'finalizing_details':
       return {
         subject: `Roster and details, please — ${team}`,

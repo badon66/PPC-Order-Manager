@@ -29,6 +29,7 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const UPDATE_STAGES = [
   'design_talk',
+  'mockup_ready',
   'finalizing_details',
   'initial_deposit_requested',
   'initial_deposit_received',
@@ -48,6 +49,7 @@ export type UpdateStage = (typeof UPDATE_STAGES)[number];
 /** How the staff panel and the history name each email. */
 export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
   design_talk: 'Send us your logos and inspiration',
+  mockup_ready: 'Mockup ready',
   finalizing_details: 'Roster and contact details',
   initial_deposit_requested: 'Initial deposit requested',
   initial_deposit_received: 'Initial deposit received',
@@ -62,6 +64,14 @@ export const UPDATE_STAGE_LABEL: Record<UpdateStage, string> = {
   payment_received: 'Payment received',
   review_request: 'Review and referral',
 };
+
+/**
+ * Which round of the mockup a "Mockup ready" email is about. Keenan picks it
+ * in the send panel; it's recorded on the sent row as `detail`, so the
+ * history reads "Mockup ready · V2" and a resend keeps its own version.
+ */
+export const MOCKUP_VERSIONS = ['V1', 'V2', 'V3', 'V4'] as const;
+export type MockupVersion = (typeof MOCKUP_VERSIONS)[number];
 
 export const PAYMENT_KINDS = ['initial_deposit', 'production_deposit', 'final_payment'] as const;
 export type PaymentKind = (typeof PAYMENT_KINDS)[number];

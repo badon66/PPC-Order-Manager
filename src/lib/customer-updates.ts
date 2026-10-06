@@ -1,6 +1,6 @@
 import { repo } from '@/lib/data';
 import type { Actor } from '@/lib/data/repository';
-import { MONEY_STAGES, defaultPaymentKind, formatAmount, dueUpdates, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
+import { MONEY_STAGES, defaultPaymentKind, formatAmount, dueUpdates, nextMockupVersion, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { everInStatus } from '@/lib/data/timeline';
 import { stagePagePaths } from '@/lib/data/stage-pages';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
@@ -9,7 +9,7 @@ import { mailConfigured, sendMail, type MailAttachment } from '@/lib/mail';
 import { resolveFileUrl } from '@/lib/storage';
 import { baseUrl } from '@/lib/base-url';
 import { orderIncludesPantShells, orderIncludesSocks } from '@/lib/order-utils';
-import { ALREADY_PAID_DETAIL, PAYMENT_KIND_LABEL } from '@/lib/types';
+import { ALREADY_PAID_DETAIL, PAYMENT_KIND_LABEL, type MockupVersion } from '@/lib/types';
 import type { AppSettings, ChangeLogEntry, Order, OrderAsset, PaymentKind, UpdateStage } from '@/lib/types';
 
 /**
@@ -29,6 +29,8 @@ export interface SendUpdateOptions {
   paymentKind?: PaymentKind;
   /** "The jerseys are done" for a team that already paid: no amount, no payment ask. */
   alreadyPaid?: boolean;
+  /** Which round `mockup_ready` announces. Defaults to the next one after what's been sent. */
+  mockupVersion?: MockupVersion;
 }
 
 /** The most recent `status_changed` entry, or null. History normally arrives
@@ -58,6 +60,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
     nextAfterApproval: statusAfterApproval(order.status, history) === 'in_production' || order.status === 'in_production' ? 'production' : 'deposit',
     approvedBy: order.approvedBy ?? '',
     paymentKind: opts.paymentKind ?? defaultPaymentKind(order.status),
+    mockupVersion: opts.mockupVersion ?? nextMockupVersion(order.customerEmails),
     // Filled in by sendCustomerUpdate for final_payment_requested, once the
     // attachments are actually built — this function has no asset access.
     photos: [],
@@ -219,7 +222,11 @@ export async function sendCustomerUpdate(
         to,
         messageId: result.id,
         // Never an amount — see the money rule. Just which payment this was.
-        detail: stage === 'payment_received' ? PAYMENT_KIND_LABEL[mailInput.paymentKind] : paidAlready ? ALREADY_PAID_DETAIL : undefined,
+        detail:
+          stage === 'payment_received' ? PAYMENT_KIND_LABEL[mailInput.paymentKind]
+          : stage === 'mockup_ready' ? mailInput.mockupVersion
+          : paidAlready ? ALREADY_PAID_DETAIL
+          : undefined,
       },
       actor,
     );

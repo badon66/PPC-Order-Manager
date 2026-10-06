@@ -1,5 +1,5 @@
 import { STATUS_META } from '@/lib/constants';
-import type { ChangeLogEntry, Order, OrderStatus, PaymentKind, UpdateStage } from '@/lib/types';
+import type { ChangeLogEntry, MockupVersion, Order, OrderStatus, PaymentKind, UpdateStage } from '@/lib/types';
 
 /**
  * A typed deposit amount as the email prints it. The staff box shows the $
@@ -45,6 +45,20 @@ export interface DueUpdate {
   repeatable: boolean;
   /** Which kind of payment this is, for stages that record one. */
   paymentKind: PaymentKind | null;
+  /** For `mockup_ready`: the round to offer next, one past the last one sent. */
+  mockupVersion: MockupVersion | null;
+}
+
+/** The next mockup round, from what has already gone: nothing sent → V1, V2 sent → V3, V4 sent → V4 again. */
+export function nextMockupVersion(sent: Array<{ stage: UpdateStage; detail?: string }>): MockupVersion {
+  const versions: readonly MockupVersion[] = ['V1', 'V2', 'V3', 'V4'];
+  let top = -1;
+  for (const r of sent) {
+    if (r.stage !== 'mockup_ready') continue;
+    const n = versions.indexOf((r.detail ?? '') as MockupVersion);
+    if (n > top) top = n;
+  }
+  return versions[Math.min(top + 1, versions.length - 1)];
 }
 
 export type DueInput = Pick<
@@ -77,7 +91,7 @@ export function dueUpdates(order: DueInput, _history: ChangeLogEntry[]): DueUpda
   const offer = (
     stage: UpdateStage,
     blocked: string | null = null,
-    extra: { repeatable?: boolean; paymentKind?: PaymentKind | null } = {}
+    extra: { repeatable?: boolean; paymentKind?: PaymentKind | null; mockupVersion?: MockupVersion | null } = {}
   ) => {
     if (!extra.repeatable && sent.has(stage)) return;
     out.push({
@@ -86,10 +100,13 @@ export function dueUpdates(order: DueInput, _history: ChangeLogEntry[]): DueUpda
       blocked,
       repeatable: !!extra.repeatable,
       paymentKind: extra.paymentKind ?? null,
+      mockupVersion: extra.mockupVersion ?? null,
     });
   };
 
   if (s === 'design_talk') offer('design_talk');
+  // Optional and repeatable: one per round of the mockup, only while designing.
+  if (s === 'design_talk') offer('mockup_ready', null, { repeatable: true, mockupVersion: nextMockupVersion(order.customerEmails) });
   if (s === 'finalizing_details') offer('finalizing_details');
   if (s === 'waiting_for_deposit') offer('initial_deposit_requested');
   if (s === 'waiting_for_approval' && !approved) offer('proof_ready');

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { repo } from '@/lib/data';
-import { computeTotals, rosterSlotCount, shipToSummary } from '@/lib/order-utils';
+import { computeTotals, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
   ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, awaitingFinish, statusBucket,
@@ -301,7 +301,7 @@ function Stat({
   size?: 'md' | 'lg' | 'xl';
   tone?: 'gold' | 'plain' | 'onGold';
 }) {
-  const num = size === 'xl' ? 'text-4xl' : size === 'lg' ? 'text-3xl' : 'text-2xl';
+  const num = size === 'xl' ? 'text-3xl' : size === 'lg' ? 'text-2xl' : 'text-xl';
   const colour = tone === 'gold' ? 'text-ppc-gold' : tone === 'onGold' ? 'text-black' : 'text-foreground';
   const label2 = tone === 'onGold' ? 'text-black/70' : 'text-muted';
   return (
@@ -327,12 +327,12 @@ function MoneyPanel({
   hints: { confirmed: string; pipeline: string; ytd: string; total: string };
 }) {
   return (
-    <div className="flex min-w-[26rem] flex-col justify-between gap-3 rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-5 py-4">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="flex min-w-[22rem] flex-col justify-between gap-2.5 rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-4 py-3">
+      <div className="grid grid-cols-2 gap-3">
         <Stat label="💵 Confirmed" value={formatCad(confirmed)} hint={hints.confirmed} size="lg" />
         <Stat label="🔄 Pipeline" value={formatCad(pipeline)} hint={hints.pipeline} tone="plain" />
       </div>
-      <div className="grid grid-cols-2 gap-4 rounded-lg bg-ppc-gold px-4 py-3">
+      <div className="grid grid-cols-2 gap-3 rounded-lg bg-ppc-gold px-3.5 py-2.5">
         <Stat label="Year to date" value={formatCad(ytd)} hint={hints.ytd} tone="onGold" />
         <Stat label="🏆 Total sales" value={formatCad(total)} hint={hints.total} size="xl" tone="onGold" />
       </div>
@@ -342,14 +342,12 @@ function MoneyPanel({
 
 function NumbersPanel({
   completed,
-  teams,
   players,
   jerseys,
   socks,
   shells,
 }: {
   completed: number;
-  teams: number;
   players: number;
   jerseys: number;
   socks: number;
@@ -357,15 +355,17 @@ function NumbersPanel({
 }) {
   const n = (x: number) => x.toLocaleString('en-CA');
   return (
-    <div className="flex min-w-[26rem] flex-col justify-between gap-3 rounded-xl border-2 border-line bg-surface-2 px-5 py-4">
+    <div className="flex min-w-[22rem] flex-col justify-between gap-2.5 rounded-xl border-2 border-line bg-surface-2 px-4 py-3">
       <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted">The numbers · all time</div>
-      <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-        <Stat label="Orders done" value={n(completed)} />
-        <Stat label="Teams happy" value={n(teams)} />
-        <Stat label="Players dressed" value={n(players)} />
-        <Stat label="Jerseys made" value={n(jerseys)} tone="plain" />
-        <Stat label="Socks made" value={n(socks)} tone="plain" />
-        <Stat label="Pant shells made" value={n(shells)} tone="plain" />
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="Players dressed" value={n(players)} size="xl" />
+        <Stat label="Products sold" value={n(jerseys + socks + shells)} size="xl" hint="jerseys + socks + shells" />
+      </div>
+      <div className="grid grid-cols-4 gap-3 border-t border-line pt-2.5">
+        <Stat label="Teams happy" value={n(completed)} tone="plain" />
+        <Stat label="Jerseys" value={n(jerseys)} tone="plain" />
+        <Stat label="Socks" value={n(socks)} hint="singles" tone="plain" />
+        <Stat label="Pant shells" value={n(shells)} tone="plain" />
       </div>
     </div>
   );
@@ -422,16 +422,20 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const totalSales = soldEver.reduce((n, o) => n + priced(o), 0);
 
   // The shop's numbers, from completed work. Totals come off the declared
-  // quantities (computeTotals needs no roster for that), players off the
-  // squad size, teams off distinct names.
+  // quantities (computeTotals needs no roster for that).
   const done = all.filter((o) => o.status === 'completed');
   const doneTotals = done.map((o) => computeTotals(o, []));
+  const jerseys = doneTotals.reduce((n, t) => n + t.totalJerseys, 0);
   const numbers = {
+    // One happy team per finished order.
     completed: done.length,
-    teams: new Set(done.map((o) => o.teamName.trim().toLowerCase()).filter(Boolean)).size,
-    players: done.reduce((n, o) => n + rosterSlotCount(o), 0),
-    jerseys: doneTotals.reduce((n, t) => n + t.totalJerseys, 0),
-    socks: doneTotals.reduce((n, t) => n + t.totalSockPairs, 0),
+    // A player is dressed by a top. Jerseys today; apparel tops join this
+    // sum when the app sells them. Not the squad size: a home/away set
+    // dresses the same 18 players twice, and that's two tops out the door.
+    players: jerseys,
+    jerseys,
+    // Ordered in pairs, counted as singles: 173 pairs is 346 socks.
+    socks: doneTotals.reduce((n, t) => n + t.totalSockPairs, 0) * 2,
     shells: doneTotals.reduce((n, t) => n + t.totalPantShells, 0),
   };
 
