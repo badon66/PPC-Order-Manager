@@ -7,7 +7,7 @@ import {
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META,
   addonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
-import { approvalOpen, computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress } from '@/lib/order-utils';
+import { approvalOpen, computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress, offersGoaliePantOption } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
 import { asDownload, downloadName } from '@/lib/download';
 import { baseUrl, isLocalUrl } from '@/lib/base-url';
@@ -15,6 +15,9 @@ import { ArtworkGallery } from '@/components/artwork-gallery';
 import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge, YesNo } from '@/components/ui';
 import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
+import { FactoryLink } from '@/components/factory-link';
+import { KeeperBadge } from '@/components/build-sheet';
+import { keepersOfSet } from '@/lib/keepers';
 import { SubmissionReview } from '@/components/submission-review';
 import { SignatureProof } from '@/components/signature-proof';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
@@ -53,6 +56,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const BASE_URL = await baseUrl();
   const shareLink = `${BASE_URL}/share/${order.shareToken}`;
   const rosterLink = `${BASE_URL}/roster/${order.rosterToken}`;
+  // Empty on orders from before the factory sheet; the button below mints one.
+  const factoryLink = order.factoryToken ? `${BASE_URL}/factory/${order.factoryToken}` : null;
+  const keepers = order.keeperJerseys ?? [];
 
   /*
    * Artwork is a key in a private bucket, so every link on this page has to be
@@ -121,7 +127,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
   const hasPantShells =
     order.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
-    order.pantShellType !== null;
+    order.pantShellType !== null ||
+    // A pant size typed on any row shows the column whatever the totals say.
+    roster.some((r) => (r.pantShellSize ?? '').trim() !== '');
 
   return (
     <div className="space-y-5">
@@ -147,8 +155,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <CopyButton label="Copy Address" value={formattedAddress(order)} />
         <CopyButton label="Copy Share Link" value={shareLink} />
         <CopyButton label="Copy Client Form Link" value={rosterLink} />
+        <FactoryLink orderId={order.id} link={factoryLink} />
         <Button href={`/api/orders/${order.id}/roster.csv`}>Download CSV Roster</Button>
       </div>
+      <p className="-mt-3 text-xs text-muted">
+        Share link: the customer, no code. Factory link: Michael, asks for the factory code, carries
+        the factory-only notes and the jerseys you&apos;re keeping. Neither shows a price.
+      </p>
 
       {order.enquiry && <EnquiryCard enquiry={order.enquiry} />}
 
@@ -335,7 +348,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <Field label="Postal Code">{order.shippingPostal}</Field>
         </div>
         <p className="mt-4 text-xs text-muted">
-          Also shown on the customer&apos;s share link so they can check it&apos;s right.
+          Also shown on the customer&apos;s share link so they can check it&apos;s right, and on the
+          factory sheet as the ship-to address.
         </p>
       </Section>
 
@@ -345,9 +359,18 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
           <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
           <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
+          {/* Ours, not theirs: outside the team's totals, and never on their sheet or bill. */}
+          {keepers.length > 0 && <Stat label="Kept by Powerplay" value={keepers.length} accent />}
         </div>
         {describeOrderTotals(totals) && (
           <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>
+        )}
+        {keepers.length > 0 && (
+          <p className="mt-1 text-sm text-amber-300">
+            Plus {keepers.length} keeper jersey{keepers.length === 1 ? '' : 's'} for Powerplay — the factory makes{' '}
+            {keepers.length === 1 ? 'it' : 'them'} with the run and holds {keepers.length === 1 ? 'it' : 'them'} at the
+            facility. Not on the customer&apos;s sheet, not priced.
+          </p>
         )}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -362,6 +385,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 {s.extraJerseys > 0 && <SetRow label="Extra Jerseys" value={s.extraJerseys} accent />}
                 {s.extraSockPairs > 0 && <SetRow label="Extra Sock Pairs" value={s.extraSockPairs} accent />}
                 {s.extraPantShells > 0 && <SetRow label="Extra Pant Shells" value={s.extraPantShells} accent />}
+                {keepersOfSet(keepers, i).length > 0 && (
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-amber-300">Kept by Powerplay</dt>
+                    <dd className="font-semibold tabular-nums text-amber-300">{keepersOfSet(keepers, i).length}</dd>
+                  </div>
+                )}
               </dl>
               {describeSet(s) && (
                 <p className="mt-2 border-t border-line pt-2 text-xs font-semibold text-ppc-gold">
@@ -385,7 +414,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           <Field label="Sock Type">
             {order.sockType ? SOCK_TYPE_LABELS[order.sockType] : ''}
             {order.sockType && order.multiPanelSocks && (
-              <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Multi-panel</span>
+              <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Pro cut multi-panel</span>
             )}
           </Field>
           <Field label="Pant Shell Type">
@@ -439,6 +468,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 <YesNo value={Boolean(order[key as keyof Order])} />
               </div>
             ))}
+          {offersGoaliePantOption(order) && (
+            <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
+              <span className="text-muted">Reversed Logos on Goalie Pant Shells</span>
+              <YesNo value={order.goaliePantReversedLogos} />
+            </div>
+          )}
           <LabelRow label="Laces Style" value={LACES_LABELS[order.lacesStyle]} />
           <LabelRow label="Shoulder Cut" value={SHOULDER_CUT_LABELS[order.shoulderCut]} />
           <div className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
@@ -495,7 +530,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       <Section
         title={`Player Roster (${roster.length}${
           order.extraJerseyDetails.length ? ` + ${order.extraJerseyDetails.length} spare` : ''
-        }${order.extraJerseyDetails.length > 1 ? 's' : ''})`}
+        }${order.extraJerseyDetails.length > 1 ? 's' : ''}${
+          keepers.length ? ` + ${keepers.length} kept by Powerplay` : ''
+        })`}
       >
         {rosterFilesFromTeam.length > 0 && (
           <div className="mb-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
@@ -521,7 +558,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             </p>
           </div>
         )}
-        {roster.length === 0 && order.extraJerseyDetails.length === 0 ? (
+        {roster.length === 0 && order.extraJerseyDetails.length === 0 && keepers.length === 0 ? (
           <p className="text-sm text-muted">No players added yet.</p>
         ) : (
           <div className="-mx-4 overflow-x-auto px-4">
@@ -532,6 +569,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                   <th className="py-2 pr-3">#</th>
                   <th className="py-2 pr-3">Jersey</th>
                   <th className="py-2 pr-3">Sock</th>
+                  {hasPantShells && <th className="py-2 pr-3">Pant Shell</th>}
                   <th className="py-2 pr-3">Jerseys</th>
                   <th className="py-2 pr-3">Socks</th>
                   <th className="py-2">Notes</th>
@@ -557,6 +595,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                     <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
                     <td className="py-2 pr-3">{r.jerseySize || '—'}</td>
                     <td className="py-2 pr-3">{r.sockSize || '—'}</td>
+                    {hasPantShells && <td className="py-2 pr-3">{r.pantShellSize || '—'}</td>}
                     <td className="py-2 pr-3 tabular-nums">{r.jerseysPerPlayer}</td>
                     <td className="py-2 pr-3 tabular-nums">{r.socksPerPlayer}</td>
                     <td className="py-2 text-muted">{r.notes || '—'}</td>
@@ -578,9 +617,30 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                     <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
                     <td className="py-2 pr-3">{x.sockOnly ? '—' : x.size || '—'}</td>
                     <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                    {hasPantShells && <td className="py-2 pr-3">—</td>}
                     <td className="py-2 pr-3 tabular-nums">{x.sockOnly ? 0 : 1}</td>
                     <td className="py-2 pr-3 tabular-nums">{x.sockSize ? 1 : 0}</td>
                     <td className="py-2 text-muted">{x.notes || '—'}</td>
+                  </tr>
+                ))}
+
+                {/* Keepers: same table, same reason as the spares, marked as ours. Never on the customer's page. */}
+                {keepers.map((k) => (
+                  <tr key={`keeper-${k.id}`} className="border-b border-line/50 bg-amber-400/5">
+                    <td className="py-2 pr-3">
+                      <KeeperBadge />
+                      {k.name.trim() && <span className="ml-2 font-semibold">{k.name.trim()}</span>}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums">{k.number || '—'}</td>
+                    <td className="py-2 pr-3">{k.size || '—'}</td>
+                    <td className="py-2 pr-3">—</td>
+                    {hasPantShells && <td className="py-2 pr-3">—</td>}
+                    <td className="py-2 pr-3 tabular-nums">1</td>
+                    <td className="py-2 pr-3 tabular-nums">0</td>
+                    <td className="py-2 text-amber-200">
+                      {order.sets.length > 1 ? `Copy of the ${order.sets[k.setIndex]?.label ?? 'set'}. ` : ''}
+                      Held at the facility for Powerplay.
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -601,10 +661,20 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Notes & Approval">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Approved By">{order.approvedBy}</Field>
           <Field label="Approval Date">{formatLong(order.approvedDate)}</Field>
-          <Field label="Special Notes">{order.specialNotes}</Field>
+        </div>
+        {/* Two boxes, two readers — same split as the form. */}
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-line bg-surface-2 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">Order notes · customer sheet and factory sheet</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{order.specialNotes || <span className="text-muted">None</span>}</p>
+          </div>
+          <div className="rounded-lg border border-ppc-gold/50 bg-ppc-gold/5 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Factory-only notes · never the customer</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{order.factoryNotes || <span className="text-muted">None</span>}</p>
+          </div>
         </div>
         {order.approvedDate && (
           <p className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">

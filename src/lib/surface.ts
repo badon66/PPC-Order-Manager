@@ -2,7 +2,7 @@
  * Which kind of screen a request is for.
  *
  *   public  a customer or the manufacturer, on whatever they have. /share,
- *           /roster, /unlock. Standard size for everybody, always.
+ *           /roster, /factory, /unlock. Standard size for everybody, always.
  *   admin   Keenan, on his 3440px ultrawide. Orders, Production, Settings.
  *           Scales up and widens on big screens (globals.css).
  *   sales   the calling screen only (/sales/<list>/call). It has its own

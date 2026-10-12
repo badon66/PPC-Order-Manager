@@ -253,6 +253,18 @@ export function orderIncludesPantShells(order: IncludesInput): boolean {
 }
 
 /**
+ * Goalie pant shells are a thing to decide only when there's a goalie to
+ * dress and shells on the order. The reversed-logo option (logos on the back
+ * of the legs, so the pads don't hide them) is offered exactly then.
+ */
+export function offersGoaliePantOption(order: Pick<IncludesInput, 'sets' | 'pantShellType'>): boolean {
+  return (
+    order.sets.some((s) => (s.goalieJerseys || 0) > 0) &&
+    orderIncludesPantShells({ ...order, sockType: null })
+  );
+}
+
+/**
  * How many people are on this team — which is how many roster slots to show.
  *
  * NOT the jersey total. In home/away mode there are two sets of 20, and the
@@ -406,6 +418,7 @@ export function blankOrder(): Order {
     stopSignPatch: false,
     pantLogo: false,
     pantNumber: false,
+    goaliePantReversedLogos: false,
     lacesStyle: 'none',
     shoulderCut: 'rounded',
     stitchedShoulderTrim: false,
@@ -431,6 +444,8 @@ export function blankOrder(): Order {
     mainCrestNotes: '',
 
     specialNotes: '',
+    factoryNotes: '',
+    keeperJerseys: [],
     approvedBy: '',
     approvedDate: null,
     deliveryConcern: '',
@@ -441,6 +456,7 @@ export function blankOrder(): Order {
 
     shareToken: newToken(),
     rosterToken: newToken(),
+    factoryToken: newToken(),
 
     createdAt: now,
     updatedAt: now,

@@ -1,6 +1,6 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, CustomerEmailRecord, Order, OrderAsset, RosterEntry, RouteVariant,
+  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RouteVariant,
 } from '@/lib/types';
 import type { TimelineStep } from './timeline';
 
@@ -51,34 +51,22 @@ export interface ContactPatch {
 }
 
 /**
- * What a customer sees on their share link.
+ * The build sheet: what is being made, for whom, and the instructions that go
+ * with it. The part of an order the customer and the factory both read.
+ *
+ * One definition, built once (`buildSheetOf` in logic.ts) and carried by both
+ * `PublicOrderView` and `FactoryOrderView`, so a build detail added later
+ * reaches both sheets or neither — never the team but not the people sewing
+ * it. Nothing in here is money, and nothing in here is a keeper.
  *
  * Contact and shipping ARE included, on purpose: the customer needs to check
- * their own name, phone, and delivery address are right before the order ships.
- * Catching a wrong address here is worth far more than hiding it.
- *
- * Consequence to keep in mind: the share link is public to anyone holding it.
- * The token is long and random so it can't be guessed, but a forwarded link
- * carries the address with it.
- *
- * Still deliberately excluded: the change history, the font file, and anything
- * else that isn't the customer's own information. Notes ARE included — see
- * below. They are instructions about what to make, and this sheet is what goes
- * to the manufacturer.
+ * their own name, phone, and delivery address are right before the order
+ * ships, and the factory ships straight to that address.
  */
-export interface PublicOrderView {
-  /**
-   * The row id.
-   *
-   * Only ever read on the server — the approval action needs something to
-   * write against. It must not be rendered: the whole point of the share token
-   * is that a leaked link isn't also a database key.
-   */
-  orderId: string;
+export interface BuildSheet {
   teamName: string;
   invoiceNumber: string;
   status: Order['status'];
-  datePaid: Order['datePaid'];
   estimatedFinishDate: Order['estimatedFinishDate'];
   /*
    * The production window. This sheet is the manufacturer's copy as well as
@@ -89,7 +77,6 @@ export interface PublicOrderView {
   /** A hard date the team needs these by — a tournament, a season opener. */
   deliveryConcern: string;
   trackingCode: string;
-  googleDriveLink: string;
   orderMode: Order['orderMode'];
   /** How many sets were ordered, as typed on the sheet. */
   numberOfSets: number;
@@ -112,7 +99,7 @@ export interface PublicOrderView {
     | 'dimpledShoulders' | 'reinforcedElbows' | 'underarmVents' | 'frontCrest'
     | 'armNumbers' | 'printedSizingTag' | 'ppcBackBranding' | 'stopSignPatch'
     | 'rubberizedPpcCrest' | 'stitchedSublimatedLogos' | 'twillBorderNumbers'
-    | 'pantLogo' | 'pantNumber' | 'lacesStyle' | 'shoulderCut' | 'stitchedShoulderTrim' | 'nameStyle'
+    | 'pantLogo' | 'pantNumber' | 'goaliePantReversedLogos' | 'lacesStyle' | 'shoulderCut' | 'stitchedShoulderTrim' | 'nameStyle'
     | 'hasCaptainPatches' | 'hasShoulderLogos'
   >;
   /*
@@ -125,15 +112,11 @@ export interface PublicOrderView {
   captainCQuantity: number;
   captainAQuantity: number;
   shoulderLogosSame: boolean;
-  assets: OrderAsset[];
   roster: RosterEntry[];
   /** Numbers and sizes for the spare jerseys. */
   extraJerseyDetails: Order['extraJerseyDetails'];
-  /** Whether to render the sign-off block on the customer's page. */
-  requestApproval: boolean;
   approvedBy: string;
   approvedDate: Order['approvedDate'];
-  approvalRecord: Order['approvalRecord'];
   specialNotes: string;
   /*
    * Production notes. These describe what to make, not what we think about the
@@ -157,6 +140,36 @@ export interface PublicOrderView {
     province: string;
     postal: string;
   };
+}
+
+/**
+ * What a customer sees on their share link.
+ *
+ * Consequence to keep in mind: the share link is public to anyone holding it.
+ * The token is long and random so it can't be guessed, but a forwarded link
+ * carries the address with it.
+ *
+ * Deliberately excluded: the change history, the font file, the factory-only
+ * notes, the keeper jerseys, and anything else that isn't the customer's own
+ * order. Notes ARE included — they are instructions about what to make, and
+ * the customer is signing off on them.
+ */
+export interface PublicOrderView extends BuildSheet {
+  /**
+   * The row id.
+   *
+   * Only ever read on the server — the approval action needs something to
+   * write against. It must not be rendered: the whole point of the share token
+   * is that a leaked link isn't also a database key.
+   */
+  orderId: string;
+  datePaid: Order['datePaid'];
+  googleDriveLink: string;
+  /** Every artwork file except the font — a licensed typeface isn't theirs. */
+  assets: OrderAsset[];
+  /** Whether to render the sign-off block on the customer's page. */
+  requestApproval: boolean;
+  approvalRecord: Order['approvalRecord'];
 
   /** Where the order sits, laid out step by step, for the customer's own page. */
   timeline: TimelineStep[];
@@ -170,6 +183,29 @@ export interface PublicOrderView {
    */
   clientFormOpen: boolean;
   clientFormSections: ClientLinkSections;
+}
+
+/**
+ * What the factory sees on /factory/<token>, behind the factory code.
+ *
+ * The same build sheet as the customer's, plus the two things that are the
+ * factory's business and not the team's: the factory-only notes and the keeper
+ * jerseys Powerplay is having made for itself. The font IS included — the
+ * factory prints the names. Never money, never a payment date, never the
+ * customer's timeline or signature record: "the manufacturer never sees a
+ * price" (CLAUDE.md), and tests/money/leak.test.ts checks this view too.
+ */
+export interface FactoryOrderView extends BuildSheet {
+  /** Every artwork file, font included. */
+  assets: OrderAsset[];
+  factoryNotes: string;
+  keeperJerseys: KeeperJersey[];
+  sentToFactoryAt: Order['sentToFactoryAt'];
+  /**
+   * True once the roster can't change any more (the order reached production).
+   * Before that the sheet says so: names and sizes may still move.
+   */
+  rosterLocked: boolean;
 }
 
 export interface Repository {
@@ -190,6 +226,8 @@ export interface Repository {
 
   /* Public (token-addressed, redacted) --------------------------------- */
   getByShareToken(token: string): Promise<PublicOrderView | null>;
+  /** The factory's sheet. Addressed by its own token; the proxy has already checked the factory cookie. */
+  getByFactoryToken(token: string): Promise<FactoryOrderView | null>;
   getByRosterToken(token: string): Promise<{
     orderId: string;
     teamName: string;

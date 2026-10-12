@@ -9,7 +9,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
@@ -117,7 +117,9 @@ async function orderById(id: string, includeDeleted = false): Promise<Order | nu
   return res.data ? healOrder((res.data as Row<Order>).data) : null;
 }
 
-async function orderByToken(column: 'share_token' | 'roster_token', token: string): Promise<Order | null> {
+async function orderByToken(column: 'share_token' | 'roster_token' | 'factory_token', token: string): Promise<Order | null> {
+  // An order from before the factory sheet has no token yet; '' must never match a row.
+  if (!token) return null;
   const res = await supabase()
     .from(ORDERS)
     .select('id, data')
@@ -339,6 +341,13 @@ export const supabaseStore: Repository = {
     if (!o) return null;
     const [roster, assets, history] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id)]);
     return publicViewOf(o, roster, assets, history);
+  },
+
+  async getByFactoryToken(token) {
+    const o = await orderByToken('factory_token', token);
+    if (!o) return null;
+    const [roster, assets] = await Promise.all([rosterOf(o.id), assetsOf(o.id)]);
+    return factoryViewOf(o, roster, assets);
   },
 
   async getByRosterToken(token) {

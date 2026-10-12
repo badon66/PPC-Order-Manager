@@ -4,10 +4,12 @@ out/
 *.log
 *.tsbuildinfo
 
-# Secrets. Neither of these belongs in a repo — the hosted app reads
-# ADMIN_ACCESS_CODE and SESSION_SECRET from the environment instead.
+# Secrets. None of these belongs in a repo — the hosted app reads
+# ADMIN_ACCESS_CODE, FACTORY_ACCESS_CODE and SESSION_SECRET from the
+# environment instead.
 .env*.local
 admin-code.txt
+factory-code.txt
 
 # Local JSON store. Real data lives in Supabase once hosted; this file is a
 # dev convenience and would be a merge conflict on every commit.

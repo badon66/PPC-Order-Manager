@@ -17,7 +17,10 @@ Run: `npm install` then `npm run dev` → http://localhost:3000
 
 Access code lives in `admin-code.txt` in the project root (gitignored). Change
 it there and restart. `ADMIN_ACCESS_CODE` env var overrides it if set — and on
-Vercel there is no file, so the env var IS the code.
+Vercel there is no file, so the env var IS the code. The factory's code works
+the same way: `factory-code.txt` locally, `FACTORY_ACCESS_CODE` hosted. It
+must differ from the admin code or the factory sheet refuses to open
+(`configuredFactoryCode` in `src/lib/session.ts`).
 
 **Two storage backends, chosen by environment.** Set `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` and the app uses Postgres plus a private artwork
@@ -41,13 +44,24 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   old "no money anywhere" rule. Money fields (`orderValue`, `completedAt`, the
   list prices in `lib/pricing.ts`, the board's Outgoing / YTD panel) live
   behind the access code. They must NEVER appear in `PublicOrderView` /
-  `publicViewOf`, on `/share/<token>` or `/roster/<token>`, in the roster CSV
-  (either route), in `ApprovalRecord`, or in any future factory pack. The
-  client and the manufacturer never see a price. `tests/money/leak.test.ts`
+  `publicViewOf`, in `FactoryOrderView` / `factoryViewOf`, on `/share/<token>`,
+  `/roster/<token>` or `/factory/<token>`, in the roster CSV (any route), or
+  in `ApprovalRecord`. The client and the manufacturer never see a price —
+  nor a payment date (`datePaid` is not on the factory view). `tests/money/leak.test.ts`
   checks every one of those surfaces by value AND by key name; a new money
   field means adding it to that test in the same commit.
   The payment-request emails still carry the amount Keenan types into the
   send panel, and that amount goes into that email and nowhere else.
+- **Keeper jerseys are Powerplay's, not the team's.** `Order.keeperJerseys`
+  (`KeeperJersey`, rules in `src/lib/keepers.ts`) are the "make an extra of
+  this jersey for us to keep" rows: made with the run, held at the facility,
+  never shipped with the order. They are never on the customer's sheet, never
+  priced, never in `computeTotals` or the roster tally. Keenan's order page
+  and the factory sheet show them marked *Keep for Powerplay*. The leak test
+  checks the public view carries no `keeper*`/`factory*` key.
+- **Two note boxes, two readers.** `specialNotes` is on the customer's sheet
+  AND the factory's; `factoryNotes` is on the factory's only. Don't merge them
+  and don't put a factory-only note on `BuildSheet`.
 - **Customer update emails are offered, never sent, on a status change.** The
   panel on the order page asks first; only the approval receipt is automatic.
   Leaving the pre-production deposit gate in either direction counts as the
@@ -64,18 +78,22 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   record (bad date); warning = storable but flag it (duplicate invoice). One
   bad field must not throw away the rest of the autosave.
 - **Public pages are built field-by-field, never by spreading the order.**
-  `publicViewOf` in `data/logic.ts` — so a new field on Order doesn't leak to
-  the customer's page by default.
+  `buildSheetOf` in `data/logic.ts` is the one deliberate list of build fields;
+  `publicViewOf` (customer) and `factoryViewOf` (factory) each spread THAT and
+  add only their own — so a new field on Order reaches no sheet by default, and
+  a build detail added to `buildSheetOf` reaches both sheets, never one.
 
-  The flip side, and it bit us: a field can sit in `PublicOrderView` for months
-  and be rendered by nothing. `specialNotes` did exactly that — collected on
-  the form, carried into the view, shown on no page, so every note Keenan or a
-  customer typed reached nobody. **The share sheet is the manufacturer's sheet
-  too.** Notes on it are production instructions ("needs an A", "crest 10%
-  larger"), not commentary, so they must be visible: order notes, captain-patch
-  notes, the three artwork reference notes, and a Notes column on the roster
-  table carrying both players' and spares' notes. Adding a field to the view is
-  half the job — render it.
+  The flip side, and it bit us: a field can sit in the view for months and be
+  rendered by nothing. `specialNotes` did exactly that — collected on the form,
+  carried into the view, shown on no page, so every note Keenan or a customer
+  typed reached nobody. Notes are production instructions ("needs an A",
+  "crest 10% larger"), not commentary, so they must be visible: order notes,
+  captain-patch notes, the three artwork reference notes, and a Notes column on
+  the roster table carrying both players' and spares' notes. Adding a field to
+  the view is half the job — render it. **Both sheets render the build through
+  `src/components/build-sheet.tsx`** (totals, build type, add-ons, roster,
+  artwork, contact, notes) so they cannot drift; a section changed there
+  changes for the team and the factory alike.
 - **Business rules live in `data/logic.ts`, not in a store.** What gets logged,
   what a customer sees, what accepting a submission does. Both backends call
   it. Put a rule in one store and the two quietly stop agreeing.
@@ -115,6 +133,14 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 - `/share/<token>` and `/roster/<token>` are **public** — no code. Protected by
   a long random per-order token. The share page **deliberately shows** the
   customer's contact and shipping so they can check it.
+- `/factory/<token>` is **the manufacturer's sheet**: its own per-order token
+  (`factoryToken`, minted at creation or by `createFactoryLink` for older
+  orders) AND the factory code on top (`FACTORY_ACCESS_CODE`, cookie
+  `ppc_factory`, 30 days, realm-tagged so it can never pass as the admin
+  cookie — `src/lib/session.ts`). Keenan's admin cookie opens it too; the
+  factory cookie opens nothing else (`src/proxy.ts`). It shows the build, the
+  roster, the artwork with the font, the ship-to contact (Michael ships
+  straight to the team), the factory-only notes and the keepers. Never money.
 - Per-person login is deferred, not cancelled. `src/lib/auth.ts` is the one
   file that changes when it happens.
 
@@ -126,7 +152,9 @@ src/lib/constants.ts      statuses, sizes, add-on list, CSV columns (edit lists 
 src/lib/dates.ts          calendar-date helpers
 src/lib/order-utils.ts    set scaffolding, totals reconciliation, tokens
 src/lib/csv.ts            roster CSV export/import (round-trips)
-src/lib/session.ts        access code + signed cookie
+src/lib/session.ts        access codes (admin + factory) + signed cookies
+src/lib/keepers.ts        keeper jerseys — count, free numbers, common size (pure, tested)
+src/components/build-sheet.tsx  the build sections both sheets render
 src/lib/auth.ts           who-is-this + requireRole (placeholder for per-person)
 src/lib/storage.ts        uploads -> private Supabase bucket, or public/uploads/ locally
 src/lib/data/repository.ts  THE storage interface — every page goes through this
@@ -142,6 +170,7 @@ src/app/orders/actions.ts every mutation. Server actions. Auth-checked.
 src/app/orders/           list, detail, edit
 src/app/queue/            production queue
 src/app/share/[token]/    customer read-only view
+src/app/factory/[token]/  the manufacturer's sheet (factory code); /factory/unlock is its door
 src/app/roster/[token]/   customer roster form (revisits + change logging)
 src/app/sales/            cold calling: landing (upload, lists), contacts table, calling view
 src/app/sales/actions.ts  every sales mutation — upload, log, edit, skip, delete

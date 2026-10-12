@@ -113,11 +113,11 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'armNumbers', 'printedSizingTag', 'ppcBackBranding', 'stopSignPatch',
   'rubberizedPpcCrest', 'stitchedSublimatedLogos', 'twillBorderNumbers',
   'jerseyTier',
-  'pantLogo', 'pantNumber', 'lacesStyle', 'shoulderCut', 'stitchedShoulderTrim', 'multiPanelSocks', 'nameStyle',
+  'pantLogo', 'pantNumber', 'goaliePantReversedLogos', 'lacesStyle', 'shoulderCut', 'stitchedShoulderTrim', 'multiPanelSocks', 'nameStyle',
   'hasCaptainPatches', 'captainPatchStyle', 'captainCQuantity', 'captainAQuantity',
   'captainPatchNotes', 'hasShoulderLogos', 'shoulderLogosSame',
   'designReferenceNotes', 'collarReferenceNotes', 'mainCrestNotes',
-  'specialNotes', 'approvedBy', 'approvedDate', 'deliveryConcern',
+  'specialNotes', 'factoryNotes', 'keeperJerseys', 'approvedBy', 'approvedDate', 'deliveryConcern',
   /*
    * Added later, and every one of them was silently unsaveable until it was
    * listed here.

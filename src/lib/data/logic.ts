@@ -8,7 +8,7 @@ import { nextHomeAwayClaims } from '@/lib/roster-edit';
 import {
   approvalOpen, extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
-import type { Actor, PublicOrderView } from './repository';
+import type { Actor, BuildSheet, FactoryOrderView, PublicOrderView } from './repository';
 import type { RouteVariant } from '@/lib/types';
 import { variantOf } from './intake-logic';
 import { stagePagePaths } from './stage-pages';
@@ -57,6 +57,7 @@ export function healOrder(o: Order): Order {
   o.twillBorderNumbers ??= false;
   o.stitchedShoulderTrim ??= false;
   o.multiPanelSocks ??= false;
+  o.goaliePantReversedLogos ??= false;
   o.orderValue ??= null;
   o.completedAt ??= null;
   o.paymentsReceived ??= null;
@@ -67,6 +68,11 @@ export function healOrder(o: Order): Order {
   o.productionFinishDate ??= null;
   o.requestApproval ??= false;
   o.extraJerseyDetails ??= [];
+  o.keeperJerseys ??= [];
+  o.factoryNotes ??= '';
+  // Not minted here: a heal runs on every read and isn't persisted, so a token
+  // made here would change on every page load. createFactoryLink mints it.
+  o.factoryToken ??= '';
   o.approvalRecord ??= null;
   o.deletedAt ??= null;
   o.source ??= 'manual';
@@ -124,7 +130,7 @@ export function healSettings(s: Partial<AppSettings> | null | undefined): AppSet
  * ------------------------------------------------------------------ */
 
 /** Fields not worth a history line of their own — noise. */
-const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'sets', 'customerEmails']);
+const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'factoryToken', 'sets', 'customerEmails']);
 
 export function diffFields(
   before: Order,
@@ -655,33 +661,30 @@ export function planAcceptance(
  * ------------------------------------------------------------------ */
 
 /**
+ * The build sheet — the part of an order the customer and the factory both
+ * read. See BuildSheet in repository.ts.
+ *
  * Built field-by-field, never by spreading the order.
  *
  * That is the whole point: a field added to Order tomorrow does not appear on
- * a customer's page because someone forgot to exclude it. Adding something
- * here has to be a deliberate act.
+ * anyone's sheet because someone forgot to exclude it. Adding something here
+ * has to be a deliberate act — and it lands on BOTH sheets, which is what a
+ * build detail should do. Money, keepers and factory notes are never here;
+ * they go on exactly the view that is allowed to carry them.
  *
  * Contact and shipping ARE included — the customer needs to check their own
- * address before anything ships.
+ * address before anything ships, and the factory ships to it.
  */
-export function publicViewOf(
-  o: Order,
-  roster: RosterEntry[],
-  assets: OrderAsset[],
-  history: ChangeLogEntry[] = [],
-): PublicOrderView {
+export function buildSheetOf(o: Order, roster: RosterEntry[]): BuildSheet {
   return {
-    orderId: o.id,
     teamName: o.teamName,
     invoiceNumber: o.invoiceNumber,
     status: o.status,
-    datePaid: o.datePaid,
     estimatedFinishDate: o.estimatedFinishDate,
     productionStartDate: o.productionStartDate,
     productionFinishDate: o.productionFinishDate,
     deliveryConcern: o.deliveryConcern,
     trackingCode: o.trackingCode,
-    googleDriveLink: o.googleDriveLink,
     orderMode: o.orderMode,
     numberOfSets: o.numberOfSets,
     sets: o.sets,
@@ -706,6 +709,7 @@ export function publicViewOf(
       twillBorderNumbers: o.twillBorderNumbers,
       pantLogo: o.pantLogo,
       pantNumber: o.pantNumber,
+      goaliePantReversedLogos: o.goaliePantReversedLogos,
       lacesStyle: o.lacesStyle,
       shoulderCut: o.shoulderCut,
       stitchedShoulderTrim: o.stitchedShoulderTrim,
@@ -717,16 +721,13 @@ export function publicViewOf(
     captainCQuantity: o.captainCQuantity,
     captainAQuantity: o.captainAQuantity,
     shoulderLogosSame: o.shoulderLogosSame,
-    // The font file is a licensed asset, not something the customer ordered.
-    assets: assets.filter((a) => a.role !== 'font'),
     roster: [...roster].sort((a, b) => a.sortOrder - b.sortOrder),
-    // Customers see the spares too — they're part of what's being made, and a
-    // team checking an order should see the numbers going on them.
+    // Spares are on both sheets — they're part of what's being made, and a
+    // team checking an order should see the numbers going on them. Keepers
+    // are NOT: see factoryViewOf.
     extraJerseyDetails: o.extraJerseyDetails ?? [],
-    requestApproval: approvalOpen(o),
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
-    approvalRecord: o.approvalRecord,
     specialNotes: o.specialNotes,
     captainPatchNotes: o.captainPatchNotes,
     designReferenceNotes: o.designReferenceNotes,
@@ -743,6 +744,28 @@ export function publicViewOf(
       province: o.shippingProvince,
       postal: o.shippingPostal,
     },
+  };
+}
+
+/**
+ * The customer's view: the build sheet plus what their own page needs. The
+ * spread here is of `buildSheetOf`'s deliberate list, never of the order.
+ */
+export function publicViewOf(
+  o: Order,
+  roster: RosterEntry[],
+  assets: OrderAsset[],
+  history: ChangeLogEntry[] = [],
+): PublicOrderView {
+  return {
+    ...buildSheetOf(o, roster),
+    orderId: o.id,
+    datePaid: o.datePaid,
+    googleDriveLink: o.googleDriveLink,
+    // The font file is a licensed asset, not something the customer ordered.
+    assets: assets.filter((a) => a.role !== 'font'),
+    requestApproval: approvalOpen(o),
+    approvalRecord: o.approvalRecord,
     // No stage URLs here: the /share sheet is circulated widely, and a stage
     // page URL is built from the roster token — the write credential. See
     // rosterLinkView, which is the one place that link belongs.
@@ -750,6 +773,27 @@ export function publicViewOf(
     // Open = switched on by Keenan and the order hasn't reached production.
     clientFormOpen: o.requestClientDetails && !clientEditingLocked(o.status),
     clientFormSections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
+  };
+}
+
+/**
+ * The factory's view: the build sheet plus the factory's own business. Same
+ * rule as above — the only spread is of the deliberate build-sheet list.
+ *
+ * Keepers travel here and nowhere public: they're Powerplay's jerseys, made
+ * on this run and held at the facility, and the team never hears about them.
+ * The font comes along because the factory prints the names. No money, no
+ * payment date, no signature record, no timeline — none of it is the
+ * factory's to see.
+ */
+export function factoryViewOf(o: Order, roster: RosterEntry[], assets: OrderAsset[]): FactoryOrderView {
+  return {
+    ...buildSheetOf(o, roster),
+    assets,
+    factoryNotes: o.factoryNotes ?? '',
+    keeperJerseys: o.keeperJerseys ?? [],
+    sentToFactoryAt: o.sentToFactoryAt ?? null,
+    rosterLocked: clientEditingLocked(o.status),
   };
 }
 

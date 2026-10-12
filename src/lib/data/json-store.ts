@@ -10,7 +10,7 @@ import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
@@ -274,6 +274,18 @@ export const jsonStore: Repository = {
       db.roster.filter((r) => r.orderId === o.id),
       db.assets.filter((a) => a.orderId === o.id),
       db.history.filter((h) => h.orderId === o.id),
+    );
+  },
+
+  async getByFactoryToken(token) {
+    if (!token) return null;
+    const db = await load();
+    const o = db.orders.find((x) => x.factoryToken === token && !x.deletedAt);
+    if (!o) return null;
+    return factoryViewOf(
+      o,
+      db.roster.filter((r) => r.orderId === o.id),
+      db.assets.filter((a) => a.orderId === o.id),
     );
   },
 

@@ -1,0 +1,478 @@
+import type { ReactNode } from 'react';
+import {
+  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
+  PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
+  addonsForJerseyType, tierById,
+} from '@/lib/constants';
+import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludesPantShells, orderIncludesSocks, type OrderTotals } from '@/lib/order-utils';
+import { isNoName } from '@/lib/roster-edit';
+import { keepersOfSet } from '@/lib/keepers';
+import type { BuildSheet } from '@/lib/data/repository';
+import type { AssetRole, KeeperJersey, ViewableAsset } from '@/lib/types';
+import { Card, Field, Section, Stat } from '@/components/ui';
+import { ArtworkGallery } from '@/components/artwork-gallery';
+import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
+import { RosterBreakdown } from '@/components/order-form/roster-breakdown';
+
+/*
+ * The build sheet, rendered.
+ *
+ * The customer's share page and the factory's production sheet show the same
+ * build — totals, build type, add-ons, roster, artwork, contact — and they
+ * used to be two copies of the same JSX. These are the sections, once, read
+ * from the shared `BuildSheet` view (repository.ts). A section changed here
+ * changes on both sheets, which is the point: the team and the people sewing
+ * the jerseys must be reading the same thing.
+ *
+ * Keepers are the one difference the sections know about. Passed in only by
+ * the factory sheet, they add rows and counts; left out, as the customer's
+ * page leaves them out, nothing here mentions them.
+ */
+
+/*
+ * Number reference photos belong with Number Details, not three screens down
+ * in the logo gallery. They were being rendered there, correctly, and nobody
+ * looked for them there. Pulled up into Build Type and hidden from the gallery.
+ */
+export const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
+
+
+export function sheetHasPantShells(sheet: Pick<BuildSheet, 'sets' | 'pantShellType'>): boolean {
+  return (
+    sheet.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
+    sheet.pantShellType !== null
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Totals
+ * ------------------------------------------------------------------ */
+
+export function OrderTotalsSection({
+  sheet,
+  totals,
+  keepers,
+}: {
+  sheet: BuildSheet;
+  totals: OrderTotals;
+  /** Factory sheet only. Adds the jerseys being made for Powerplay on top of the team's. */
+  keepers?: KeeperJersey[];
+}) {
+  const keeperCount = keepers?.length ?? 0;
+  return (
+    <Section title="Order Totals">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
+        <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
+        <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
+        {keeperCount > 0 && <Stat label="+ Jerseys for Powerplay to keep" value={keeperCount} accent />}
+      </div>
+      {describeOrderTotals(totals) && (
+        <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>
+      )}
+      {keeperCount > 0 && (
+        <p className="mt-1 text-sm font-semibold text-amber-300">
+          Make {totals.totalJerseys + keeperCount} jerseys in total: {totals.totalJerseys} for the team
+          plus {keeperCount} for Powerplay to keep (see Keep for Powerplay, above).
+        </p>
+      )}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {sheet.sets.map((s, i) => {
+          const mine = keepers ? keepersOfSet(keepers, i) : [];
+          return (
+            <Card key={i} className="p-3">
+              <div className="text-sm font-bold text-ppc-gold">{s.label}</div>
+              <dl className="mt-2 space-y-1 text-sm">
+                <div className="flex justify-between"><dt className="text-muted">Player Jerseys</dt><dd className="font-semibold">{s.playerJerseys}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">Goalie Jerseys</dt><dd className="font-semibold">{s.goalieJerseys}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">Socks (Pairs)</dt><dd className="font-semibold">{s.sockPairs}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">Pant Shells</dt><dd className="font-semibold">{s.pantShells}</dd></div>
+                {s.extraJerseys > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Jerseys</dt><dd className="font-semibold text-ppc-gold">{s.extraJerseys}</dd></div>}
+                {s.extraSockPairs > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Sock Pairs</dt><dd className="font-semibold text-ppc-gold">{s.extraSockPairs}</dd></div>}
+                {s.extraPantShells > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Pant Shells</dt><dd className="font-semibold text-ppc-gold">{s.extraPantShells}</dd></div>}
+                {mine.length > 0 && (
+                  <div className="flex justify-between"><dt className="font-semibold text-amber-300">Keep for Powerplay</dt><dd className="font-semibold text-amber-300">{mine.length}</dd></div>
+                )}
+              </dl>
+              {describeSet(s) && (
+                <p className="mt-2 border-t border-line pt-2 text-xs font-semibold text-ppc-gold">{describeSet(s)}</p>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Build type
+ * ------------------------------------------------------------------ */
+
+export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets: ViewableAsset[] }) {
+  const tier = tierById(sheet.jerseyTier);
+  return (
+    <Section title="Build Type">
+      {/* The tier is the headline fact about what was bought — it was on the
+          order sheet and nowhere on this page. */}
+      {tier && (
+        <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
+          {tier.label} build
+        </div>
+      )}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {sheet.numberOfSets > 1 && (
+          <Field label="Number of Sets">{sheet.numberOfSets}</Field>
+        )}
+        <Field label="Jersey Type">{sheet.jerseyType ? JERSEY_TYPE_LABELS[sheet.jerseyType] : ''}</Field>
+        <Field label="Sock Type">
+          {sheet.sockType ? SOCK_TYPE_LABELS[sheet.sockType] : ''}
+          {sheet.sockType && sheet.multiPanelSocks && (
+            <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Pro cut multi-panel</span>
+          )}
+        </Field>
+        <Field label="Pant Shell Type">
+          {sheet.pantShellType ? PANT_SHELL_TYPE_LABELS[sheet.pantShellType] : ''}
+        </Field>
+      </div>
+      {sheet.numberDetails && (
+        <div className="mt-4">
+          <Field label="Number Details">{sheet.numberDetails}</Field>
+        </div>
+      )}
+      {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
+        <div className="mt-4">
+          <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
+          {/* Home and away side by side, each half the width, not stacked. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {NUMBER_ROLES.filter((r) => assets.some((a) => a.role === r)).map((r) => (
+              <ArtworkGallery key={r} assets={assets.filter((a) => a.role === r)} teamName={sheet.teamName} />
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Add-ons
+ * ------------------------------------------------------------------ */
+
+export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
+  const hasPantShells = sheetHasPantShells(sheet);
+  /*
+   * Two lists instead of a grid of label/Yes/No rows. In the grid, each
+   * "Yes" landed right beside the next row's name and read as part of it.
+   * What's on the jersey is the thing to see at a glance, so it gets the
+   * gold chips; what isn't is one muted line underneath.
+   */
+  const toggles = [
+    ...addonsForJerseyType(sheet.jerseyType),
+    ...(hasPantShells ? PANT_TOGGLES : []),
+    // Goalie shells with the logos on the back of the legs — only a question
+    // when there's a goalie and shells, so it's only listed then.
+    ...(offersGoaliePantOption(sheet)
+      ? [{ key: 'goaliePantReversedLogos', label: 'Reversed Logos on Goalie Pant Shells (back of the legs)' }]
+      : []),
+    { key: 'stitchedShoulderTrim', label: 'Stitch-on Shoulder Trim' },
+  ] as Array<{ key: string; label: string }>;
+  const on = toggles.filter((t) => Boolean(sheet.addons[t.key as keyof typeof sheet.addons]));
+  const off = toggles.filter((t) => !sheet.addons[t.key as keyof typeof sheet.addons]);
+
+  return (
+    <Section title="Add-Ons & Customization">
+      <div className="text-xs font-bold uppercase tracking-wide text-muted">Included on this order</div>
+      {on.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {on.map((t) => (
+            <span
+              key={t.key}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
+            >
+              <span aria-hidden>&#10003;</span> {t.label}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-muted">No add-ons on this order.</p>
+      )}
+      {off.length > 0 && (
+        <p className="mt-3 text-xs text-muted">
+          <span className="font-semibold">Not included:</span> {off.map((t) => t.label).join(' · ')}
+        </p>
+      )}
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Laces">{LACES_LABELS[sheet.addons.lacesStyle]}</Field>
+        <Field label="Shoulder Cut">{SHOULDER_CUT_LABELS[sheet.addons.shoulderCut]}</Field>
+        <Field label="Name Style">{NAME_STYLE_LABELS[sheet.addons.nameStyle]}</Field>
+        <Field label="Shoulder Logos">
+          {sheet.addons.hasShoulderLogos
+            ? sheet.shoulderLogosSame
+              ? 'Same both sides'
+              : 'Left / right differ'
+            : 'None'}
+        </Field>
+      </div>
+
+      {sheet.addons.hasCaptainPatches && (
+        <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3">
+          <div className="text-sm font-bold text-ppc-gold">Captain Patches</div>
+          <div className="mt-2 grid gap-4 sm:grid-cols-3">
+            <Field label="Style">
+              {sheet.captainPatchStyle ? CAPTAIN_PATCH_STYLE_META[sheet.captainPatchStyle].label : ''}
+            </Field>
+            <Field label="Quantity of C&apos;s">{sheet.captainCQuantity || 0}</Field>
+            <Field label="Quantity of A&apos;s">{sheet.captainAQuantity || 0}</Field>
+          </div>
+          {sheet.captainPatchNotes && (
+            <p className="mt-2 text-sm text-muted">{sheet.captainPatchNotes}</p>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Roster
+ * ------------------------------------------------------------------ */
+
+/** The badge a keeper row wears, on the factory sheet and on Keenan's. */
+export function KeeperBadge() {
+  return (
+    <span className="rounded border border-amber-400/70 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+      Keep for Powerplay
+    </span>
+  );
+}
+
+export function RosterSection({
+  sheet,
+  csvHref,
+  keepers,
+}: {
+  sheet: BuildSheet;
+  /** Where the roster CSV downloads from — the share route or the factory route. */
+  csvHref: string;
+  /** Factory sheet only: keeper rows, marked, under the spares. */
+  keepers?: KeeperJersey[];
+}) {
+  const spares = sheet.extraJerseyDetails;
+  const keeperRows = keepers ?? [];
+  if (sheet.roster.length === 0 && spares.length === 0 && keeperRows.length === 0) return null;
+
+  const title = `Player Roster (${sheet.roster.length}${
+    spares.length ? ` + ${spares.length} spare${spares.length > 1 ? 's' : ''}` : ''
+  }${keeperRows.length ? ` + ${keeperRows.length} for Powerplay` : ''})`;
+  const showSocks = orderIncludesSocks(sheet);
+  // Pant shells on the order, OR a pant size typed on any row: a size that was
+  // entered is shown whatever the totals say, so it can never silently vanish.
+  const showPants =
+    orderIncludesPantShells(sheet) || sheet.roster.some((r) => (r.pantShellSize ?? '').trim() !== '');
+
+  return (
+    <Section title={title}>
+      {/*
+        * The sizes, counted, before the rows. "How many larges?" is what the
+        * factory asks and what a manager checks their list against, and
+        * counting a column of twenty by eye is how that goes wrong. Same
+        * component the order form shows Keenan.
+        */}
+      {sheet.roster.length > 0 && (
+        <div className="mb-4">
+          <RosterBreakdown entries={sheet.roster} showSocks={showSocks} showPantShells={showPants} />
+        </div>
+      )}
+      <div className="mb-3 flex justify-end">
+        {/* The same file Keenan's side produces, keyed by this page's token
+            instead of the order id. No sign-in, no money in it. */}
+        <a
+          href={csvHref}
+          className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
+        >
+          Download roster (CSV)
+        </a>
+      </div>
+      <div className="-mx-4 overflow-x-auto px-4">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+              <th className="py-2 pr-3">Name</th>
+              <th className="py-2 pr-3">#</th>
+              <th className="py-2 pr-3">Jersey Size</th>
+              <th className="py-2 pr-3">Sock Size</th>
+              {/* Only when the order has pant shells; an empty column on every other order reads as "missing". */}
+              {showPants && <th className="py-2 pr-3">Pant Shell Size</th>}
+              {/*
+                * Always rendered, even when every row is empty.
+                *
+                * This sheet goes to the manufacturer as well as the team,
+                * and a note is usually the one thing on a row that isn't
+                * obvious from the sizes — "needs an A", "sleeve length",
+                * "spell it with the accent". It was collected on the
+                * client form and then shown to nobody.
+                */}
+              <th className="py-2">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sheet.roster.map((r) => (
+              <tr key={r.id} className="border-b border-line/50">
+                <td className="py-2 pr-3 font-semibold">
+                  {/* Spelled out: a blank here would read as "still to come" to
+                      the manufacturer, and this one is finished. */}
+                  {isNoName(r, sheet.addons.nameStyle) ? (
+                    <span className="font-normal italic text-muted">No name</span>
+                  ) : (
+                    r.playerNameAsPrinted || <span className="text-muted">—</span>
+                  )}
+                  {r.isGoalie && <GoalieBadge />}
+                  <CaptaincyBadge value={r.captaincy} />
+                </td>
+                <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
+                <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : r.jerseySize || '—'}</td>
+                <td className="py-2 pr-3">{r.sockSize || '—'}</td>
+                {showPants && <td className="py-2 pr-3">{r.pantShellSize || '—'}</td>}
+                <td className="py-2 text-muted">{r.notes || '—'}</td>
+              </tr>
+            ))}
+
+            {/*
+              * Spares sit in the same table as the players, highlighted.
+              *
+              * They were a separate section below, which is where the
+              * question "is #99 on this order?" goes unanswered — you look
+              * at the roster, don't see it, and stop. Same table, marked
+              * SPARE, so one read covers everything being made.
+              */}
+            {spares.map((x, i) => (
+              <tr key={`extra-${i}`} className="border-b border-line/50 bg-ppc-gold/5">
+                <td className="py-2 pr-3">
+                  <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ppc-gold">
+                    Spare
+                  </span>
+                </td>
+                <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
+                <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : x.size || '—'}</td>
+                <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                {showPants && <td className="py-2 pr-3">—</td>}
+                {/* Same column as the players', not tucked beside the badge. */}
+                <td className="py-2 text-muted">{x.notes || '—'}</td>
+              </tr>
+            ))}
+
+            {/*
+              * Keepers, same table again, for the same reason — and marked
+              * louder than the spares, because these must NOT go in the
+              * team's box. Factory sheet only; the customer never sees a row.
+              */}
+            {keeperRows.map((k) => (
+              <tr key={`keeper-${k.id}`} className="border-b border-line/50 bg-amber-400/5">
+                <td className="py-2 pr-3">
+                  <KeeperBadge />
+                  {k.name.trim() && <span className="ml-2 font-semibold">{k.name.trim()}</span>}
+                </td>
+                <td className="py-2 pr-3 tabular-nums">{k.number || '—'}</td>
+                <td className="py-2 pr-3">{k.size || '—'}</td>
+                <td className="py-2 pr-3">—</td>
+                {showPants && <td className="py-2 pr-3">—</td>}
+                <td className="py-2 text-amber-200">
+                  {sheet.sets.length > 1 ? `Copy of the ${sheet.sets[k.setIndex]?.label ?? 'set'}. ` : ''}
+                  Hold at the facility for Powerplay. Not for the team.
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Artwork
+ * ------------------------------------------------------------------ */
+
+export function ArtworkSection({
+  sheet,
+  assets,
+  hideRoles = NUMBER_ROLES,
+}: {
+  sheet: BuildSheet;
+  assets: ViewableAsset[];
+  /** Roles shown elsewhere on the page. The number photos always are (Build Type); the factory sheet adds the font, which it offers as a download. */
+  hideRoles?: AssetRole[];
+}) {
+  if (assets.length === 0) return null;
+  return (
+    <Section title="Logos & Artwork">
+      <ArtworkGallery assets={assets} hideRoles={hideRoles} teamName={sheet.teamName} />
+      {/*
+        * The notes that go with the artwork, same as the order sheet shows
+        * them. Whoever is making these needs the instruction as much as
+        * the picture.
+        */}
+      {(sheet.designReferenceNotes || sheet.collarReferenceNotes || sheet.mainCrestNotes) && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Design Reference Notes">{sheet.designReferenceNotes}</Field>
+          <Field label="Collar Reference Notes">{sheet.collarReferenceNotes}</Field>
+          <Field label="Main Crest Notes">{sheet.mainCrestNotes}</Field>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Contact
+ * ------------------------------------------------------------------ */
+
+export function ContactSection({ sheet, intro, title }: { sheet: BuildSheet; title: string; intro?: ReactNode }) {
+  const c = sheet.contact;
+  return (
+    <Section title={title}>
+      {intro}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Contact Name">
+          {[c.firstName, c.lastName].filter(Boolean).join(' ')}
+        </Field>
+        <Field label="Email">{c.email}</Field>
+        <Field label="Phone">{c.phone}</Field>
+        <Field label="Street Address">
+          {[c.street, c.secondary].filter(Boolean).join(', ')}
+        </Field>
+        <Field label="City">{c.city}</Field>
+        <Field label="Province / State">{c.province}</Field>
+        <Field label="Postal Code">{c.postal}</Field>
+      </div>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Notes
+ * ------------------------------------------------------------------ */
+
+/**
+ * Order notes and captain-patch notes. `specialNotes` was on the customer's
+ * view since it was written and was never put on the page, so anything typed
+ * into it reached nobody. Whitespace is preserved: these get typed as lists.
+ */
+export function NotesSection({ sheet }: { sheet: BuildSheet }) {
+  if (!sheet.specialNotes && !sheet.captainPatchNotes) return null;
+  return (
+    <Section title="Notes">
+      {sheet.specialNotes && (
+        <p className="whitespace-pre-wrap text-sm">{sheet.specialNotes}</p>
+      )}
+      {sheet.captainPatchNotes && (
+        <div className={sheet.specialNotes ? 'mt-4 border-t border-line/60 pt-4' : ''}>
+          <p className="text-xs font-medium text-muted">Captain Patches</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{sheet.captainPatchNotes}</p>
+        </div>
+      )}
+    </Section>
+  );
+}

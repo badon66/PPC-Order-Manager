@@ -379,6 +379,30 @@ export interface ExtraJersey {
   notes: string;
 }
 
+/**
+ * A jersey made for Powerplay to keep.
+ *
+ * A sample for the wall, a reference for a remake, a spare to have on hand:
+ * whatever the reason, it is NOT the team's. It is never on their sheet, never
+ * on their bill, never in the roster tally, and never in the totals the team
+ * signs off on. The factory makes it alongside the set it copies and holds it
+ * at the facility for Powerplay instead of packing it with the team's order.
+ *
+ * Kept on the order rather than inside the set because the customer's view
+ * carries the sets whole, and a keeper must not travel with them.
+ */
+export interface KeeperJersey {
+  id: string;
+  /** Which set it copies (index into Order.sets). Home vs away matters to the factory. */
+  setIndex: number;
+  /** Number on the back. Typed, or picked at random from the numbers nobody on the roster has. */
+  number: string;
+  /** Name on the back. Usually blank. */
+  name: string;
+  /** Jersey size. Defaults to the most common size on the roster. */
+  size: string;
+}
+
 export interface OrderAsset {
   id: string;
   orderId: string;
@@ -573,6 +597,13 @@ export interface Order {
   stopSignPatch: boolean;
   pantLogo: boolean;
   pantNumber: boolean;
+  /**
+   * Goalie pant shells with the logos and numbers on the BACK of the legs
+   * instead of the front, so they still show once the pads are on. Only
+   * means anything when the order has goalie jerseys and pant shells; the
+   * form offers it then and nowhere else.
+   */
+  goaliePantReversedLogos: boolean;
   lacesStyle: LacesStyle;
   /* Money. KEENAN ONLY.
    *
@@ -602,8 +633,10 @@ export interface Order {
   sentToFactoryAt: CalendarDate | null;
 
   /**
-   * Multi-panel (pro cut) sock construction. Only means anything when the
-   * order has socks; the form hides it otherwise and the price ignores it.
+   * Pro cut multi-panel sock construction. Any tier can have it (the socks come
+   * sublimated or embroidered either way), so it's a per-order tick beside the
+   * build tier. Only means anything when the order has socks; the form hides
+   * it otherwise and the price ignores it.
    */
   multiPanelSocks: boolean;
 
@@ -635,7 +668,14 @@ export interface Order {
   mainCrestNotes: string;
 
   /* Notes & approval */
+  /** Order notes. On the customer's sheet AND the factory's: instructions about what to make. */
   specialNotes: string;
+  /**
+   * Notes for the factory only. The longer, in-the-weeds instructions Michael
+   * needs and the team doesn't: construction details, how to pack the keepers,
+   * what to watch on this one. Never on the customer's sheet.
+   */
+  factoryNotes: string;
 
   /**
    * Numbers and sizes for the spare jerseys.
@@ -647,6 +687,12 @@ export interface Order {
    * invented number gets printed on a jersey.
    */
   extraJerseyDetails: ExtraJersey[];
+
+  /**
+   * Jerseys made for Powerplay to keep — see KeeperJersey. Shown to Keenan and
+   * to the factory, never to the customer.
+   */
+  keeperJerseys: KeeperJersey[];
 
   /**
    * Whether the customer's share page shows a sign-off block at all.
@@ -678,6 +724,12 @@ export interface Order {
   /* Public link tokens — long, random, per-order, revocable. NOT the row id. */
   shareToken: string;
   rosterToken: string;
+  /**
+   * The factory sheet's token (/factory/<token>). Unlike the two above, the
+   * page it opens also asks for the factory code. Empty on orders made before
+   * the factory sheet existed, until Keenan makes the link.
+   */
+  factoryToken: string;
 
   /* Bookkeeping */
   createdAt: string;

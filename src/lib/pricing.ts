@@ -109,7 +109,7 @@ export function listPrice(order: Priceable): Pricing | null {
   const socks = t.totalSockPairs;
   if (socks > 0 && order.sockType) {
     const unit = SOCK_LIST_PRICE[order.sockType] + (order.multiPanelSocks ? MULTI_PANEL_SOCK_EXTRA : 0);
-    lines.push({ label: order.multiPanelSocks ? 'Socks, multi-panel (pro cut)' : 'Socks', qty: socks, unit, amount: socks * unit });
+    lines.push({ label: order.multiPanelSocks ? 'Socks, pro cut multi-panel' : 'Socks', qty: socks, unit, amount: socks * unit });
   }
   const shells = t.totalPantShells;
   if (shells > 0 && order.pantShellType) {

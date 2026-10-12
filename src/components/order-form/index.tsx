@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation';
 import {
   CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { describeSet, extraRowCount, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
 import type {
-  CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
+  CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, KeeperJersey, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
 import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
 import { ChoiceGroup, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
@@ -182,6 +183,33 @@ export function OrderForm({
   /** Spares that actually get a jersey — the rest are socks only. */
   const extraJerseyRows = (draft.extraJerseyDetails ?? []).filter((x) => !x.sockOnly).length;
 
+  /*
+   * Keepers — "make an extra of this jersey for us to keep". Powerplay's, not
+   * the team's: never in the totals, the tally, the price or the customer's
+   * sheet. Rules in lib/keepers.ts; this is just the wiring.
+   */
+  const keepers = draft.keeperJerseys ?? [];
+  const takenForKeepers = (exceptId?: string) =>
+    takenNumbers(roster, draft.extraJerseyDetails ?? [], keepers.filter((k) => k.id !== exceptId));
+  function setKeepers(setIndex: number, wanted: number) {
+    dirty.current = true;
+    setDraft((d) => ({
+      ...d,
+      keeperJerseys: setKeeperCount(d.keeperJerseys ?? [], setIndex, wanted, {
+        taken: takenNumbers(roster, d.extraJerseyDetails ?? [], d.keeperJerseys ?? []),
+        size: commonJerseySize(roster),
+        newId,
+      }),
+    }));
+  }
+  function patchKeeper(id: string, patch: Partial<KeeperJersey>) {
+    dirty.current = true;
+    setDraft((d) => ({
+      ...d,
+      keeperJerseys: (d.keeperJerseys ?? []).map((k) => (k.id === id ? { ...k, ...patch } : k)),
+    }));
+  }
+
   const totalAcrossSets = useMemo(
     () =>
       draft.sets.reduce(
@@ -199,14 +227,21 @@ export function OrderForm({
     [draft.sets],
   );
 
+  // A keeper copies one set; when that set goes, so does the keeper (lib/keepers.ts).
   function changeMode(mode: OrderMode) {
     dirty.current = true;
-    setDraft((d) => ({ ...d, orderMode: mode, sets: setsForMode(mode, d.numberOfSets, d.sets) }));
+    setDraft((d) => {
+      const sets = setsForMode(mode, d.numberOfSets, d.sets);
+      return { ...d, orderMode: mode, sets, keeperJerseys: pruneKeepers(d.keeperJerseys ?? [], sets.length) };
+    });
   }
 
   function changeSetCount(n: number) {
     dirty.current = true;
-    setDraft((d) => ({ ...d, numberOfSets: n, sets: setsForMode('multiple_sets', n, d.sets) }));
+    setDraft((d) => {
+      const sets = setsForMode('multiple_sets', n, d.sets);
+      return { ...d, numberOfSets: n, sets, keeperJerseys: pruneKeepers(d.keeperJerseys ?? [], sets.length) };
+    });
   }
 
   function patchSet(i: number, p: Partial<Draft['sets'][number]>) {
@@ -269,7 +304,7 @@ export function OrderForm({
         } as SectionDef]
       : []),
     { id: 'roster', title: `Player Roster (${roster.length})`, icon: '👥', wide: true, blurb: 'Names, numbers, sizes — or import a CSV.', complete: roster.length > 0 },
-    { id: 'notes', title: 'Notes & Approval', icon: '✅', blurb: 'Special instructions and customer sign-off.', complete: Boolean(draft.approvedBy || draft.approvedDate || draft.specialNotes) },
+    { id: 'notes', title: 'Notes & Approval', icon: '✅', blurb: 'Notes for the customer sheet, notes for the factory only, and customer sign-off.', complete: Boolean(draft.approvedBy || draft.approvedDate || draft.specialNotes || draft.factoryNotes) },
   ];
 
   const [activeId, jump] = useScrollSpy(sections.map((s) => s.id));
@@ -430,6 +465,87 @@ export function OrderForm({
                   )}
                 </div>
 
+                {/*
+                  * Keepers — ours, not theirs. Deliberately NOT in the Extras
+                  * box above: extras are the team's (they pay, they get them),
+                  * keepers are Powerplay's (held at the factory, off the sheet
+                  * and the invoice). Two boxes so the two never get confused.
+                  */}
+                {(() => {
+                  const mine = keepersOfSet(keepers, i);
+                  return (
+                    <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-400/5 p-2.5" data-testid={`keepers-${i}`}>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+                        <input
+                          type="checkbox"
+                          checked={mine.length > 0}
+                          onChange={(e) => setKeepers(i, e.target.checked ? 1 : 0)}
+                        />
+                        Make an extra of this jersey for us to keep
+                      </label>
+                      {mine.length > 0 && (
+                        <>
+                          <div className="mt-2 max-w-[9rem]">
+                            <NumberField
+                              label="How many"
+                              testId={`keeper-count-${i}`}
+                              value={mine.length}
+                              onChange={(v) => setKeepers(i, Math.min(Math.max(v, 1), MAX_KEEPERS_PER_SET))}
+                              min={1}
+                            />
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {mine.map((k, n) => (
+                              <div key={k.id} className="rounded-md border border-amber-400/30 bg-surface p-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 shrink-0 text-xs font-semibold text-amber-300">Keeper {n + 1}</span>
+                                  <input
+                                    className="min-w-0 flex-1"
+                                    placeholder="Number"
+                                    inputMode="numeric"
+                                    aria-label={`Keeper ${n + 1} number`}
+                                    value={k.number}
+                                    onChange={(e) => patchKeeper(k.id, { number: e.target.value })}
+                                  />
+                                  <button
+                                    type="button"
+                                    title="Pick a number nobody on this order has"
+                                    className="shrink-0 rounded-lg border border-line bg-surface-2 px-2.5 py-2 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
+                                    onClick={() => patchKeeper(k.id, { number: randomFreeNumber(takenForKeepers(k.id)) })}
+                                  >
+                                    Random
+                                  </button>
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <input
+                                    className="min-w-0 flex-1"
+                                    placeholder="Name (optional)"
+                                    aria-label={`Keeper ${n + 1} name`}
+                                    value={k.name}
+                                    onChange={(e) => patchKeeper(k.id, { name: e.target.value })}
+                                  />
+                                  <div className="w-24 shrink-0">
+                                    <SizeSelect
+                                      value={k.size}
+                                      options={PLAYER_JERSEY_SIZES}
+                                      onChange={(v) => patchKeeper(k.id, { size: v })}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-xs text-amber-200/90">
+                            Kept by Powerplay. The factory makes {mine.length === 1 ? 'it' : 'these'} with the run and holds{' '}
+                            {mine.length === 1 ? 'it' : 'them'} at the facility, off to the side. Not on the team&apos;s sheet,
+                            not on their invoice, not in the totals above.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {summary && (
                   <p className="mt-2 text-xs font-semibold text-ppc-gold">{summary}</p>
                 )}
@@ -559,13 +675,11 @@ export function OrderForm({
           onChange={(v) => set('sockType', v)}
           choices={(Object.keys(SOCK_TYPE_LABELS) as SockType[]).map((v) => ({ value: v, label: SOCK_TYPE_LABELS[v] }))}
         />
-        {/* A sock build detail, so it lives with the sock type and only when there are socks. */}
         {orderIncludesSocks(draft) && (
-          <Toggle
-            label="Multi-panel sock construction (pro cut)"
-            checked={draft.multiPanelSocks}
-            onChange={(v) => set('multiPanelSocks', v)}
-          />
+          <p className="text-xs text-muted">
+            Pro cut multi-panel socks are ticked beside the build tier in{' '}
+            <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span>.
+          </p>
         )}
         {hasPantShells && (
           <p className="text-xs text-muted">
@@ -608,6 +722,23 @@ export function OrderForm({
           order={draft}
           onApply={applyTier}
         />
+        {/* Sock construction sits with the tier because it's the same kind of
+            decision: the grade of the build. It isn't tied to a tier, though.
+            Pro cut socks come sublimated or embroidered, so any build can have
+            them. Only offered when the order actually has socks. */}
+        {orderIncludesSocks(draft) && (
+          <div className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/[0.04] p-4">
+            <Toggle
+              label="Pro Cut Multi-Panel Socks"
+              checked={draft.multiPanelSocks}
+              onChange={(v) => set('multiPanelSocks', v)}
+            />
+            <p className="mt-2 text-xs text-muted">
+              Pro cut, multi-panel construction for the socks on this order. Works with any tier:
+              the socks come sublimated or embroidered either way.
+            </p>
+          </div>
+        )}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {addonsForJerseyType(draft.jerseyType).map(({ key, label }) => (
             <Toggle key={key} label={label} checked={Boolean(draft[key as keyof Order])} onChange={(v) => set(key as keyof Order, v as never)} />
@@ -731,6 +862,24 @@ export function OrderForm({
             <Toggle key={key} label={label} checked={Boolean(draft[key as keyof Order])} onChange={(v) => set(key as keyof Order, v as never)} />
           ))}
         </div>
+        {/*
+          * Goalie shells only: with the pads on, anything on the front of the
+          * legs disappears. Offered when there's a goalie to dress and shells
+          * on the order (offersGoaliePantOption), and nowhere else.
+          */}
+        {offersGoaliePantOption(draft) && (
+          <div className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/[0.04] p-3">
+            <Toggle
+              label="Reversed logos on the goalie pant shells"
+              checked={draft.goaliePantReversedLogos}
+              onChange={(v) => set('goaliePantReversedLogos', v)}
+            />
+            <p className="mt-2 text-xs text-muted">
+              Logos and numbers go on the back of the legs instead of the front, so they still show
+              once the goalie&apos;s pads are on. Skaters&apos; shells stay as normal.
+            </p>
+          </div>
+        )}
         <AssetGroup
           orderId={draft.id} role="pant_design" title="Pant Design" max={2}
           hint="How the shells should look. Upload a new one to replace what's here."
@@ -771,11 +920,33 @@ export function OrderForm({
 
     notes: (
       <>
-        <TextArea
-          label="Special Notes" value={draft.specialNotes}
-          onChange={(v) => set('specialNotes', v)}
-          placeholder="Any special instructions or notes for this order..."
-        />
+        {/*
+          * Two note boxes, two readers. Order notes go on the customer's
+          * share sheet (no code) and on the factory sheet; factory notes go on
+          * the factory sheet only (behind the factory code). The boxes say so
+          * on their faces because the difference is who gets to read them.
+          */}
+        <div className="rounded-lg border border-line bg-surface-2 p-3">
+          <TextArea
+            label="Order notes — customer sheet AND factory sheet" value={draft.specialNotes}
+            onChange={(v) => set('specialNotes', v)}
+            placeholder="Instructions about what to make that the team should see too: crest size, colour calls, anything they're signing off on..."
+          />
+          <p className="-mt-1 text-xs text-muted">
+            Shown on the customer&apos;s share link (no code needed) and on the factory sheet.
+          </p>
+        </div>
+        <div className="rounded-lg border border-ppc-gold/50 bg-ppc-gold/5 p-3">
+          <TextArea
+            label="Factory-only notes — Michael's sheet, never the customer" value={draft.factoryNotes}
+            onChange={(v) => set('factoryNotes', v)}
+            placeholder="The in-depth build notes only the factory needs: construction details, what to watch on this job, how to handle the keepers..."
+          />
+          <p className="-mt-1 text-xs text-muted">
+            Only on the factory sheet, behind the factory code. The customer never sees this box.
+            Jerseys you&apos;re keeping (Order Totals) are listed on that sheet automatically.
+          </p>
+        </div>
         <Toggle
           label="Ask the customer to approve on their share link"
           checked={draft.requestApproval}

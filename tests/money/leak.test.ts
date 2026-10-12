@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { blankOrder, blankRosterEntry } from '@/lib/order-utils';
-import { publicViewOf, rosterLinkView, stampCompletion } from '@/lib/data/logic';
+import { factoryViewOf, publicViewOf, rosterLinkView, stampCompletion } from '@/lib/data/logic';
 import { rosterToCsv } from '@/lib/csv';
 import type { Order } from '@/lib/types';
 
@@ -23,7 +23,12 @@ function pricedOrder(): Order {
   o.orderValue = SENTINEL;
   o.paymentsReceived = ['initial_deposit'];
   o.sentToFactoryAt = '2026-10-01';
+  o.datePaid = '2026-10-02';
   o.teamName = 'Leak Test';
+  // The factory's business, which the customer must never see.
+  o.factoryNotes = 'KEEPER-NOTE-4471';
+  o.factoryToken = 'FACTORY-TOKEN-4472';
+  o.keeperJerseys = [{ id: 'k1', setIndex: 0, number: '4473', name: 'KEEPERNAME', size: 'L' }];
   return o;
 }
 
@@ -44,6 +49,43 @@ test('publicViewOf carries no money, by value or by key', () => {
   assert.equal(json.includes(String(SENTINEL)), false, 'order value reached the public view');
   const bad = keysDeep(view).filter((k) => MONEY_KEY.test(k) && k !== 'invoiceNumber');
   assert.deepEqual(bad, [], `money-shaped keys in public view: ${bad.join(', ')}`);
+});
+
+test('publicViewOf carries nothing of the factory: no keepers, no factory notes, no factory token', () => {
+  const json = JSON.stringify(publicViewOf(pricedOrder(), [], []));
+  for (const marker of ['KEEPER-NOTE-4471', 'FACTORY-TOKEN-4472', '4473', 'KEEPERNAME']) {
+    assert.equal(json.includes(marker), false, `${marker} reached the customer's view`);
+  }
+  const keys = keysDeep(publicViewOf(pricedOrder(), [], []));
+  assert.deepEqual(keys.filter((k) => /keeper|factory/i.test(k)), []);
+});
+
+test('factoryViewOf carries no money and no payment date, by value or by key', () => {
+  const o = pricedOrder();
+  const view = factoryViewOf(o, [], []);
+  const json = JSON.stringify(view);
+  assert.equal(json.includes(String(SENTINEL)), false, 'order value reached the factory view');
+  assert.equal(json.includes('2026-10-02'), false, 'the payment date reached the factory view');
+  assert.equal(json.includes('initial_deposit'), false, 'payment state reached the factory view');
+  // `factory` is a money-shaped key on the CUSTOMER's surfaces (sentToFactoryAt
+  // is Keenan's bookkeeping there); on the factory's own sheet it's the point.
+  const bad = keysDeep(view).filter((k) => MONEY_KEY.test(k) && k !== 'invoiceNumber' && !/factory/i.test(k));
+  assert.deepEqual(bad, [], `money-shaped keys in factory view: ${bad.join(', ')}`);
+  assert.equal('approvalRecord' in view, false, 'the signature record is not the factory\'s');
+  assert.equal('orderId' in view, false, 'the row id is not the factory\'s');
+  // and it DOES carry what the factory is for
+  assert.equal(view.factoryNotes, 'KEEPER-NOTE-4471');
+  assert.equal(view.keeperJerseys.length, 1);
+  assert.equal(view.sentToFactoryAt, '2026-10-01');
+});
+
+test('the factory view keeps the font; the customer view drops it', () => {
+  const o = pricedOrder();
+  const font = { id: 'a1', orderId: o.id, role: 'font' as const, slot: 0, fileUrl: 'k', fileName: 'f.otf', displayName: '', placementFileUrl: '', notes: '', groupId: '' };
+  const crest = { ...font, id: 'a2', role: 'main_crest' as const };
+  const assets = [font, crest] as unknown as Parameters<typeof factoryViewOf>[2];
+  assert.deepEqual(factoryViewOf(o, [], assets).assets.map((a) => a.role), ['font', 'main_crest']);
+  assert.deepEqual(publicViewOf(o, [], assets).assets.map((a) => a.role), ['main_crest']);
 });
 
 test('the roster link view carries no money', () => {
@@ -153,7 +195,7 @@ test('orderValueOf: override wins, list price otherwise, null with no tier', () 
   assert.equal(orderValueOf({ ...o, jerseyTier: null }), null);
 });
 
-test('list price: multi-panel socks are the pro-cut price, +$5 a pair, and only with socks', () => {
+test('list price: pro cut multi-panel socks are +$5 a pair, and only with socks', () => {
   const o = sized({ sockType: 'sublimated', multiPanelSocks: true });
   o.sets = [{ ...o.sets[0], playerJerseys: 12, goalieJerseys: 0, sockPairs: 12 }];
   const line = listPrice(o)!.lines.find((l) => /Socks/.test(l.label))!;

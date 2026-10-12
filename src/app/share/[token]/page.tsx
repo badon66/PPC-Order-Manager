@@ -1,28 +1,16 @@
 import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
 import { formatLong } from '@/lib/dates';
-import { computeTotals, describeOrderTotals, describeSet } from '@/lib/order-utils';
+import { computeTotals } from '@/lib/order-utils';
+import { Field, Section } from '@/components/ui';
 import {
-  JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS, PANT_SHELL_TYPE_LABELS,
-  PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, addonsForJerseyType,
-  CAPTAIN_PATCH_STYLE_META, tierById,
-} from '@/lib/constants';
-import { Card, Field, Section, Stat } from '@/components/ui';
-import { ArtworkGallery } from '@/components/artwork-gallery';
+  AddOnsSection, ArtworkSection, BuildTypeSection, ContactSection, NotesSection,
+  OrderTotalsSection, RosterSection,
+} from '@/components/build-sheet';
 import { ApproveBlock } from './approve';
 import { SignatureProof } from '@/components/signature-proof';
-import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
-import { isNoName } from '@/lib/roster-edit';
-import type { AssetRole } from '@/lib/types';
 import { CLIENT_LINK_SECTION_META } from '@/lib/types';
 import type { ClientLinkSections } from '@/lib/types';
-
-/*
- * Number reference photos belong with Number Details, not three screens down
- * in the logo gallery. They were being rendered there, correctly, and nobody
- * looked for them there. Pulled up here and hidden from the gallery below.
- */
-const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
 import { Timeline } from '@/components/timeline';
 import { stageMessage } from '@/lib/data/timeline';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
@@ -70,10 +58,6 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
    * bug was only that this page wasn't asking it.
    */
   const totals = computeTotals(view, view.roster);
-  const playing = view.roster.filter((r) => !r.sockOnly);
-  const hasPantShells =
-    view.sets.some((s) => (s.pantShells || 0) + (s.extraPantShells || 0) > 0) ||
-    view.pantShellType !== null;
 
   const signOffOpen = view.requestApproval && !view.approvedBy && !view.approvedDate;
   const stage = stageMessage(view.status);
@@ -191,296 +175,28 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </p>
       </Section>
 
-      <Section title="Shipping & Contact — please check this">
-        <p className="mb-4 text-sm text-muted">
-          This is where the order ships and who we&apos;ll contact. If anything here is wrong,
-          tell us before the order goes into production — we can&apos;t reroute it afterwards.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Contact Name">
-            {[view.contact.firstName, view.contact.lastName].filter(Boolean).join(' ')}
-          </Field>
-          <Field label="Email">{view.contact.email}</Field>
-          <Field label="Phone">{view.contact.phone}</Field>
-          <Field label="Street Address">
-            {[view.contact.street, view.contact.secondary].filter(Boolean).join(', ')}
-          </Field>
-          <Field label="City">{view.contact.city}</Field>
-          <Field label="Province / State">{view.contact.province}</Field>
-          <Field label="Postal Code">{view.contact.postal}</Field>
-        </div>
-      </Section>
-
-      <Section title="Order Totals">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
-          <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
-          <Stat label="Pant Shells" value={totals.totalPantShells} hideWhenZero />
-        </div>
-        {describeOrderTotals(totals) && (
-          <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>
-        )}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {view.sets.map((s, i) => (
-            <Card key={i} className="p-3">
-              <div className="text-sm font-bold text-ppc-gold">{s.label}</div>
-              <dl className="mt-2 space-y-1 text-sm">
-                <div className="flex justify-between"><dt className="text-muted">Player Jerseys</dt><dd className="font-semibold">{s.playerJerseys}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted">Goalie Jerseys</dt><dd className="font-semibold">{s.goalieJerseys}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted">Socks (Pairs)</dt><dd className="font-semibold">{s.sockPairs}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted">Pant Shells</dt><dd className="font-semibold">{s.pantShells}</dd></div>
-                {s.extraJerseys > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Jerseys</dt><dd className="font-semibold text-ppc-gold">{s.extraJerseys}</dd></div>}
-                {s.extraSockPairs > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Sock Pairs</dt><dd className="font-semibold text-ppc-gold">{s.extraSockPairs}</dd></div>}
-                {s.extraPantShells > 0 && <div className="flex justify-between"><dt className="text-ppc-gold">Extra Pant Shells</dt><dd className="font-semibold text-ppc-gold">{s.extraPantShells}</dd></div>}
-              </dl>
-              {describeSet(s) && (
-                <p className="mt-2 border-t border-line pt-2 text-xs font-semibold text-ppc-gold">{describeSet(s)}</p>
-              )}
-            </Card>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Build Type">
-        {/* The tier is the headline fact about what was bought — it was on the
-            order sheet and nowhere on this page. */}
-        {(() => {
-          const tier = tierById(view.jerseyTier);
-          if (!tier) return null;
-          return (
-            <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
-              {tier.label} build
-            </div>
-          );
-        })()}
-        <div className="grid gap-4 sm:grid-cols-3">
-          {view.numberOfSets > 1 && (
-            <Field label="Number of Sets">{view.numberOfSets}</Field>
-          )}
-          <Field label="Jersey Type">{view.jerseyType ? JERSEY_TYPE_LABELS[view.jerseyType] : ''}</Field>
-          <Field label="Sock Type">
-            {view.sockType ? SOCK_TYPE_LABELS[view.sockType] : ''}
-            {view.sockType && view.multiPanelSocks && (
-              <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Multi-panel</span>
-            )}
-          </Field>
-          <Field label="Pant Shell Type">
-            {view.pantShellType ? PANT_SHELL_TYPE_LABELS[view.pantShellType] : ''}
-          </Field>
-        </div>
-        {view.numberDetails && (
-          <div className="mt-4">
-            <Field label="Number Details">{view.numberDetails}</Field>
-          </div>
-        )}
-        {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
-          <div className="mt-4">
-            <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
-            {/* Home and away side by side, each half the width, not stacked. */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              {NUMBER_ROLES.filter((r) => assets.some((a) => a.role === r)).map((r) => (
-                <ArtworkGallery key={r} assets={assets.filter((a) => a.role === r)} teamName={view.teamName} />
-              ))}
-            </div>
-          </div>
-        )}
-      </Section>
-
-      <Section title="Add-Ons & Customization">
-        {/*
-          * Two lists instead of a grid of label/Yes/No rows. In the grid, each
-          * "Yes" landed right beside the next row's name and read as part of it.
-          * What's on the jersey is the thing to see at a glance, so it gets the
-          * gold chips; what isn't is one muted line underneath.
-          */}
-        {(() => {
-          const toggles = [
-            ...addonsForJerseyType(view.jerseyType),
-            ...(hasPantShells ? PANT_TOGGLES : []),
-            { key: 'stitchedShoulderTrim', label: 'Stitch-on Shoulder Trim' },
-          ] as Array<{ key: string; label: string }>;
-          const on = toggles.filter((t) => Boolean(view.addons[t.key as keyof typeof view.addons]));
-          const off = toggles.filter((t) => !view.addons[t.key as keyof typeof view.addons]);
-          return (
-            <>
-              <div className="text-xs font-bold uppercase tracking-wide text-muted">Included on this order</div>
-              {on.length ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {on.map((t) => (
-                    <span
-                      key={t.key}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
-                    >
-                      <span aria-hidden>&#10003;</span> {t.label}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted">No add-ons on this order.</p>
-              )}
-              {off.length > 0 && (
-                <p className="mt-3 text-xs text-muted">
-                  <span className="font-semibold">Not included:</span> {off.map((t) => t.label).join(' \u00b7 ')}
-                </p>
-              )}
-            </>
-          );
-        })()}
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Laces">{LACES_LABELS[view.addons.lacesStyle]}</Field>
-          <Field label="Shoulder Cut">{SHOULDER_CUT_LABELS[view.addons.shoulderCut]}</Field>
-          <Field label="Name Style">{NAME_STYLE_LABELS[view.addons.nameStyle]}</Field>
-          <Field label="Shoulder Logos">
-            {view.addons.hasShoulderLogos
-              ? view.shoulderLogosSame
-                ? 'Same both sides'
-                : 'Left / right differ'
-              : 'None'}
-          </Field>
-        </div>
-
-        {view.addons.hasCaptainPatches && (
-          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3">
-            <div className="text-sm font-bold text-ppc-gold">Captain Patches</div>
-            <div className="mt-2 grid gap-4 sm:grid-cols-3">
-              <Field label="Style">
-                {view.captainPatchStyle ? CAPTAIN_PATCH_STYLE_META[view.captainPatchStyle].label : ''}
-              </Field>
-              <Field label="Quantity of C&apos;s">{view.captainCQuantity || 0}</Field>
-              <Field label="Quantity of A&apos;s">{view.captainAQuantity || 0}</Field>
-            </div>
-            {view.captainPatchNotes && (
-              <p className="mt-2 text-sm text-muted">{view.captainPatchNotes}</p>
-            )}
-          </div>
-        )}
-      </Section>
-
-      {(view.roster.length > 0 || view.extraJerseyDetails.length > 0) && (
-        <Section
-          title={`Player Roster (${view.roster.length}${
-            view.extraJerseyDetails.length ? ` + ${view.extraJerseyDetails.length} spare` : ''
-          }${view.extraJerseyDetails.length > 1 ? 's' : ''})`}
-        >
-          <div className="mb-3 flex justify-end">
-            {/* The same file Keenan's side produces, keyed by this page's token
-                instead of the order id. No sign-in, no money in it. */}
-            <a
-              href={`/api/share/${token}/roster.csv`}
-              className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
-            >
-              Download roster (CSV)
-            </a>
-          </div>
-          <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[34rem] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">#</th>
-                  <th className="py-2 pr-3">Jersey</th>
-                  <th className="py-2 pr-3">Sock</th>
-                  {/*
-                    * Always rendered, even when every row is empty.
-                    *
-                    * This sheet goes to the manufacturer as well as the team,
-                    * and a note is usually the one thing on a row that isn't
-                    * obvious from the sizes — "needs an A", "sleeve length",
-                    * "spell it with the accent". It was collected on the
-                    * client form and then shown to nobody.
-                    */}
-                  <th className="py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.roster.map((r) => (
-                  <tr key={r.id} className="border-b border-line/50">
-                    <td className="py-2 pr-3 font-semibold">
-                      {/* Spelled out: a blank here would read as "still to come" to
-                          the manufacturer, and this one is finished. */}
-                      {isNoName(r, view.addons.nameStyle) ? (
-                        <span className="font-normal italic text-muted">No name</span>
-                      ) : (
-                        r.playerNameAsPrinted || <span className="text-muted">—</span>
-                      )}
-                      {r.isGoalie && <GoalieBadge />}
-                      <CaptaincyBadge value={r.captaincy} />
-                    </td>
-                    <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
-                    <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : r.jerseySize || '—'}</td>
-                    <td className="py-2 pr-3">{r.sockSize || '—'}</td>
-                    <td className="py-2 text-muted">{r.notes || '—'}</td>
-                  </tr>
-                ))}
-
-                {/*
-                  * Spares sit in the same table as the players, highlighted.
-                  *
-                  * They were a separate section below, which is where the
-                  * question "is #99 on this order?" goes unanswered — you look
-                  * at the roster, don't see it, and stop. Same table, marked
-                  * SPARE, so one read covers everything being made.
-                  */}
-                {view.extraJerseyDetails.map((x, i) => (
-                  <tr key={`extra-${i}`} className="border-b border-line/50 bg-ppc-gold/5">
-                    <td className="py-2 pr-3">
-                      <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ppc-gold">
-                        Spare
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
-                    <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : x.size || '—'}</td>
-                    <td className="py-2 pr-3">{x.sockSize || '—'}</td>
-                    {/* Same column as the players', not tucked beside the badge. */}
-                    <td className="py-2 text-muted">{x.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      {assets.length > 0 && (
-        <Section title="Logos & Artwork">
-          <ArtworkGallery assets={assets} hideRoles={NUMBER_ROLES} teamName={view.teamName} />
-          {/*
-            * The notes that go with the artwork, same as the order sheet shows
-            * them. Whoever is making these needs the instruction as much as
-            * the picture.
-            */}
-          {(view.designReferenceNotes || view.collarReferenceNotes || view.mainCrestNotes) && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <Field label="Design Reference Notes">{view.designReferenceNotes}</Field>
-              <Field label="Collar Reference Notes">{view.collarReferenceNotes}</Field>
-              <Field label="Main Crest Notes">{view.mainCrestNotes}</Field>
-            </div>
-          )}
-        </Section>
-      )}
+      <ContactSection
+        sheet={view}
+        title="Shipping & Contact — please check this"
+        intro={
+          <p className="mb-4 text-sm text-muted">
+            This is where the order ships and who we&apos;ll contact. If anything here is wrong,
+            tell us before the order goes into production — we can&apos;t reroute it afterwards.
+          </p>
+        }
+      />
 
       {/*
-        * Notes, finally rendered.
-        *
-        * `specialNotes` has been on this view since it was written and was
-        * never put on the page, so anything typed into it reached nobody — not
-        * the team, and not the manufacturer, who both read this sheet.
-        * Whitespace is preserved: these get typed as lists.
+        * The build itself — totals, build type, add-ons, roster, artwork,
+        * notes — is the same set of sections the factory's sheet renders,
+        * read from the same view. See components/build-sheet.tsx.
         */}
-      {(view.specialNotes || view.captainPatchNotes) && (
-        <Section title="Notes">
-          {view.specialNotes && (
-            <p className="whitespace-pre-wrap text-sm">{view.specialNotes}</p>
-          )}
-          {view.captainPatchNotes && (
-            <div className={view.specialNotes ? 'mt-4 border-t border-line/60 pt-4' : ''}>
-              <p className="text-xs font-medium text-muted">Captain Patches</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm">{view.captainPatchNotes}</p>
-            </div>
-          )}
-        </Section>
-      )}
+      <OrderTotalsSection sheet={view} totals={totals} />
+      <BuildTypeSection sheet={view} assets={assets} />
+      <AddOnsSection sheet={view} />
+      <RosterSection sheet={view} csvHref={`/api/share/${token}/roster.csv`} />
+      <ArtworkSection sheet={view} assets={assets} />
+      <NotesSection sheet={view} />
 
       {/*
         * Three states: already signed, open for signing, or neither.

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, isValidSession } from '@/lib/session';
+import { FACTORY_COOKIE, SESSION_COOKIE, isValidFactorySession, isValidSession } from '@/lib/session';
 import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
 
 /**
@@ -21,11 +21,24 @@ import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
  * Both customer routes are addressed by a long random per-order token rather
  * than the database id, so they can't be guessed and can be rotated per order.
  *
- * EVERYTHING ELSE needs the code. That includes contact details, shipping
- * addresses, the order list, and every write.
+ * THE FACTORY'S DOOR, separate from both:
+ *   /factory/unlock          the factory code entry page
+ *   /factory/<token>         the manufacturer's sheet for one order
+ *   /api/factory/<token>/... downloads off that sheet
+ * These need the factory cookie (Michael's code — see lib/session.ts), or
+ * Keenan's admin cookie, so he can open what Michael sees without a second
+ * login. The token alone is not enough: a factory link forwarded on still
+ * stops at the code. And the factory cookie opens nothing else — the admin
+ * side below never looks at it.
+ *
+ * EVERYTHING ELSE needs the admin code. That includes contact details,
+ * shipping addresses, the order list, and every write.
  */
 
 const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake', '/api/share/'];
+
+const FACTORY_UNLOCK = '/factory/unlock';
+const FACTORY_PREFIXES = ['/factory/', '/api/factory/'];
 
 /**
  * Pass the request on, telling the root layout which kind of screen this is
@@ -44,6 +57,21 @@ export async function proxy(request: NextRequest) {
 
   if (PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, '') || pathname.startsWith(p))) {
     return next(request, true);
+  }
+
+  // The factory's sheets are a public SURFACE (standard size, whatever Michael
+  // opens them on) behind their own code.
+  if (pathname === FACTORY_UNLOCK) return next(request, true);
+  if (FACTORY_PREFIXES.some((p) => pathname.startsWith(p))) {
+    const factory = request.cookies.get(FACTORY_COOKIE)?.value;
+    const admin = request.cookies.get(SESSION_COOKIE)?.value;
+    if ((await isValidFactorySession(factory)) || (await isValidSession(admin))) {
+      return next(request, true);
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = FACTORY_UNLOCK;
+    url.searchParams.set('next', pathname + request.nextUrl.search);
+    return NextResponse.redirect(url);
   }
 
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
