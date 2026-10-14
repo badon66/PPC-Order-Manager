@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
+  BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
-  addonsForJerseyType, tierById,
+  addonHint, buildAddonsForJerseyType, tierById,
 } from '@/lib/constants';
 import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludesPantShells, orderIncludesSocks, type OrderTotals } from '@/lib/order-utils';
 import { isNoName } from '@/lib/roster-edit';
@@ -167,8 +167,9 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
    * What's on the jersey is the thing to see at a glance, so it gets the
    * gold chips; what isn't is one muted line underneath.
    */
+  // Build add-ons here; the Powerplay branding has its own block below.
   const toggles = [
-    ...addonsForJerseyType(sheet.jerseyType),
+    ...buildAddonsForJerseyType(sheet.jerseyType).map((a) => ({ key: a.key, label: a.label, hint: addonHint(a) })),
     ...(hasPantShells ? PANT_TOGGLES : []),
     // Goalie shells with the logos on the back of the legs — only a question
     // when there's a goalie and shells, so it's only listed then.
@@ -176,9 +177,11 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
       ? [{ key: 'goaliePantReversedLogos', label: 'Reversed Logos on Goalie Pant Shells (back of the legs)' }]
       : []),
     { key: 'stitchedShoulderTrim', label: 'Stitch-on Shoulder Trim' },
-  ] as Array<{ key: string; label: string }>;
+  ] as Array<{ key: string; label: string; hint?: string }>;
   const on = toggles.filter((t) => Boolean(sheet.addons[t.key as keyof typeof sheet.addons]));
   const off = toggles.filter((t) => !sheet.addons[t.key as keyof typeof sheet.addons]);
+  const brandingOn = BRANDING_ADDONS.filter((a) => Boolean(sheet.addons[a.key]));
+  const brandingOff = BRANDING_ADDONS.filter((a) => !sheet.addons[a.key]);
 
   return (
     <Section title="Add-Ons & Customization">
@@ -188,6 +191,7 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
           {on.map((t) => (
             <span
               key={t.key}
+              title={t.hint}
               className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
             >
               <span aria-hidden>&#10003;</span> {t.label}
@@ -202,6 +206,48 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
           <span className="font-semibold">Not included:</span> {off.map((t) => t.label).join(' · ')}
         </p>
       )}
+      {/* The twill explanation in words, not only on hover: a tooltip is invisible on a phone. */}
+      {on.some((t) => t.hint) && (
+        <ul className="mt-2 space-y-1 text-xs text-muted">
+          {on.filter((t) => t.hint).map((t) => (
+            <li key={t.key}><span className="font-semibold text-foreground">{t.label}:</span> {t.hint}</li>
+          ))}
+        </ul>
+      )}
+
+      {/*
+        * Powerplay's branding, apart from the build. Same chips, its own
+        * heading, and the notes about any changes to it right underneath:
+        * "no back label on this one" is an instruction the factory acts on.
+        */}
+      <div className="mt-5 rounded-lg border border-line bg-surface-2 p-3">
+        <div className="text-xs font-bold uppercase tracking-wide text-muted">Powerplay branding</div>
+        {brandingOn.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {brandingOn.map((a) => (
+              <span
+                key={a.key}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
+              >
+                <span aria-hidden>&#10003;</span> {a.label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">No Powerplay branding on this order.</p>
+        )}
+        {brandingOff.length > 0 && (
+          <p className="mt-2 text-xs text-muted">
+            <span className="font-semibold">Not included:</span> {brandingOff.map((a) => a.label).join(' · ')}
+          </p>
+        )}
+        {sheet.brandingNotes && (
+          <div className="mt-3 border-t border-line/60 pt-3">
+            <p className="text-xs font-medium text-muted">Changes to the branding</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{sheet.brandingNotes}</p>
+          </div>
+        )}
+      </div>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Laces">{LACES_LABELS[sheet.addons.lacesStyle]}</Field>
@@ -282,7 +328,7 @@ export function RosterSection({
         */}
       {sheet.roster.length > 0 && (
         <div className="mb-4">
-          <RosterBreakdown entries={sheet.roster} showSocks={showSocks} showPantShells={showPants} />
+          <RosterBreakdown entries={sheet.roster} mode={sheet.orderMode} sets={sheet.sets} showSocks={showSocks} showPantShells={showPants} />
         </div>
       )}
       <div className="mb-3 flex justify-end">

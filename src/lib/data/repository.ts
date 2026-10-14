@@ -117,6 +117,8 @@ export interface BuildSheet {
   extraJerseyDetails: Order['extraJerseyDetails'];
   approvedBy: string;
   approvedDate: Order['approvedDate'];
+  /** Changes to the Powerplay branding, shown with the branding toggles. */
+  brandingNotes: string;
   specialNotes: string;
   /*
    * Production notes. These describe what to make, not what we think about the

@@ -4,7 +4,7 @@ import { formatLong } from '@/lib/dates';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
+  BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
 import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
@@ -291,7 +291,8 @@ export function OrderForm({
     { id: 'totals', title: 'Order Totals', icon: '🔢', blurb: 'How many of everything, per set.', complete: anyQty },
     { id: 'build', title: 'Build Type', icon: '👕', blurb: 'Sublimated, reversible, or embroidered — per item.', complete: draft.jerseyType !== null },
     { id: 'numbers', title: 'Numbers & Names', icon: '🔟', wide: true, blurb: 'Name style, number styling, and reference images.', complete: Boolean(draft.numberDetails) || assets.some((a) => a.role.startsWith('number_reference')) },
-    { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: addonsForJerseyType(draft.jerseyType).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
+    { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: buildAddonsForJerseyType(draft.jerseyType).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
+    { id: 'branding', title: 'Powerplay Branding', icon: '🏷️', blurb: 'Back label, rubberized crest, size tag — and any changes to them.', complete: BRANDING_ADDONS.some(({ key }) => Boolean(draft[key as keyof Order])) || Boolean(draft.brandingNotes) },
     { id: 'artwork', title: 'Logos & Artwork', icon: '🎨', wide: true, blurb: 'Design references, crest, shoulder logos, sponsor logos, fonts.', complete: hasArtwork },
     ...(hasPantShells
       ? [{
@@ -739,9 +740,13 @@ export function OrderForm({
             </p>
           </div>
         )}
+        {/* Build add-ons only. The three Powerplay branding ones have their own section below. */}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {addonsForJerseyType(draft.jerseyType).map(({ key, label }) => (
-            <Toggle key={key} label={label} checked={Boolean(draft[key as keyof Order])} onChange={(v) => set(key as keyof Order, v as never)} />
+          {buildAddonsForJerseyType(draft.jerseyType).map((a) => (
+            <div key={a.key}>
+              <Toggle label={a.label} checked={Boolean(draft[a.key as keyof Order])} onChange={(v) => set(a.key as keyof Order, v as never)} />
+              {addonHint(a) && <p className="mt-1 px-1 text-xs text-muted">{addonHint(a)}</p>}
+            </div>
           ))}
         </div>
         <LacesPicker value={draft.lacesStyle} onChange={(v) => set('lacesStyle', v)} />
@@ -774,6 +779,31 @@ export function OrderForm({
             <TextArea label="Notes" value={draft.captainPatchNotes} onChange={(v) => set('captainPatchNotes', v)} />
           </div>
         )}
+      </>
+    ),
+
+    branding: (
+      <>
+        {/*
+          * Powerplay's own marks on the jersey, apart from the build options:
+          * the tier presets tick them, but whether THIS team gets them is a
+          * separate decision from vents and elbows, and so are the changes to
+          * them ("no back label", "crest in gold"), which go in the notes.
+          */}
+        <div className="grid gap-2 sm:grid-cols-3">
+          {BRANDING_ADDONS.map((a) => (
+            <Toggle key={a.key} label={a.label} checked={Boolean(draft[a.key as keyof Order])} onChange={(v) => set(a.key as keyof Order, v as never)} />
+          ))}
+        </div>
+        <TextArea
+          label="Branding notes — any changes to the above"
+          value={draft.brandingNotes}
+          onChange={(v) => set('brandingNotes', v)}
+          placeholder="e.g. crest in gold instead of white; no back label on the goalie cuts; size tag printed in French..."
+        />
+        <p className="-mt-1 text-xs text-muted">
+          Shown with the branding on the customer&apos;s sheet and the factory sheet.
+        </p>
       </>
     ),
 

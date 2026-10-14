@@ -252,6 +252,78 @@ export function sizeBreakdown(values: readonly string[], order: readonly string[
   return { buckets, missing };
 }
 
+/* ------------------------------------------------------------------ *
+ * Size coverage — are enough sizes known to cut what was ordered?
+ *
+ * The question is NOT "does every row have a size". Twenty-five people on
+ * the list and twenty pairs of socks ordered means five people get no socks,
+ * and five blank sock sizes are correct, not missing. The question is whether
+ * the sized rows add up to the ordered quantity: under it, something still
+ * needs a size; over it, more was sized than will be made; equal, nothing to
+ * say. Counted in garment UNITS, mode-aware, the same way the roster tally
+ * counts — a home/away player with one sock size accounts for both pairs.
+ * ------------------------------------------------------------------ */
+
+export type Garment = 'jersey' | 'sock' | 'pant';
+
+/** Units of a garment one row accounts for. Sock-only rows account for no jersey. */
+export function rowUnits(r: RosterEntry, garment: Garment, mode: OrderMode): number {
+  if (garment === 'jersey') {
+    if (r.sockOnly) return 0;
+    return mode === 'home_away_set' ? (r.homeJersey || 0) + (r.awayJersey || 0) : r.jerseysPerPlayer || 0;
+  }
+  if (garment === 'sock') {
+    return mode === 'home_away_set' ? (r.homeSocks || 0) + (r.awaySocks || 0) : r.socksPerPlayer || 0;
+  }
+  // Shells have no home/away ticks; one count per row in every mode.
+  return r.shellsPerPlayer || 0;
+}
+
+export interface SizeCoverage {
+  /** Units ordered, across every set. Spares are not in here: they're sized on their own list. */
+  ordered: number;
+  /** Units accounted for by rows that have a size. */
+  sized: number;
+}
+
+export interface SizeCoverageReport {
+  skaterJersey: SizeCoverage;
+  goalieJersey: SizeCoverage;
+  sock: SizeCoverage;
+  pant: SizeCoverage;
+}
+
+export function sizeCoverage(rows: RosterEntry[], mode: OrderMode, sets: SetQuantities[]): SizeCoverageReport {
+  const sum = (f: (s: SetQuantities) => number) => sets.reduce((n, s) => n + (f(s) || 0), 0);
+  const sized = (pick: (r: RosterEntry) => boolean, garment: Garment) =>
+    rows.reduce((n, r) => n + (pick(r) ? rowUnits(r, garment, mode) : 0), 0);
+  const has = (v: string) => (v ?? '').trim() !== '';
+  return {
+    skaterJersey: {
+      ordered: sum((s) => s.playerJerseys),
+      sized: sized((r) => !r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey'),
+    },
+    goalieJersey: {
+      ordered: sum((s) => s.goalieJerseys),
+      sized: sized((r) => r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey'),
+    },
+    sock: { ordered: sum((s) => s.sockPairs), sized: sized((r) => has(r.sockSize), 'sock') },
+    pant: { ordered: sum((s) => s.pantShells), sized: sized((r) => has(r.pantShellSize), 'pant') },
+  };
+}
+
+/**
+ * The one line to show about coverage, or null when there's nothing to say:
+ * sizes match the order, or nothing was ordered (the tally's problem, not
+ * this one's).
+ */
+export function coverageNote(c: SizeCoverage): { kind: 'under' | 'over'; count: number } | null {
+  if (c.ordered <= 0 || c.sized === c.ordered) return null;
+  return c.sized < c.ordered
+    ? { kind: 'under', count: c.ordered - c.sized }
+    : { kind: 'over', count: c.sized - c.ordered };
+}
+
 /** Which rows count for which garment — not the same list. */
 export function sizedRows(rows: RosterEntry[], garment: 'jersey' | 'sock' | 'pant'): RosterEntry[] {
   // A sock-only participant has no jersey; counting them as "no jersey size"

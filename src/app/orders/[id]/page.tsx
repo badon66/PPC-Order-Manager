@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation';
 import { repo } from '@/lib/data';
 import { formatLong, formatShort } from '@/lib/dates';
 import {
-  CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
+  BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META,
-  addonsForJerseyType, matchesTier, tierById,
+  addonHint, buildAddonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
 import { approvalOpen, computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress, offersGoaliePantOption } from '@/lib/order-utils';
 import { resolveAll } from '@/lib/storage';
@@ -454,11 +454,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         })()}
         <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
           {/* Same filter the form uses — an embroidered order shouldn't list
-              a sublimated-only option just to say "No" to it. */}
-          {addonsForJerseyType(order.jerseyType).map(({ key, label }) => (
-            <div key={key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
-              <span className="text-muted">{label}</span>
-              <YesNo value={Boolean(order[key as keyof Order])} />
+              a sublimated-only option just to say "No" to it. Build add-ons
+              only; the branding has its own block below. */}
+          {buildAddonsForJerseyType(order.jerseyType).map((a) => (
+            <div key={a.key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm" title={addonHint(a)}>
+              <span className="text-muted">{a.label}</span>
+              <YesNo value={Boolean(order[a.key as keyof Order])} />
             </div>
           ))}
           {hasPantShells &&
@@ -491,6 +492,21 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 : 'None'}
             </span>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3">
+          <div className="text-sm font-bold text-ppc-gold">Powerplay Branding</div>
+          <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-3">
+            {BRANDING_ADDONS.map((a) => (
+              <div key={a.key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
+                <span className="text-muted">{a.label}</span>
+                <YesNo value={Boolean(order[a.key as keyof Order])} />
+              </div>
+            ))}
+          </div>
+          {order.brandingNotes && (
+            <p className="mt-2 whitespace-pre-wrap text-sm"><span className="text-xs font-medium text-muted">Changes: </span>{order.brandingNotes}</p>
+          )}
         </div>
 
         {order.hasCaptainPatches && (

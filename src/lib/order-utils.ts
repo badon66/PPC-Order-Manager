@@ -443,6 +443,7 @@ export function blankOrder(): Order {
     collarReferenceNotes: '',
     mainCrestNotes: '',
 
+    brandingNotes: '',
     specialNotes: '',
     factoryNotes: '',
     keeperJerseys: [],

@@ -285,7 +285,7 @@ export function RosterTable({
         </p>
       )}
 
-      <RosterBreakdown entries={entries} showSocks={showSocks} showPantShells={showPantShells} />
+      <RosterBreakdown entries={entries} mode={orderMode} sets={sets} showSocks={showSocks} showPantShells={showPantShells} />
 
       <RosterTally
         tallies={buildTallies(orderMode, sets, entries, {

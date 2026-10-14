@@ -117,7 +117,7 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
   'hasCaptainPatches', 'captainPatchStyle', 'captainCQuantity', 'captainAQuantity',
   'captainPatchNotes', 'hasShoulderLogos', 'shoulderLogosSame',
   'designReferenceNotes', 'collarReferenceNotes', 'mainCrestNotes',
-  'specialNotes', 'factoryNotes', 'keeperJerseys', 'approvedBy', 'approvedDate', 'deliveryConcern',
+  'specialNotes', 'factoryNotes', 'brandingNotes', 'keeperJerseys', 'approvedBy', 'approvedDate', 'deliveryConcern',
   /*
    * Added later, and every one of them was silently unsaveable until it was
    * listed here.

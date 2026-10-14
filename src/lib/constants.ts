@@ -175,22 +175,42 @@ export const CAPTAIN_PATCH_STYLE_META: Record<CaptainPatchStyle, { label: string
  *
  * Front Crest was dropped — it isn't an option Keenan sells as an add-on.
  */
+/*
+ * Two kinds of add-on live in this one list: how the jersey is BUILT (vents,
+ * elbows, twill) and Powerplay's BRANDING on it (the back label, the
+ * rubberized crest, the size tag). `group: 'branding'` marks the second kind
+ * so the form, the sheets and the order page can show them apart — the tier
+ * presets still own both, which is why they're one list.
+ *
+ * `hint` is the sentence that explains an option whose name doesn't.
+ */
 export const ADDON_TOGGLES = [
   { key: 'dimpledShoulders',        label: 'Dimpled Shoulders' },
-  { key: 'rubberizedPpcCrest',      label: 'Rubberized PPC Crest' },
-  { key: 'printedSizingTag',        label: 'Printed Size Tag' },
-  { key: 'ppcBackBranding',         label: 'Back PPC Label' },
+  { key: 'rubberizedPpcCrest',      label: 'Rubberized PPC Crest', group: 'branding' as const },
+  { key: 'printedSizingTag',        label: 'Printed Size Tag', group: 'branding' as const },
+  { key: 'ppcBackBranding',         label: 'Back PPC Label', group: 'branding' as const },
   { key: 'underarmVents',           label: 'Underarm Vents' },
   { key: 'reinforcedElbows',        label: 'Reinforced Elbows' },
-  { key: 'twillBorderNumbers',      label: 'Twill Border Numbers',
-    jerseyTypes: ['embroidered'] as JerseyType[] },
+  { key: 'twillBorderNumbers',      label: 'Double Twill Outlines',
+    jerseyTypes: ['embroidered'] as JerseyType[],
+    hint: 'The outline on the numbers is cut from twill as well — twill on twill, then embroidered onto the jersey — rather than an embroidered outline, which can come out thin. Standard on the Pro build; optional on Elite.' },
   { key: 'stitchedSublimatedLogos', label: 'Stitched-On Sublimated Logos',
     jerseyTypes: ['sublimated', 'reversible_sublimated'] as JerseyType[] },
   { key: 'stopSignPatch',           label: 'Stop Sign Patch' },
   { key: 'armNumbers',              label: 'Arm Numbers' },
 ] as const;
 
-/** Add-ons that apply to the chosen jersey type. */
+export type AddonToggle = (typeof ADDON_TOGGLES)[number];
+
+export function addonHint(a: AddonToggle): string | undefined {
+  return (a as { hint?: string }).hint;
+}
+
+function isBranding(a: AddonToggle): boolean {
+  return (a as { group?: string }).group === 'branding';
+}
+
+/** Add-ons that apply to the chosen jersey type — build and branding both. */
 export function addonsForJerseyType(jerseyType: JerseyType | null) {
   return ADDON_TOGGLES.filter((a) => {
     const limit = (a as { jerseyTypes?: JerseyType[] }).jerseyTypes;
@@ -198,6 +218,14 @@ export function addonsForJerseyType(jerseyType: JerseyType | null) {
     return jerseyType ? limit.includes(jerseyType) : false;
   });
 }
+
+/** The build add-ons for the chosen jersey type: everything above except the branding. */
+export function buildAddonsForJerseyType(jerseyType: JerseyType | null) {
+  return addonsForJerseyType(jerseyType).filter((a) => !isBranding(a));
+}
+
+/** Powerplay's branding on the jersey. Not tied to a jersey type. */
+export const BRANDING_ADDONS = ADDON_TOGGLES.filter(isBranding);
 
 /** Pant options — shown only when the order includes pant shells. */
 export const PANT_TOGGLES = [
@@ -270,7 +298,7 @@ export const TIER_DEFS: TierDef[] = [
   {
     id: 'pro',
     label: 'Pro',
-    blurb: 'Elite plus vents, reinforced elbows and twill border numbers.',
+    blurb: 'Elite plus vents, reinforced elbows and double twill outlines on the numbers.',
     jerseyTypes: ['embroidered'],
     addons: [...LITE_BASE, 'underarmVents', 'reinforcedElbows', 'twillBorderNumbers'],
   },

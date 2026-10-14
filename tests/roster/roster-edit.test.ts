@@ -255,3 +255,75 @@ test('sharedValue: the common value, MIXED when rows disagree, undefined when no
   assert.equal(sharedValue(rows, new Set(ids(rows)), 'jerseySize'), MIXED);
   assert.equal(sharedValue(rows, new Set(), 'jerseySize'), undefined);
 });
+
+/* ------------------------------------------------------------------ *
+ * Size coverage — sizes against the ORDER, not against the row count
+ * ------------------------------------------------------------------ */
+
+import { coverageNote, rowUnits, sizeCoverage } from '@/lib/roster-edit';
+import { blankOrder } from '@/lib/order-utils';
+
+function rows(n: number, f: (r: RosterEntry, i: number) => void): RosterEntry[] {
+  return Array.from({ length: n }, (_, i) => {
+    const r = blankRosterEntry('o', i, { jerseys: true, socks: true, pantShells: true });
+    f(r, i);
+    return r;
+  });
+}
+
+test('coverage: 25 on the list, 20 pairs ordered, 20 sized = nothing to say', () => {
+  const o = blankOrder();
+  o.sets = [{ ...o.sets[0], playerJerseys: 25, sockPairs: 20 }];
+  // five people skip the socks: blank size, no pair claimed
+  const list = rows(25, (r, i) => {
+    r.jerseySize = 'L';
+    if (i < 20) r.sockSize = 'L';
+    else r.socksPerPlayer = 0;
+  });
+  const c = sizeCoverage(list, o.orderMode, o.sets);
+  assert.deepEqual(c.sock, { ordered: 20, sized: 20 });
+  assert.equal(coverageNote(c.sock), null);
+  assert.equal(coverageNote(c.skaterJersey), null);
+});
+
+test('coverage: short of the order is "under", past it is "over", by the difference', () => {
+  const o = blankOrder();
+  o.sets = [{ ...o.sets[0], playerJerseys: 20, sockPairs: 20 }];
+  const under = rows(25, (r, i) => { r.jerseySize = 'L'; if (i < 18) r.sockSize = 'M'; });
+  assert.deepEqual(coverageNote(sizeCoverage(under, o.orderMode, o.sets).sock), { kind: 'under', count: 2 });
+  const over = rows(25, (r) => { r.jerseySize = 'L'; r.sockSize = 'M'; });
+  assert.deepEqual(coverageNote(sizeCoverage(over, o.orderMode, o.sets).sock), { kind: 'over', count: 5 });
+  // nothing ordered: the tally's business, never a size warning
+  assert.equal(coverageNote({ ordered: 0, sized: 7 }), null);
+});
+
+test('coverage: counts units, so home/away is two pairs per sized player', () => {
+  const o = blankOrder();
+  o.orderMode = 'home_away_set';
+  o.sets = [
+    { ...o.sets[0], label: 'Home Set', playerJerseys: 10, sockPairs: 10 },
+    { ...o.sets[0], label: 'Away Set', playerJerseys: 10, sockPairs: 10 },
+  ];
+  const list = rows(10, (r) => {
+    r.jerseySize = 'L'; r.sockSize = 'L';
+    r.homeJersey = 1; r.awayJersey = 1; r.homeSocks = 1; r.awaySocks = 1;
+  });
+  const c = sizeCoverage(list, 'home_away_set', o.sets);
+  assert.deepEqual(c.skaterJersey, { ordered: 20, sized: 20 });
+  assert.deepEqual(c.sock, { ordered: 20, sized: 20 });
+  assert.equal(rowUnits(list[0], 'jersey', 'home_away_set'), 2);
+  assert.equal(rowUnits(list[0], 'jersey', 'single_set'), 1);
+});
+
+test('coverage: goalies and skaters are checked against their own counts; sock-only rows hold no jersey', () => {
+  const o = blankOrder();
+  o.sets = [{ ...o.sets[0], playerJerseys: 2, goalieJerseys: 1 }];
+  const list = rows(4, (r, i) => {
+    if (i === 0) { r.isGoalie = true; r.jerseySize = 'Goalie L'; }
+    else if (i === 3) { r.sockOnly = true; r.jerseySize = 'XL'; }
+    else r.jerseySize = 'M';
+  });
+  const c = sizeCoverage(list, o.orderMode, o.sets);
+  assert.deepEqual(c.goalieJersey, { ordered: 1, sized: 1 });
+  assert.deepEqual(c.skaterJersey, { ordered: 2, sized: 2 });
+});

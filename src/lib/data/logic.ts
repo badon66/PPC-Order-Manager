@@ -70,6 +70,7 @@ export function healOrder(o: Order): Order {
   o.extraJerseyDetails ??= [];
   o.keeperJerseys ??= [];
   o.factoryNotes ??= '';
+  o.brandingNotes ??= '';
   // Not minted here: a heal runs on every read and isn't persisted, so a token
   // made here would change on every page load. createFactoryLink mints it.
   o.factoryToken ??= '';
@@ -728,6 +729,7 @@ export function buildSheetOf(o: Order, roster: RosterEntry[]): BuildSheet {
     extraJerseyDetails: o.extraJerseyDetails ?? [],
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
+    brandingNotes: o.brandingNotes ?? '',
     specialNotes: o.specialNotes,
     captainPatchNotes: o.captainPatchNotes,
     designReferenceNotes: o.designReferenceNotes,

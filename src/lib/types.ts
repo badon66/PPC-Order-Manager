@@ -592,7 +592,12 @@ export interface Order {
   rubberizedPpcCrest: boolean;
   /** Premier only: logos stitched onto the sublimated body. */
   stitchedSublimatedLogos: boolean;
-  /** Pro only: twill border on the numbers. */
+  /**
+   * Double twill outlines: the number's outline is cut from twill as well
+   * (twill on twill, then embroidered on) rather than embroidered, which
+   * comes out too thin. Embroidered jerseys only. Standard on Pro, optional
+   * on Elite. The key keeps its old name so stored orders still read.
+   */
   twillBorderNumbers: boolean;
   stopSignPatch: boolean;
   pantLogo: boolean;
@@ -668,6 +673,11 @@ export interface Order {
   mainCrestNotes: string;
 
   /* Notes & approval */
+  /**
+   * Changes to the Powerplay branding — "no back label on this one", "crest
+   * in gold". Travels with the branding toggles to both sheets.
+   */
+  brandingNotes: string;
   /** Order notes. On the customer's sheet AND the factory's: instructions about what to make. */
   specialNotes: string;
   /**

@@ -1,8 +1,8 @@
 'use client';
 
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
-import { sizeBreakdown, sizedRows } from '@/lib/roster-edit';
-import type { RosterEntry } from '@/lib/types';
+import { coverageNote, sizeBreakdown, sizeCoverage, sizedRows, type SizeCoverage } from '@/lib/roster-edit';
+import type { OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 
 /**
  * Size breakdown, above the roster.
@@ -11,21 +11,40 @@ import type { RosterEntry } from '@/lib/types';
  * counting a column of twenty dropdowns by eye — the kind of count that goes
  * wrong on the one order you're rushing.
  *
+ * The warning is about the ORDER, not the rows. Twenty-five people listed and
+ * twenty pairs of socks ordered means five blank sock sizes are correct, so
+ * "No size ×5" was crying wolf. What's flagged instead is the sized count
+ * against the ordered count: under it (something still needs a size), over
+ * it (more sized than will be made), and nothing at all when they match.
+ * Rules in lib/roster-edit.ts (`sizeCoverage`, `coverageNote`), tested; this
+ * file only draws them.
+ *
  * Separate from RosterTally on purpose. The tally answers "does the roster add
- * up to what was ordered"; this answers "what does the cut sheet say". The
- * counting itself is `sizeBreakdown` in lib/roster-edit.ts, where it's tested;
- * this file only draws it.
+ * up to what was ordered"; this answers "what does the cut sheet say".
  */
 
-function Group({ label, values, order }: { label: string; values: string[]; order: readonly string[] }) {
-  const { buckets, missing } = sizeBreakdown(values, order);
-  const total = values.length - missing;
+function Group({
+  label,
+  values,
+  order,
+  coverage,
+}: {
+  label: string;
+  values: string[];
+  order: readonly string[];
+  coverage: SizeCoverage;
+}) {
+  const { buckets } = sizeBreakdown(values, order);
+  const note = coverageNote(coverage);
+  const nothingOrdered = coverage.ordered <= 0;
 
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-2">
         <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">{label}</span>
-        <span className="text-xs text-muted">{total} sized</span>
+        <span className="text-xs text-muted">
+          {nothingOrdered ? `${coverage.sized} sized` : `${coverage.sized} of ${coverage.ordered} sized`}
+        </span>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {buckets.map((b) => (
@@ -33,13 +52,23 @@ function Group({ label, values, order }: { label: string; values: string[]; orde
             {b.size} <span className="text-ppc-gold">&times;{b.count}</span>
           </span>
         ))}
-        {/* An unsized row is the thing you want to see, so it's red, not absent. */}
-        {missing > 0 && (
+        {/*
+          * Short of the order is the thing to chase, so it's red. Over the
+          * order is worth a look but nobody's jersey is missing, so amber.
+          * Matching the order says nothing — a green tick on every group is
+          * noise that teaches you to skip the one that isn't.
+          */}
+        {note?.kind === 'under' && (
           <span className="rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300 tabular-nums">
-            No size &times;{missing}
+            {note.count} still to size
           </span>
         )}
-        {buckets.length === 0 && missing === 0 && <span className="text-xs text-muted">Nothing to size yet.</span>}
+        {note?.kind === 'over' && (
+          <span className="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-200 tabular-nums">
+            {note.count} more sized than ordered
+          </span>
+        )}
+        {buckets.length === 0 && !note && <span className="text-xs text-muted">Nothing to size yet.</span>}
       </div>
     </div>
   );
@@ -47,10 +76,15 @@ function Group({ label, values, order }: { label: string; values: string[]; orde
 
 export function RosterBreakdown({
   entries,
+  mode,
+  sets,
   showSocks,
   showPantShells,
 }: {
   entries: RosterEntry[];
+  /** The order's mode and sets: what was ordered is what the sizes are checked against. */
+  mode: OrderMode;
+  sets: SetQuantities[];
   showSocks: boolean;
   showPantShells: boolean;
 }) {
@@ -59,6 +93,7 @@ export function RosterBreakdown({
   const jerseyRows = sizedRows(entries, 'jersey');
   const goalies = jerseyRows.filter((e) => e.isGoalie);
   const skaters = jerseyRows.filter((e) => !e.isGoalie);
+  const cov = sizeCoverage(entries, mode, sets);
 
   return (
     <div className="rounded-lg border border-line bg-surface-2 p-3">
@@ -70,19 +105,27 @@ export function RosterBreakdown({
           * the skaters' XLs is a cut sheet that's wrong in a way nobody notices
           * until the box arrives.
           */}
-        {goalies.length > 0 ? (
+        {goalies.length > 0 || cov.goalieJersey.ordered > 0 ? (
           <>
-            <Group label="Skater Jerseys" values={skaters.map((e) => e.jerseySize)} order={jerseySizesFor(false)} />
-            <Group label="Goalie Jerseys" values={goalies.map((e) => e.jerseySize)} order={jerseySizesFor(true)} />
+            <Group label="Skater Jerseys" values={skaters.map((e) => e.jerseySize)} order={jerseySizesFor(false)} coverage={cov.skaterJersey} />
+            <Group label="Goalie Jerseys" values={goalies.map((e) => e.jerseySize)} order={jerseySizesFor(true)} coverage={cov.goalieJersey} />
           </>
         ) : (
-          <Group label="Jerseys" values={jerseyRows.map((e) => e.jerseySize)} order={jerseySizesFor(false)} />
+          <Group
+            label="Jerseys"
+            values={jerseyRows.map((e) => e.jerseySize)}
+            order={jerseySizesFor(false)}
+            coverage={{
+              ordered: cov.skaterJersey.ordered + cov.goalieJersey.ordered,
+              sized: cov.skaterJersey.sized + cov.goalieJersey.sized,
+            }}
+          />
         )}
         {showSocks && (
-          <Group label="Socks" values={sizedRows(entries, 'sock').map((e) => e.sockSize)} order={SOCK_SIZES} />
+          <Group label="Socks" values={sizedRows(entries, 'sock').map((e) => e.sockSize)} order={SOCK_SIZES} coverage={cov.sock} />
         )}
         {showPantShells && (
-          <Group label="Pant Shells" values={sizedRows(entries, 'pant').map((e) => e.pantShellSize)} order={PANT_SHELL_SIZES} />
+          <Group label="Pant Shells" values={sizedRows(entries, 'pant').map((e) => e.pantShellSize)} order={PANT_SHELL_SIZES} coverage={cov.pant} />
         )}
       </div>
     </div>
