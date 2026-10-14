@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { SURFACE_HEADER, asSurface } from '@/lib/surface';
@@ -11,14 +12,23 @@ export const metadata: Metadata = {
   description: 'Internal order management for Powerplay Customs.',
 };
 
+/**
+ * The real wordmark, top left on every page — Keenan's, the customer's and
+ * the factory's. public/brand/wordmark.png is the Powerplay Customs logo with
+ * its white background cut away; the shield badge is the site icon
+ * (src/app/icon.png, apple-icon.png, favicon.ico). Height in rem so it scales
+ * with the admin side on the ultrawide and stays standard everywhere else.
+ */
 function Wordmark() {
   return (
-    <span className="text-lg font-black tracking-tight">
-      <span className="text-ppc-gold">POWERPLAY</span>
-      <span className="ml-1.5 align-middle text-[0.6rem] font-bold tracking-[0.25em] text-muted">
-        CUSTOMS
-      </span>
-    </span>
+    <Image
+      src="/brand/wordmark.png"
+      alt="Powerplay Customs"
+      width={1600}
+      height={425}
+      priority
+      className="h-9 w-auto"
+    />
   );
 }
 

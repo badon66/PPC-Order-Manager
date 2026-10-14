@@ -85,8 +85,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's own assets and the favicon. Without this, the lock
-  // would also block the CSS and JS the unlock page needs to render. /icons is
-  // public artwork the website loads (the other-sports icons on the home page).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/|icons/).*)'],
+  // Everything except Next's own assets and the site's own artwork. Without
+  // this, the lock would also block the CSS and JS the unlock page needs to
+  // render. /icons is public artwork the website loads (the other-sports icons
+  // on the home page); /brand is the wordmark and shield every page shows,
+  // and icon.png / apple-icon.png are the site icons browsers fetch on their
+  // own — a customer on a share link has no session, and the logo must still
+  // load for them.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|uploads/|icons/|brand/).*)'],
 };

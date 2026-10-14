@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { FactoryUnlockForm } from './unlock-form';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ export default async function FactoryUnlockPage({
   return (
     <div className="mx-auto max-w-sm py-16">
       <div className="rounded-xl border border-line bg-surface p-6">
+        <Image src="/brand/shield.png" alt="Powerplay Customs" width={512} height={512} className="mx-auto mb-4 h-24 w-24" priority />
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-ppc-gold">Powerplay Customs</p>
         <h1 className="mt-1 text-xl font-bold">Production sheet</h1>
         {ok ? (
