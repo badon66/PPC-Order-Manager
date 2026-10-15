@@ -22,6 +22,8 @@ export interface SubmitPayload {
   /** Their answer to "Is your roster ready?" — only sent when the roster section is shown. */
   rosterAnswer?: RosterAnswer | null;
   rosterFiles?: SubmittedRosterFile[];
+  /** The file the rows were converted from, when the form turned their upload into rows. */
+  convertedFrom?: SubmittedRosterFile | null;
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
   /** "Your colours", typed on the design page. */
@@ -43,6 +45,8 @@ export interface CleanSubmission {
   players: SubmittedPlayer[];
   rosterAnswer?: RosterAnswer;
   rosterFiles: SubmittedRosterFile[];
+  /** Only alongside typed rows: the file they were converted from, which the team then checked. */
+  convertedFrom?: SubmittedRosterFile | null;
   extras: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
@@ -106,6 +110,14 @@ export function cleanSubmission(
         // A row with nothing typed in it is noise, not a player.
         .filter((p) => p.playerNameAsPrinted || p.number || p.sockOnly)
     : [];
+
+  // Where the rows came from, when the form converted the team's file into
+  // them. Kept only with rows, and only a file in our own storage.
+  const from = payload.convertedFrom;
+  const convertedFrom: SubmittedRosterFile | null =
+    players.length && from && typeof from.fileUrl === 'string' && /^(artwork\/|\/uploads\/)[A-Za-z0-9._-]+$/.test(from.fileUrl)
+      ? { fileUrl: from.fileUrl, fileName: clean(from.fileName).slice(0, 200), notes: '' }
+      : null;
 
   const rosterFiles: SubmittedRosterFile[] =
     sec.roster && rosterAnswer === 'file'
@@ -171,6 +183,7 @@ export function cleanSubmission(
       players,
       rosterAnswer,
       rosterFiles,
+      ...(convertedFrom ? { convertedFrom } : {}),
       // Trimmed to what the order actually has spares for, so a stale tab can't
       // submit numbers for jerseys that no longer exist.
       extras: keepRows

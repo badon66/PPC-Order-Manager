@@ -6,15 +6,16 @@ import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { acceptClientSubmission } from '@/app/orders/actions';
 import { formatShort } from '@/lib/dates';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
+import { FilePreview } from '@/components/file-preview';
 
 /**
  * Review a client submission before it touches the order.
  *
- * Shows exactly what came in, flags players who look like duplicates of what's
- * already on the roster (same number, or same name), and does nothing until
- * Accept is clicked. Multiple submissions are listed newest-first; each is
- * accepted independently, so a correction and a top-up are both handled by
- * "look at it, decide, click".
+ * Shows exactly what came in, flags two players in it sharing a number, and
+ * does nothing until Accept is clicked. Accepting makes their players a roster
+ * of its own (Roster N, put in use) — the roster already on the order is kept,
+ * never merged into, so a resend can't double anyone up. Multiple submissions
+ * are listed newest-first; each is accepted independently.
  */
 export function SubmissionReview({
   signedUrls,
@@ -85,15 +86,15 @@ function SubmissionCard({
   const [pending, start] = useTransition();
   const done = Boolean(s.acceptedAt);
 
-  const numbers = new Set(currentRoster.map((r) => r.number).filter(Boolean));
-  const names = new Set(
-    currentRoster.map((r) => r.playerNameAsPrinted.trim().toLowerCase()).filter(Boolean),
-  );
+  // Two players in this list on one number: worth a look before it's a roster.
+  const numberCount = new Map<string, number>();
+  for (const p of s.players) if (p.number && !p.sockOnly) numberCount.set(p.number, (numberCount.get(p.number) ?? 0) + 1);
   const isDup = (p: ClientRosterSubmission['players'][number]) =>
-    (p.number && numbers.has(p.number)) ||
-    (p.playerNameAsPrinted && names.has(p.playerNameAsPrinted.trim().toLowerCase()));
+    Boolean(p.number && !p.sockOnly && (numberCount.get(p.number) ?? 0) > 1);
 
   const dupCount = s.players.filter(isDup).length;
+  // A pant column only when someone has a pant size: most orders have no shells.
+  const hasPants = s.players.some((p) => (p.pantShellSize ?? '').trim() !== '');
   const asked = (Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>)
     .filter((k) => s.sections?.[k])
     .map((k) => CLIENT_LINK_SECTION_META[k].label);
@@ -128,9 +129,14 @@ function SubmissionCard({
 
       {!done && dupCount > 0 && (
         <p className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-          {dupCount} player{dupCount === 1 ? '' : 's'} match a number or name already on the
-          roster (marked below). Accepting adds them anyway — remove the duplicates in the roster
-          table afterwards if that&apos;s what they are.
+          {dupCount} player{dupCount === 1 ? ' shares' : 's share'} a number with someone else in this
+          list (marked below).
+        </p>
+      )}
+      {!done && s.players.length > 0 && (
+        <p className="mt-3 text-xs text-muted">
+          Accepting makes these {s.players.length} player{s.players.length === 1 ? '' : 's'} a new roster
+          and puts it in use{currentRoster.length ? ` — the ${currentRoster.length} on the roster now are kept as they are` : ''}.
         </p>
       )}
 
@@ -166,6 +172,14 @@ function SubmissionCard({
           <div className="text-xs font-bold uppercase tracking-wide text-muted">
             {s.players.length} player{s.players.length === 1 ? '' : 's'}
           </div>
+          {s.convertedFrom && (
+            <p className="mt-1 text-xs text-muted">
+              Converted from their file{' '}
+              <a href={signedUrls[s.convertedFrom.fileUrl] ?? s.convertedFrom.fileUrl} target="_blank" rel="noreferrer"
+                className="font-semibold text-ppc-gold hover:underline">{s.convertedFrom.fileName || 'roster file'}</a>
+              {' '}on their form, then checked by them before sending.
+            </p>
+          )}
           <div className="mt-1 overflow-x-auto">
             <table className="w-full min-w-[26rem] text-sm">
               <thead>
@@ -174,6 +188,7 @@ function SubmissionCard({
                   <th className="py-1 pr-2">#</th>
                   <th className="py-1 pr-2">Jersey</th>
                   <th className="py-1 pr-2">Sock</th>
+                  {hasPants && <th className="py-1 pr-2">Pant</th>}
                   <th className="py-1">Notes</th>
                 </tr>
               </thead>
@@ -187,11 +202,12 @@ function SubmissionCard({
                         {p.isGoalie && <GoalieBadge />}
                         <CaptaincyBadge value={p.captaincy} />
                         {p.sockOnly && <span className="ml-1.5 text-[0.65rem] text-muted">SOCK ONLY</span>}
-                        {dup && <span className="ml-1.5 text-[0.65rem]">DUP?</span>}
+                        {dup && <span className="ml-1.5 text-[0.65rem]">SAME #</span>}
                       </td>
                       <td className="py-1.5 pr-2 tabular-nums">{p.number || '—'}</td>
                       <td className="py-1.5 pr-2">{p.jerseySize || '—'}</td>
                       <td className="py-1.5 pr-2">{p.sockSize || '—'}</td>
+                      {hasPants && <td className="py-1.5 pr-2">{p.pantShellSize || '—'}</td>}
                       <td className="py-1.5 text-muted">{p.notes || '—'}</td>
                     </tr>
                   );
@@ -216,8 +232,8 @@ function SubmissionCard({
             }))} />
           {!done && (
             <p className="mt-1 text-xs text-muted">
-              Accepting keeps the file on the order; the players still need typing into the roster
-              table (a CSV imports straight in).
+              Accepting keeps the file on the order. To turn it into players, use Import it under
+              Player Roster: it&apos;s read, checked with you, and becomes its own roster.
             </p>
           )}
         </>
@@ -245,18 +261,14 @@ function FileGrid({ title, items }: { title: string; items: Array<{ url: string;
   return (
     <div className="mt-3">
       <div className="text-xs font-bold uppercase tracking-wide text-muted">{title}</div>
-      <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+      <ul className="mt-1 space-y-2">
         {items.map((it, i) => (
-          <li key={i} className="flex items-center gap-2 rounded border border-line bg-surface p-2">
-            {/\.(png|jpe?g|webp|gif|svg)$/i.test(it.name) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={it.url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-            ) : (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-surface-2 text-[0.6rem] font-bold text-muted">FILE</span>
-            )}
-            <div className="min-w-0 flex-1">
+          <li key={i} className="rounded border border-line bg-surface p-2">
+            {/* What they sent, whole — a picture is checked by looking at all of it. */}
+            <FilePreview fileName={it.name} url={it.url} />
+            <div className="mt-2 min-w-0">
               <a href={it.url} target="_blank" rel="noreferrer" className="block truncate text-xs font-semibold text-ppc-gold hover:underline">{it.name}</a>
-              {it.caption && <div className="truncate text-xs text-muted">{it.caption}</div>}
+              {it.caption && <div className="text-xs text-muted">{it.caption}</div>}
             </div>
           </li>
         ))}

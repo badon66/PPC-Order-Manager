@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth';
-import { createUploadUrl, isBucketKey, resolveFileUrl } from '@/lib/storage';
+import { asUploadPurpose, createUploadUrl, isBucketKey, resolveFileUrl } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 /**
@@ -9,7 +9,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
  * function's request body at roughly 4.5 MB and nothing raises that. The file
  * itself never touches this server.
  *
- * POST { name, size, type }  -> { uploadUrl, fileUrl, fileName }
+ * POST { name, size, type, purpose? }  -> { uploadUrl, fileUrl, fileName }
  * PUT  { fileUrl }           -> { previewUrl }
  *
  * The second call is separate on purpose: a read link signed before the object
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
 
-  const { name, size, type } = (body ?? {}) as { name?: unknown; size?: unknown; type?: unknown };
+  const { name, size, type, purpose } = (body ?? {}) as { name?: unknown; size?: unknown; type?: unknown; purpose?: unknown };
   if (typeof name !== 'string' || typeof size !== 'number' || typeof type !== 'string') {
     return Response.json({ error: 'Expected { name, size, type }.' }, { status: 400 });
   }
@@ -39,7 +39,9 @@ export async function POST(req: Request) {
   try {
     // Validates size and MIME type before signing, so an oversized file is
     // refused here rather than after the browser has spent a minute sending it.
-    return Response.json(await createUploadUrl({ name, size, type }));
+    // 'roster' lets a spreadsheet or a PDF through for the roster importer;
+    // anything else is held to the artwork list.
+    return Response.json(await createUploadUrl({ name, size, type }, asUploadPurpose(purpose)));
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }

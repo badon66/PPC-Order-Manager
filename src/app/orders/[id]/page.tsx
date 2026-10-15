@@ -30,6 +30,9 @@ import { stagePagePaths } from '@/lib/data/stage-pages';
 import { mailInputFor } from '@/lib/customer-updates';
 import type { Order } from '@/lib/types';
 import { isNoName } from '@/lib/roster-edit';
+import { importContextOf } from '@/lib/roster-import/analyze';
+import { rosterChangedSinceSignOff } from '@/lib/roster-versions';
+import { OrderRosterTools } from '@/components/roster-import/order-roster-tools';
 import { formatCad, isOverridden, listPrice, orderValueOf } from '@/lib/pricing';
 import { paymentsOn } from '@/lib/payments';
 import { stageSummary } from '@/lib/data/stage-track';
@@ -75,6 +78,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
     ...s.logos.map((l) => ({ fileUrl: l.fileUrl })),
     ...(s.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
     ...(s.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
+    ...(s.convertedFrom ? [{ fileUrl: s.convertedFrom.fileUrl }] : []),
   ]);
   const signedUrls = Object.fromEntries(
     (await resolveAll(submittedFiles)).map((f) => [f.fileUrl, f.resolvedUrl]),
@@ -106,6 +110,19 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
    * that's actually a download.
    */
   const fonts = assets.filter((a) => a.role === 'font');
+  // The customer ticked "I've checked the roster" at sign-off: has it changed since?
+  const rosterSinceSignOff = rosterChangedSinceSignOff(order, roster);
+  const rosterChangedNote = rosterSinceSignOff?.changed
+    ? `The roster has changed since ${order.approvedBy || 'the customer'} checked it at sign-off ` +
+      `(Roster ${rosterSinceSignOff.verified.rosterNumber}, ${rosterSinceSignOff.verified.rows} player${rosterSinceSignOff.verified.rows === 1 ? '' : 's'}). ` +
+      'Tell them what changed and have them check it again — what gets made should be what they approved.'
+    : null;
+  // The file each imported roster was read from.
+  const rosterFileLinks = Object.fromEntries(
+    (await resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))))
+      .filter((v) => v.resolvedUrl)
+      .map((v) => [v.id, v.resolvedUrl]),
+  );
 
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
@@ -203,7 +220,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             <p className="mb-3 text-sm text-muted">
               Walk them through the sheet below first. This is exactly what the factory sees.
             </p>
-            <ApproveBlock token={order.shareToken} teamName={order.teamName} audience="staff" />
+            <ApproveBlock token={order.shareToken} teamName={order.teamName} audience="staff" rosterCount={roster.length} />
           </Section>
         </div>
       )}
@@ -550,30 +567,20 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           keepers.length ? ` + ${keepers.length} kept by Powerplay` : ''
         })`}
       >
-        {rosterFilesFromTeam.length > 0 && (
-          <div className="mb-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Roster files from the team</p>
-            <ul className="mt-1 space-y-1 text-sm">
-              {rosterFilesFromTeam.map((f) => (
-                <li key={f.fileUrl}>
-                  <a
-                    href={signedUrls[f.fileUrl] ?? f.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-semibold text-ppc-gold hover:underline"
-                  >
-                    {f.fileName || 'Roster file'}
-                  </a>
-                  {f.notes && <span className="text-muted"> — {f.notes}</span>}
-                  <span className="text-muted"> · sent {formatShort(f.submittedAt.slice(0, 10))}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1 text-xs text-muted">
-              A CSV imports straight into the roster table in the order form; anything else, type up from the file.
-            </p>
-          </div>
+        {rosterChangedNote && (
+          <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            {rosterChangedNote}
+          </p>
         )}
+        <OrderRosterTools
+          orderId={order.id}
+          ctx={importContextOf(order)}
+          versions={bundle.rosters}
+          numbersUsed={order.rosterNumbersUsed ?? 0}
+          fileLinks={rosterFileLinks}
+          teamFiles={rosterFilesFromTeam.map((f) => ({ ...f, viewUrl: signedUrls[f.fileUrl] ?? '' }))}
+          signedOff={Boolean(order.approvedDate || order.approvalRecord)}
+        />
         {roster.length === 0 && order.extraJerseyDetails.length === 0 && keepers.length === 0 ? (
           <p className="text-sm text-muted">No players added yet.</p>
         ) : (
@@ -699,6 +706,11 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           </p>
         )}
         {order.approvalRecord && <SignatureProof record={order.approvalRecord} />}
+        {rosterChangedNote && (
+          <p className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            {rosterChangedNote}
+          </p>
+        )}
       </Section>
 
       <Section title={`History (${history.length})`}>

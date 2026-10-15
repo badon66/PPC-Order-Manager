@@ -1,6 +1,7 @@
 import { repo } from '@/lib/data';
 import { resolveAll } from '@/lib/storage';
-import type { ClientLinkSections, ClientRosterSubmission } from '@/lib/types';
+import type { ClientLinkSections, ClientRosterSubmission, SubmittedPlayer } from '@/lib/types';
+import { isNoName } from '@/lib/roster-edit';
 
 /**
  * Shared loader for the customer-facing pages under `/roster/[token]` — the
@@ -33,7 +34,8 @@ export async function loadClientPage(token: string) {
    * `submittedAt` still come from the newest submission of any kind, since
    * those describe the customer's most recent visit, not any one field.
    */
-  const submissions = [...((await repo.getOrder(link.orderId))?.submissions ?? [])]
+  const bundle = await repo.getOrder(link.orderId);
+  const submissions = [...(bundle?.submissions ?? [])]
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 
   const newestWith = (section: SectionOf): ClientRosterSubmission | undefined =>
@@ -45,13 +47,40 @@ export async function loadClientPage(token: string) {
   const rosterSrc = newestWith('roster');
   const contactSrc = newestWith('personalDetails');
 
+  /*
+   * What a team sends becomes the roster (its own Roster N, once Keenan
+   * accepts it), so the form has to start from what's really there — or a
+   * team adding "the one missing player" would send a roster of one.
+   *
+   * Their own submission, while Keenan hasn't accepted it yet: they're still
+   * revising it. Otherwise the roster in use, which is the truth now (it may
+   * have been imported or edited since they last sent anything).
+   */
+  const pendingRoster = rosterSrc && !rosterSrc.acceptedAt ? rosterSrc : undefined;
+  const currentRoster: SubmittedPlayer[] = pendingRoster
+    ? []
+    : (bundle?.roster ?? []).map((r) => ({
+        playerNameAsPrinted: isNoName(r, bundle!.order.nameStyle) ? '' : r.playerNameAsPrinted,
+        number: r.number,
+        isGoalie: r.isGoalie,
+        captaincy: r.captaincy,
+        sockOnly: r.sockOnly,
+        jerseySize: r.jerseySize,
+        sockSize: r.sockSize,
+        pantShellSize: r.pantShellSize,
+        notes: r.notes,
+      }));
+
   const previous = newest
     ? {
         revision: newest.revision,
         submittedAt: newest.submittedAt,
-        players: rosterSrc?.players ?? [],
-        rosterAnswer: rosterSrc?.rosterAnswer,
-        rosterFiles: rosterSrc?.rosterFiles ?? [],
+        // Only a submission still being revised pre-fills the rows; once it's
+        // accepted, the roster in use (currentRoster) is what they start from.
+        players: pendingRoster?.players ?? [],
+        rosterAnswer: currentRoster.length ? 'typed' as const : rosterSrc?.rosterAnswer,
+        rosterFiles: currentRoster.length ? [] : rosterSrc?.rosterFiles ?? [],
+        convertedFrom: pendingRoster?.convertedFrom ?? null,
         extras: rosterSrc?.extras ?? [],
         logos: logoSrc?.logos ?? [],
         inspiration: inspirationSrc?.inspiration ?? [],
@@ -69,9 +98,10 @@ export async function loadClientPage(token: string) {
         ...(previous?.logos ?? []).map((l) => ({ fileUrl: l.fileUrl })),
         ...(previous?.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
         ...(previous?.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
+        ...(previous?.convertedFrom ? [{ fileUrl: previous.convertedFrom.fileUrl }] : []),
       ])
     ).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
 
-  return { link, previous, previousPreviews };
+  return { link, previous, previousPreviews, currentRoster };
 }

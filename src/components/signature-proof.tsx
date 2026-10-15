@@ -41,6 +41,11 @@ export function SignatureProof({ record }: { record: ApprovalRecord }) {
         Signed {formatTimestamp(record.signedAt)}
         {record.termsAccepted ? ', terms and conditions accepted' : ''}.
       </p>
+      {record.roster && (
+        <p className="mt-0.5 text-xs text-muted">
+          Roster checked: Roster {record.roster.rosterNumber}, {record.roster.rows} player{record.roster.rows === 1 ? '' : 's'}.
+        </p>
+      )}
     </div>
   );
 }

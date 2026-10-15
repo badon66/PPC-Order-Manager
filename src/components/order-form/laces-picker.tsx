@@ -42,7 +42,7 @@ export function LacesPicker({
               <img
                 src={LACES_IMAGES[opt]}
                 alt={`${LACES_LABELS[opt]} collar`}
-                className="aspect-square w-full bg-white object-cover"
+                className="block h-auto w-full bg-white"
                 loading="lazy"
               />
               <div

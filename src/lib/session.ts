@@ -69,14 +69,20 @@ function b64url(bytes: ArrayBuffer): string {
  * The files exist because editing a dotfile on Windows is a nuisance and the
  * env-var route needed a manual step every time. These are just text files.
  */
-function readCodeFile(name: string): string | null {
+function readCodeFile(which: 'admin' | 'factory'): string | null {
   try {
     // Required lazily so the bundler doesn't pull fs into anything client-side.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require('fs') as typeof import('fs');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require('path') as typeof import('path');
-    const raw = fs.readFileSync(path.join(process.cwd(), name), 'utf8');
+    // Two literal names, not one variable: the build traces exactly these two
+    // files. A path built from a variable made it bundle the whole project
+    // into the server functions.
+    const file = which === 'admin'
+      ? path.join(process.cwd(), 'admin-code.txt')
+      : path.join(process.cwd(), 'factory-code.txt');
+    const raw = fs.readFileSync(file, 'utf8');
     const code = raw.split('\n')[0].trim();
     return code || null;
   } catch {
@@ -87,7 +93,7 @@ function readCodeFile(name: string): string | null {
 export function configuredCode(): string | null {
   const fromEnv = process.env.ADMIN_ACCESS_CODE?.trim();
   if (fromEnv) return fromEnv;
-  return readCodeFile('admin-code.txt');
+  return readCodeFile('admin');
 }
 
 /** True when there's no code set at all — the app shows a setup screen instead of crashing. */
@@ -102,7 +108,7 @@ export function isConfigured(): boolean {
  * they differ rather than quietly letting that stand.
  */
 export function configuredFactoryCode(): string | null {
-  const code = process.env.FACTORY_ACCESS_CODE?.trim() || readCodeFile('factory-code.txt');
+  const code = process.env.FACTORY_ACCESS_CODE?.trim() || readCodeFile('factory');
   if (!code) return null;
   const admin = configuredCode();
   if (admin && safeEqual(code, admin)) return null;

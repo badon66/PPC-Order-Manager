@@ -55,8 +55,12 @@ export function rosterToCsv(
   return [header, ...rows].join('\r\n') + '\r\n';
 }
 
-/** Minimal RFC4180-ish parser — handles quoted cells, embedded commas and newlines. */
-export function parseCsv(text: string): string[][] {
+/**
+ * Minimal RFC4180-ish parser — handles quoted cells, embedded commas and newlines.
+ * `delimiter` is for the files that aren't comma-separated: a semicolon from
+ * a French or European Excel, a tab from "Unicode Text" (roster imports).
+ */
+export function parseCsv(text: string, delimiter: ',' | ';' | '\t' = ','): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -72,7 +76,7 @@ export function parseCsv(text: string): string[][] {
       continue;
     }
     if (c === '"') { inQuotes = true; continue; }
-    if (c === ',') { row.push(cell); cell = ''; continue; }
+    if (c === delimiter) { row.push(cell); cell = ''; continue; }
     if (c === '\r') continue;
     if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; continue; }
     cell += c;

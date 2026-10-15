@@ -3,8 +3,9 @@
 import { useRef, useState } from 'react';
 import { ARTWORK_ACCEPT_WITH_FONTS, MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
-import { ClickableThumb } from '@/components/file-lightbox';
+import { FilePreview } from '@/components/file-preview';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
+import type { UploadPurpose } from '@/lib/storage';
 
 /**
  * Artwork slots.
@@ -52,14 +53,16 @@ export interface AssetGroupProps {
  */
 export async function uploadFile(
   file: File,
+  /** 'roster' for a roster file to import: spreadsheets and documents allowed, not just artwork. */
+  purpose: UploadPurpose = 'artwork',
 ): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const signed = await fetch('/api/upload/sign', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type, purpose }),
   });
 
-  if (signed.status === 409) return uploadThroughServer(file);
+  if (signed.status === 409) return uploadThroughServer(file, purpose);
 
   const info = await signed.json();
   if (!signed.ok) throw new Error(info.error ?? 'Upload failed');
@@ -88,9 +91,11 @@ export async function uploadFile(
 /** Local dev, where the file lands in public/uploads. */
 async function uploadThroughServer(
   file: File,
+  purpose: UploadPurpose,
 ): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
   const body = new FormData();
   body.append('file', file);
+  body.append('purpose', purpose);
   const res = await fetch('/api/upload', { method: 'POST', body });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? 'Upload failed');
@@ -183,28 +188,30 @@ export function AssetGroup({
       {error && <p className="mt-2 text-xs font-semibold text-red-300">{error}</p>}
 
       {mine.length > 0 && (
-        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        // One file per row, each picture whole and as wide as it is (up to the
+        // card): checking artwork means seeing all of it, not a cropped square.
+        <ul className="mt-3 space-y-2">
           {mine.map((a) => (
-            <li key={a.id} className="flex items-center gap-3 rounded border border-line bg-surface p-2">
-              <ClickableThumb fileName={a.fileName} url={a.viewUrl} />
-              <div className="min-w-0 flex-1">
+            <li key={a.id} className="rounded border border-line bg-surface p-2">
+              <FilePreview fileName={a.fileName} url={a.viewUrl} />
+              <div className="mt-2 flex items-center gap-2">
                 <a
                   href={a.viewUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="block truncate text-xs font-semibold text-ppc-gold hover:underline"
+                  className="min-w-0 flex-1 truncate text-xs font-semibold text-ppc-gold hover:underline"
                 >
                   {a.fileName}
                 </a>
+                <button
+                  type="button"
+                  onClick={() => onRemove(a.id)}
+                  aria-label="Remove file"
+                  className="rounded px-1.5 py-1 text-xs text-muted hover:text-red-300"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => onRemove(a.id)}
-                aria-label="Remove file"
-                className="rounded px-1.5 py-1 text-xs text-muted hover:text-red-300"
-              >
-                ✕
-              </button>
             </li>
           ))}
         </ul>

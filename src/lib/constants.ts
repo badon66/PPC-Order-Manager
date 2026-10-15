@@ -284,9 +284,12 @@ export const TIER_DEFS: TierDef[] = [
   {
     id: 'premier',
     label: 'Premier',
-    blurb: 'Lite plus vents, reinforced elbows and stitched-on logos.',
+    // Stitched-on logos are NOT part of Premier: an add-on at $20 a jersey on
+    // any sublimated build (Keenan, 2026-10-15). Ticking Premier used to tick
+    // them too, which put $20 a jersey on every Premier order.
+    blurb: 'Lite plus vents and reinforced elbows. Stitched-on logos are an add-on.',
     jerseyTypes: ['sublimated'],
-    addons: [...LITE_BASE, 'underarmVents', 'reinforcedElbows', 'stitchedSublimatedLogos'],
+    addons: [...LITE_BASE, 'underarmVents', 'reinforcedElbows'],
   },
   {
     id: 'elite',
@@ -444,6 +447,15 @@ export const APPROVAL_STATEMENT =
   'shipping details are correct. I understand that approving it finalises the ' +
   'order: any change after this point may not be possible, is not guaranteed, ' +
   'and once the order goes into production nothing can be changed at all.';
+
+/**
+ * The roster's own box at sign-off, ticked separately from the statement
+ * above. The roster is where a wrong jersey comes from — a misspelt name, a
+ * swapped number, a size for last season — so it gets its own deliberate yes.
+ * Copied onto the record (ApprovalRecord.roster) like the statement is.
+ */
+export const ROSTER_VERIFICATION_STATEMENT =
+  'I have checked the roster — every player, name, number and size — and it is what should be made.';
 
 export const SIZING_CHART_URL = 'https://www.powerplaycustoms.ca/pages/hockey-size-chart';
 

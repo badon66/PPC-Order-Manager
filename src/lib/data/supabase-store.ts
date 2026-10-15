@@ -9,8 +9,11 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
+import {
+  activeRosterIdOf, activeRows, listRosters, planDeleteRoster, planNewRoster, planUseRoster, rosterLabel, rowsOfRoster,
+} from '@/lib/roster-versions';
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 
@@ -183,10 +186,10 @@ export const supabaseStore: Repository = {
   async getOrder(id: string): Promise<OrderBundle | null> {
     const order = await orderById(id);
     if (!order) return null;
-    const [roster, assets, submissions] = await Promise.all([
+    const [all, assets, submissions] = await Promise.all([
       rosterOf(id), assetsOf(id), submissionsOf(id),
     ]);
-    return { order, roster, assets, submissions };
+    return { order, roster: activeRows(order, all), rosters: listRosters(order, all), assets, submissions };
   },
 
   async createOrder(patch, actor) {
@@ -255,9 +258,16 @@ export const supabaseStore: Repository = {
     ]);
   },
 
-  async replaceRoster(orderId, entries, actor) {
-    const before = (await rosterOf(orderId)).length;
-    const normalised = entries.map((e, i) => ({ ...e, orderId, sortOrder: i }));
+  async replaceRoster(orderId, entries, actor, rosterId) {
+    const order = await orderById(orderId, true);
+    if (!order) throw new Error(`Order ${orderId} not found`);
+    const active = activeRosterIdOf(order);
+    // Refused rather than written into the wrong roster: see the interface.
+    if (rosterId !== undefined && rosterId !== active) {
+      throw new Error('A different roster has been put in use since this page loaded. Reload the page.');
+    }
+    const before = rowsOfRoster(await rosterOf(orderId), active).length;
+    const normalised = entries.map((e, i) => ({ ...e, orderId, sortOrder: i, rosterId: order.activeRosterId || '' }));
 
     /*
      * Insert first, then delete what was there before.
@@ -274,7 +284,8 @@ export const supabaseStore: Repository = {
       if (res.error) throw new Error(`save roster: ${res.error.message}`);
     }
 
-    const stale = (await rosterOf(orderId)).filter((r) => !keep.has(r.id)).map((r) => r.id);
+    // Only rows of the roster in use: the other rosters are left exactly as they are.
+    const stale = rowsOfRoster(await rosterOf(orderId), active).filter((r) => !keep.has(r.id)).map((r) => r.id);
     if (stale.length) {
       const res = await supabase().from(ROSTER).delete().in('id', stale);
       if (res.error) throw new Error(`clear old roster: ${res.error.message}`);
@@ -297,6 +308,94 @@ export const supabaseStore: Repository = {
     }
 
     return normalised;
+  },
+
+  async createRoster(orderId, init, entries, actor) {
+    const o = await orderById(orderId);
+    if (!o) throw new Error(`Order ${orderId} not found`);
+    const plan = planNewRoster(o, await rosterOf(orderId), init, { newId: newId(), now: new Date().toISOString() });
+    const rows = entries.map((e, i) => ({ ...e, orderId, sortOrder: i, rosterId: plan.version.id }));
+
+    /*
+     * Three writes, ordered so a failure part-way leaves something visible:
+     * the roster is listed first (not yet in use), then its rows go in, then
+     * it's put in use. Fail after the first and there's an empty roster in the
+     * list to delete; after the second, a full one Keenan can put in use. The
+     * roster the sheets read never points at rows that aren't there.
+     */
+    await putOrder({ ...o, rosters: plan.rosters, rosterNumbersUsed: plan.numbersUsed, updatedAt: new Date().toISOString() });
+    if (rows.length) {
+      const res = await supabase().from(ROSTER).insert(rows.map((e) => ({ id: e.id, order_id: orderId, data: e })));
+      if (res.error) throw new Error(`save imported roster: ${res.error.message}`);
+    }
+    const fresh = (await orderById(orderId))!;
+    await putOrder({ ...fresh, rosters: plan.rosters, activeRosterId: plan.activeRosterId, rosterNumbersUsed: plan.numbersUsed, updatedAt: new Date().toISOString() });
+
+    await appendHistory([
+      logEntry({
+        orderId, action: 'roster_changed',
+        toValue: `${rows.length} players`,
+        summary: `${rosterLabel(plan.version)} added${init.fileName ? ` from ${init.fileName}` : ''} (${rows.length} players) and put in use`,
+        actorEmail: actor.email, actorName: actor.name,
+      }),
+    ]);
+    return plan.version;
+  },
+
+  async useRoster(orderId, rosterId, actor) {
+    const o = await orderById(orderId);
+    if (!o) throw new Error(`Order ${orderId} not found`);
+    const plan = planUseRoster(o, await rosterOf(orderId), rosterId);
+    if (!plan.ok) throw new Error(plan.error);
+    await putOrder({ ...o, rosters: plan.rosters, activeRosterId: plan.activeRosterId, updatedAt: new Date().toISOString() });
+    const v = plan.rosters.find((x) => x.id === rosterId)!;
+    await appendHistory([
+      logEntry({
+        orderId, action: 'roster_changed',
+        summary: `${rosterLabel(v)} put in use`,
+        actorEmail: actor.email, actorName: actor.name,
+      }),
+    ]);
+  },
+
+  async deleteRoster(orderId, rosterId, actor) {
+    const o = await orderById(orderId);
+    if (!o) throw new Error(`Order ${orderId} not found`);
+    const all = await rosterOf(orderId);
+    const label = listRosters(o, all).find((v) => v.id === rosterId)?.label ?? 'Roster';
+    const plan = planDeleteRoster(o, all, rosterId);
+    if (!plan.ok) throw new Error(plan.error);
+    // Rows first: if this fails nothing has changed. If the order write after
+    // it fails, the roster is still listed with no rows — visible, deletable.
+    if (plan.deleteRowIds.length) {
+      const res = await supabase().from(ROSTER).delete().in('id', plan.deleteRowIds);
+      if (res.error) throw new Error(`delete roster rows: ${res.error.message}`);
+    }
+    await putOrder({ ...o, rosters: plan.rosters, updatedAt: new Date().toISOString() });
+    await appendHistory([
+      logEntry({
+        orderId, action: 'roster_changed',
+        fromValue: `${plan.deleteRowIds.length} players`,
+        summary: `${label} deleted (${plan.deleteRowIds.length} players)`,
+        actorEmail: actor.email, actorName: actor.name,
+      }),
+    ]);
+  },
+
+  async getRosterRows(orderId, rosterId) {
+    const o = await orderById(orderId);
+    if (!o) return null;
+    const all = await rosterOf(orderId);
+    if (!listRosters(o, all).some((v) => v.id === rosterId)) return null;
+    return rowsOfRoster(all, rosterId);
+  },
+
+  async noteRosterRead(rosterToken, now) {
+    const o = await orderByToken('roster_token', rosterToken);
+    if (!o) return { allowed: false, orderId: null };
+    const plan = planRosterRead(o.rosterReads ?? [], now);
+    if (plan.allowed) await putOrder({ ...o, rosterReads: plan.reads });
+    return { allowed: plan.allowed, orderId: o.id };
   },
 
   async addAsset(asset, actor) {
@@ -339,22 +438,22 @@ export const supabaseStore: Repository = {
   async getByShareToken(token): Promise<PublicOrderView | null> {
     const o = await orderByToken('share_token', token);
     if (!o) return null;
-    const [roster, assets, history] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id)]);
-    return publicViewOf(o, roster, assets, history);
+    const [all, assets, history] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id)]);
+    return publicViewOf(o, activeRows(o, all), assets, history);
   },
 
   async getByFactoryToken(token) {
     const o = await orderByToken('factory_token', token);
     if (!o) return null;
-    const [roster, assets] = await Promise.all([rosterOf(o.id), assetsOf(o.id)]);
-    return factoryViewOf(o, roster, assets);
+    const [all, assets] = await Promise.all([rosterOf(o.id), assetsOf(o.id)]);
+    return factoryViewOf(o, activeRows(o, all), assets);
   },
 
   async getByRosterToken(token) {
     const o = await orderByToken('roster_token', token);
     if (!o) return null;
-    const [roster, history] = await Promise.all([rosterOf(o.id), this.getHistory(o.id)]);
-    return rosterLinkView(o, roster.length, history);
+    const [all, history] = await Promise.all([rosterOf(o.id), this.getHistory(o.id)]);
+    return rosterLinkView(o, activeRows(o, all).length, history);
   },
 
   async submitClientRoster(token, submission) {
@@ -415,16 +514,8 @@ export const supabaseStore: Repository = {
       );
       if (res.error) throw new Error(`add submitted players: ${res.error.message}`);
     }
-    /*
-     * Deleted only after the replacements are safely in, for the same reason
-     * the inserts come first: a failure here leaves the old rows next to the
-     * new ones, which Keenan can see and delete. Deleting first and failing
-     * on the insert would lose the roster outright.
-     */
-    if (plan.removeRosterIds.length) {
-      const res = await supabase().from(ROSTER).delete().in('id', plan.removeRosterIds);
-      if (res.error) throw new Error(`replace superseded players: ${res.error.message}`);
-    }
+    // Nothing is deleted: a team's roster is a roster of its own, and the
+    // previous one stays until Keenan deletes it.
     if (plan.assets.length) {
       const res = await supabase().from(ASSETS).insert(
         plan.assets.map((a) => ({ id: a.id, order_id: a.orderId, data: a })),

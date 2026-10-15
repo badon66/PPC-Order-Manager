@@ -21,6 +21,12 @@ export default async function EditOrderPage({
   // Artwork lives in a private bucket, so the stored value is a key. Sign it
   // here, once, before the form renders any of it.
   const assets = (await resolveAll(bundle.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
+  // The file each imported roster was read from, so the original is a click away.
+  const rosterFileLinks = Object.fromEntries(
+    (await resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))))
+      .filter((v) => v.resolvedUrl)
+      .map((v) => [v.id, v.resolvedUrl]),
+  );
 
   return (
     <div className="space-y-4">
@@ -34,6 +40,8 @@ export default async function EditOrderPage({
         initialOrder={bundle.order}
         initialRoster={bundle.roster}
         initialAssets={assets}
+        initialRosters={bundle.rosters}
+        rosterFileLinks={rosterFileLinks}
         isNew={start === '1'}
       />
     </div>

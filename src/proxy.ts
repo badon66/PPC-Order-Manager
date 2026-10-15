@@ -15,6 +15,7 @@ import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
  *   /share/...   customer's read-only order view
  *   /roster/...  customer's roster submission form
  *   /api/public-upload/<token>  file uploads from that form (token-gated itself)
+ *   /api/roster-read/<token>    turning that form's roster file into rows (token-gated, rate-limited)
  *   /api/share/<token>/...  downloads off the share sheet (token-gated itself)
  *   /api/intake  website enquiries coming in (origin-gated; see src/lib/data/intake-logic.ts)
  *
@@ -35,7 +36,7 @@ import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
  * shipping addresses, the order list, and every write.
  */
 
-const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/intake', '/api/share/'];
+const PUBLIC_PREFIXES = ['/unlock', '/share/', '/roster/', '/api/public-upload/', '/api/roster-read/', '/api/intake', '/api/share/'];
 
 const FACTORY_UNLOCK = '/factory/unlock';
 const FACTORY_PREFIXES = ['/factory/', '/api/factory/'];

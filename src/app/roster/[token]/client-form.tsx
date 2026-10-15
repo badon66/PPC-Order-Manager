@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ARTWORK_ACCEPT, CONTACT_EMAIL, PANT_SHELL_SIZES, PLAYER_JERSEY_SIZES, SIZING_CHART_URL,
   SOCK_SIZES, VECTOR_FORMATS, jerseySizesFor,
@@ -12,11 +12,15 @@ import type {
 // Type-only, so nothing of the server-side storage module reaches the browser bundle.
 import type { UploadPurpose } from '@/lib/storage';
 import { CaptaincyPicker } from '@/components/captaincy';
-import { FileThumb } from '@/components/file-thumb';
+import { FilePreview } from '@/components/file-preview';
 import { submitClientForm } from './actions';
 import { ROUTE_COPY } from '@/lib/route-copy';
 import type { RouteVariant } from '@/lib/types';
 import type { StagePage } from '@/lib/data/stage-pages';
+import { readableCopy, requestRead } from '@/lib/roster-import/client';
+import { noAnswers, teamFill, type RowFlag, type TeamAnswers, type TeamFill } from '@/lib/roster-import/team';
+import { FIELD_LABELS, type ImportAnalysis, type ImportField } from '@/lib/roster-import/types';
+import type { ImportContext } from '@/lib/roster-import/build';
 
 /**
  * The customer's form. Written for a team manager on their phone at 10pm the
@@ -32,6 +36,8 @@ export interface PreviousSubmission {
   players: SubmittedPlayer[];
   rosterAnswer?: RosterAnswer;
   rosterFiles: SubmittedRosterFile[];
+  /** The file their rows were converted from last time, if they were. */
+  convertedFrom?: SubmittedRosterFile | null;
   extras?: ExtraJersey[];
   logos: SubmittedLogo[];
   inspiration: SubmittedInspiration[];
@@ -54,6 +60,11 @@ type Props = {
   extraJerseyDetails: ExtraJersey[];
   /** Their last submission, pre-filled so a revisit is an edit. */
   previous: PreviousSubmission | null;
+  /**
+   * The roster in use, when they have no submission waiting for Keenan: what
+   * they send replaces it, so the rows start from it rather than from blank.
+   */
+  currentRoster?: SubmittedPlayer[];
   /** Signed links for the files in that previous submission, so a revisit
    *  shows thumbnails rather than broken images. */
   previousPreviews: Record<string, string>;
@@ -77,6 +88,23 @@ const blankContact = (): SubmittedContact => ({
 });
 
 type Uploaded = { fileUrl: string; fileName: string; previewUrl: string };
+
+/** What a marked field is called in "Check the …". */
+const FLAG_LABELS: Record<RowFlag['field'], string> = {
+  playerNameAsPrinted: 'name', number: 'number', isGoalie: 'goalie tick', captaincy: 'captain letter',
+  jerseySize: 'jersey size', sockSize: 'sock size', pantShellSize: 'pant shell size',
+};
+
+/** The column choices, in a team's words rather than ours. */
+const TEAM_FIELD_LABELS: Partial<Record<ImportField, string>> = {
+  name: 'Name on the back of the jersey',
+  fullName: 'Full name (first and last)',
+  position: 'Position (F, D, G…)',
+  goalie: 'Goalie (yes / no)',
+  letter: 'Captain letter (C or A)',
+  notes: 'Notes',
+  ignore: "Something we don't need",
+};
 
 /**
  * Upload straight to storage, not through the app.
@@ -152,7 +180,7 @@ function sizeOptions(options: readonly string[], current: string) {
 
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
-  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant, stage,
+  jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant, stage, currentRoster = [],
 }: Props) {
   /*
    * Spares are their own list, not extra roster rows.
@@ -190,8 +218,10 @@ export function ClientForm({
    * submitted players back up to fifteen would look like we lost some.
    */
   const [players, setPlayers] = useState<SubmittedPlayer[]>(() => {
-    // Same rule as the spares: a socks-only row can't exist on an order without socks.
-    if (previous?.players.length) return includesSocks ? previous.players : previous.players.map((p) => ({ ...p, sockOnly: false }));
+    // What they're revising, else the roster we have; same rule as the spares
+    // either way: a socks-only row can't exist on an order without socks.
+    const seed = previous?.players.length ? previous.players : currentRoster;
+    if (seed.length) return includesSocks ? seed : seed.map((p) => ({ ...p, sockOnly: false }));
     if (!sections.roster) return [];
     return Array.from({ length: Math.max(1, jerseyCount) }, blankPlayer);
   });
@@ -205,10 +235,108 @@ export function ClientForm({
    */
   const [rosterAnswer, setRosterAnswer] = useState<RosterAnswer | null>(() => {
     if (previous?.rosterAnswer) return previous.rosterAnswer;
-    if (previous?.players.length) return 'typed';
+    if (previous?.players.length || currentRoster.length) return 'typed';
     return variant === 'ready' || variant === 'scratch' ? null : 'typed';
   });
   const [rosterFiles, setRosterFiles] = useState<SubmittedRosterFile[]>(previous?.rosterFiles ?? []);
+
+  /*
+   * Converting their roster file into these rows (lib/roster-import/team.ts).
+   * The file is read on the server; the rows come back here for the team to
+   * check, with anything uncertain left blank and marked. Nothing is sent to
+   * Powerplay until they submit, same as typed rows.
+   */
+  const [convertedFrom, setConvertedFrom] = useState<SubmittedRosterFile | null>(previous?.convertedFrom ?? null);
+  /** Per player, what to double-check: same order as `players`. */
+  const [flags, setFlags] = useState<RowFlag[][]>([]);
+  const [conversion, setConversion] = useState<null | {
+    file: SubmittedRosterFile; analysis: ImportAnalysis; ctx: ImportContext; answers: TeamAnswers;
+  }>(null);
+  const [converting, setConverting] = useState<string | null>(null);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  /** What the rows were before converting, so it can be undone. */
+  const [beforeConvert, setBeforeConvert] = useState<{ players: SubmittedPlayer[]; answer: RosterAnswer | null } | null>(null);
+  const [convertNote, setConvertNote] = useState<{ fileName: string; leftOut: string[]; otherText: string[] } | null>(null);
+  /** A finished conversion waiting for "yes, replace what I typed". */
+  const [pendingFill, setPendingFill] = useState<{ file: SubmittedRosterFile; fill: TeamFill } | null>(null);
+  /** The files picked on this visit, so converting doesn't download them again. */
+  const pickedFiles = useRef(new Map<string, File>());
+
+  const conversionFill = useMemo(
+    () => (conversion ? teamFill(conversion.analysis, conversion.ctx, conversion.answers) : null),
+    [conversion],
+  );
+
+  /** One player's fields changed: and whatever was marked to check on those fields has been seen to. */
+  const edit = (i: number, patch: Partial<SubmittedPlayer>) => {
+    setPlayers((ps) => ps.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+    setFlags((fs) => fs.map((f, j) => (j === i ? f.filter((x) => !(x.field in patch)) : f)));
+  };
+
+  /** An amber edge on an input the converted file left uncertain. */
+  const flagged = (i: number, field: RowFlag['field']) =>
+    (flags[i] ?? []).some((f) => f.field === field) ? 'border-amber-400' : '';
+
+  async function convert(item: SubmittedRosterFile) {
+    setConvertError(null);
+    setConverting(item.fileUrl);
+    try {
+      let blob: Blob | null = pickedFiles.current.get(item.fileUrl) ?? null;
+      if (!blob && previews[item.fileUrl]) {
+        try {
+          blob = await (await fetch(previews[item.fileUrl])).blob();
+        } catch {
+          blob = null;
+        }
+      }
+      if (!blob) {
+        setConvertError("We couldn't open that file again. Remove it and upload it once more.");
+        return;
+      }
+      const copy = await readableCopy(blob, item.fileName);
+      if (!copy) {
+        setConvertError("That file is too big to convert here. Send it as it is and we'll type it up.");
+        return;
+      }
+      const res = await requestRead(`/api/roster-read/${token}`, { copy, fileName: item.fileName, fileUrl: item.fileUrl });
+      if (!res.ok || !res.context) {
+        setConvertError(res.ok ? "Something went wrong reading that file. Send it as it is and we'll type it up." : res.error);
+        return;
+      }
+      const next = { file: item, analysis: res.analysis, ctx: res.context, answers: noAnswers() };
+      const fill = teamFill(next.analysis, next.ctx, next.answers);
+      if (fill.questions.length) setConversion(next);
+      else offerFill(item, fill);
+    } finally {
+      setConverting(null);
+    }
+  }
+
+  function offerFill(file: SubmittedRosterFile, fill: TeamFill) {
+    setConversion(null);
+    const typed = players.filter((p) => p.playerNameAsPrinted.trim() || p.number.trim()).length;
+    if (typed > 0) setPendingFill({ file, fill });
+    else applyFill(file, fill);
+  }
+
+  function applyFill(file: SubmittedRosterFile, fill: TeamFill) {
+    setBeforeConvert({ players, answer: rosterAnswer });
+    setPlayers(fill.players.length ? fill.players : [blankPlayer()]);
+    setFlags(fill.flags);
+    setConvertedFrom(file);
+    setConvertNote({ fileName: file.fileName, leftOut: fill.leftOut, otherText: fill.otherText });
+    setRosterAnswer('typed');
+    setPendingFill(null);
+  }
+
+  function undoConvert() {
+    setPlayers(beforeConvert?.players ?? players);
+    setRosterAnswer(beforeConvert?.answer === 'typed' ? 'typed' : 'file');
+    setFlags([]);
+    setConvertedFrom(null);
+    setConvertNote(null);
+    setBeforeConvert(null);
+  }
 
   /** Which row is awaiting a "yes, remove it" — null when nothing is. */
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
@@ -251,6 +379,7 @@ export function ClientForm({
         extras, logos, inspiration, colours,
         rosterAnswer: sections.roster ? rosterAnswer : undefined,
         rosterFiles: rosterAnswer === 'file' ? rosterFiles : [],
+        convertedFrom: rosterAnswer === 'typed' ? convertedFrom : null,
         contact: sections.personalDetails ? contact : undefined,
         confirmed,
       },
@@ -369,7 +498,7 @@ export function ClientForm({
           title="Player Roster"
           hint={
             existingRosterCount > 0
-              ? `We already have ${existingRosterCount} player${existingRosterCount === 1 ? '' : 's'} on file for this order. Add anyone who's missing — we'll sort out duplicates.`
+              ? `We have ${existingRosterCount} player${existingRosterCount === 1 ? '' : 's'} on file for this order${currentRoster.length ? ' — they’re below' : ''}. Fix anything that's wrong and add anyone who's missing: the list you send becomes your roster once we've checked it, so send the whole team.`
               : variant
                 ? ROUTE_COPY[variant].rosterHint
                 : "Names exactly as they should be printed on the jersey. Double-check spelling — it's what goes on the back."
@@ -379,6 +508,40 @@ export function ClientForm({
 
           {rosterAnswer === 'typed' && (
           <div className="mt-4">
+          {convertedFrom && (
+            <div className="mb-4 rounded-lg border border-amber-400/60 bg-amber-500/10 p-3.5">
+              {convertNote ? (
+                <>
+                  <p className="text-sm font-bold text-amber-200">
+                    We&apos;ve converted your file into our roster — just double-check it.
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    Go through every name, number and size below before you send it. Anything we couldn&apos;t
+                    read for sure from {convertNote.fileName || 'your file'} is left blank and marked in yellow.
+                  </p>
+                  {convertNote.leftOut.length > 0 && (
+                    <p className="mt-2 text-xs text-muted">
+                      Not added as players: {convertNote.leftOut.map((t) => `"${t}"`).join(', ')}. Add anyone who
+                      should be on the roster.
+                    </p>
+                  )}
+                  {convertNote.otherText.length > 0 && (
+                    <p className="mt-1 text-xs text-muted">
+                      Your file also says: {convertNote.otherText.map((t) => `"${t}"`).join(' · ')} — nothing was
+                      changed because of it, so make sure the rows below match.
+                    </p>
+                  )}
+                  <button type="button" onClick={undoConvert} className="mt-2 text-xs font-semibold text-ppc-gold hover:underline">
+                    Undo — send the file as it is instead
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-muted">
+                  These players came from your file {convertedFrom.fileName}. Check them over before you send.
+                </p>
+              )}
+            </div>
+          )}
           <p className="mb-3 text-sm">
             <span className="text-muted">Don&apos;t know what size you guys need? </span>
             <a
@@ -399,15 +562,15 @@ export function ClientForm({
 
           <div className="space-y-3">
             {players.map((p, i) => (
-              <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
+              <div key={i} className={`rounded-lg border bg-surface-2 p-3 ${(flags[i] ?? []).length ? 'border-amber-400/70' : 'border-line'}`}>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wide text-muted">Player {i + 1}</span>
                   <div className="flex items-center gap-2">
                     <Chip active={p.isGoalie} label="Goalie"
-                      onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, isGoalie: !x.isGoalie, sockOnly: false } : x))} />
+                      onClick={() => edit(i, { isGoalie: !p.isGoalie, sockOnly: false })} />
                     {includesSocks && (
                       <Chip active={p.sockOnly} label="Socks only"
-                        onClick={() => setPlayers(players.map((x, j) => j === i ? { ...x, sockOnly: !x.sockOnly, isGoalie: false, jerseySize: '', captaincy: '' } : x))} />
+                        onClick={() => edit(i, { sockOnly: !p.sockOnly, isGoalie: false, jerseySize: '', captaincy: '' })} />
                     )}
                     {/*
                       * Hidden on a socks-only row: there's no jersey for a
@@ -417,7 +580,7 @@ export function ClientForm({
                     {!p.sockOnly && (
                       <CaptaincyPicker
                         value={p.captaincy}
-                        onChange={(v) => setPlayers(players.map((x, j) => (j === i ? { ...x, captaincy: v } : x)))}
+                        onChange={(v) => edit(i, { captaincy: v })}
                       />
                     )}
                     {players.length > 1 && (
@@ -437,6 +600,7 @@ export function ClientForm({
                             className="font-bold text-red-300 hover:underline"
                             onClick={() => {
                               setPlayers(players.filter((_, j) => j !== i));
+                              setFlags((fs) => fs.filter((_, j) => j !== i));
                               setConfirmRemove(null);
                             }}
                           >
@@ -463,37 +627,44 @@ export function ClientForm({
                   </div>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <input className="col-span-2" placeholder={p.sockOnly ? 'Name (optional for socks only)' : 'Name as printed on jersey'}
+                  <input className={`col-span-2 ${flagged(i, 'playerNameAsPrinted')}`} placeholder={p.sockOnly ? 'Name (optional for socks only)' : 'Name as printed on jersey'}
                     value={p.playerNameAsPrinted}
-                    onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, playerNameAsPrinted: e.target.value } : x))} />
-                  <input placeholder="Number" inputMode="numeric" disabled={p.sockOnly}
+                    onChange={(e) => edit(i, { playerNameAsPrinted: e.target.value })} />
+                  <input className={flagged(i, 'number')} placeholder="Number" inputMode="numeric" disabled={p.sockOnly}
                     value={p.number}
-                    onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, number: e.target.value } : x))} />
+                    onChange={(e) => edit(i, { number: e.target.value })} />
                   {!p.sockOnly && (
-                    <select value={p.jerseySize}
-                      onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, jerseySize: e.target.value } : x))}>
+                    <select className={flagged(i, 'jerseySize')} value={p.jerseySize}
+                      onChange={(e) => edit(i, { jerseySize: e.target.value })}>
                       <option value="">{p.isGoalie ? 'Goalie jersey size' : 'Jersey size'}</option>
                       {sizeOptions(jerseySizesFor(p.isGoalie), p.jerseySize)}
                     </select>
                   )}
                   {includesSocks && (
-                    <select value={p.sockSize}
-                      onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, sockSize: e.target.value } : x))}>
+                    <select className={flagged(i, 'sockSize')} value={p.sockSize}
+                      onChange={(e) => edit(i, { sockSize: e.target.value })}>
                       <option value="">Sock size</option>
                       {sizeOptions(SOCK_SIZES, p.sockSize)}
                     </select>
                   )}
                   {includesPantShells && !p.sockOnly && (
-                    <select value={p.pantShellSize}
-                      onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, pantShellSize: e.target.value } : x))}>
+                    <select className={flagged(i, 'pantShellSize')} value={p.pantShellSize}
+                      onChange={(e) => edit(i, { pantShellSize: e.target.value })}>
                       <option value="">Pant shell size</option>
                       {sizeOptions(PANT_SHELL_SIZES, p.pantShellSize)}
                     </select>
                   )}
                   <input className="col-span-2" placeholder="Notes (optional)"
                     value={p.notes}
-                    onChange={(e) => setPlayers(players.map((x, j) => j === i ? { ...x, notes: e.target.value } : x))} />
+                    onChange={(e) => edit(i, { notes: e.target.value })} />
                 </div>
+                {(flags[i] ?? []).length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs font-semibold text-amber-300">
+                    {flags[i].map((f) => (
+                      <li key={f.field}>Check the {FLAG_LABELS[f.field]}: {f.message}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
             <button type="button" onClick={() => setPlayers([...players, blankPlayer()])}
@@ -598,6 +769,7 @@ export function ClientForm({
                 onPreview={addPreview}
                 token={token}
                 purpose="roster"
+                onPicked={(file, fileUrl) => pickedFiles.current.set(fileUrl, file)}
                 accept=".csv,.xlsx,.xls,.numbers,.ods,.doc,.docx,.odt,.rtf,.txt,.pdf,image/*"
                 items={rosterFiles}
                 blank={blankRosterFile}
@@ -609,8 +781,53 @@ export function ClientForm({
                     value={item.notes} onChange={(e) => patch({ notes: e.target.value })} />
                 )}
               />
+              {rosterFiles.length > 0 && !conversion && !pendingFill && (
+                <div className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+                  <p className="text-sm font-semibold">Want it done now?</p>
+                  <p className="mt-1 text-xs text-muted">
+                    We can turn your file into the roster rows right here, for you to check before you send.
+                    A spreadsheet takes a few seconds; a PDF or a photo, about half a minute.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {rosterFiles.map((f) => (
+                      <button key={f.fileUrl} type="button" disabled={converting !== null} onClick={() => convert(f)}
+                        className="rounded-lg bg-ppc-gold px-3 py-2 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-40">
+                        {converting === f.fileUrl ? 'Reading your file…' : `Turn ${f.fileName || 'it'} into the roster`}
+                      </button>
+                    ))}
+                  </div>
+                  {convertError && <p className="mt-2 text-xs font-semibold text-red-300">{convertError}</p>}
+                </div>
+              )}
+              {conversion && conversionFill && (
+                <ConversionQuestions
+                  fill={conversionFill}
+                  answers={conversion.answers}
+                  onAnswer={(a) => setConversion((c) => (c ? { ...c, answers: { ...c.answers, ...a } } : c))}
+                  onFill={() => offerFill(conversion.file, conversionFill)}
+                  onCancel={() => setConversion(null)}
+                />
+              )}
+              {pendingFill && (
+                <div className="rounded-lg border border-amber-400/60 bg-amber-500/10 p-3 text-sm">
+                  <p>
+                    Your file has {pendingFill.fill.players.length} player{pendingFill.fill.players.length === 1 ? '' : 's'}.
+                    Putting them in replaces the players on this form now.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => applyFill(pendingFill.file, pendingFill.fill)}
+                      className="rounded-lg bg-ppc-gold px-3 py-2 text-sm font-bold text-black hover:bg-ppc-gold-dim">
+                      Replace them
+                    </button>
+                    <button type="button" onClick={() => setPendingFill(null)}
+                      className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-muted hover:text-fg">
+                      Keep what I typed
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-muted">
-                We&apos;ll type it up and send it back for you to check before anything is made.
+                Or just send the file — we&apos;ll type it up and send it back for you to check before anything is made.
               </p>
             </div>
           )}
@@ -713,6 +930,80 @@ function RosterQuestion({ value, onChange }: { value: RosterAnswer | null; onCha
   );
 }
 
+/**
+ * The few things that have to be known before their file can become rows:
+ * which column is which (only when that isn't certain), which part of a full
+ * name goes on the back, and whether plain S/M/L sizes are youth or adult.
+ * Answering one can raise the next, so the list is worked out fresh each time.
+ */
+function ConversionQuestions({ fill, answers, onAnswer, onFill, onCancel }: {
+  fill: TeamFill;
+  answers: TeamAnswers;
+  onAnswer: (a: Partial<TeamAnswers>) => void;
+  onFill: () => void;
+  onCancel: () => void;
+}) {
+  const btn = 'rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold hover:border-ppc-gold/60';
+  return (
+    <div className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+      <p className="text-sm font-semibold">
+        {fill.questions.length ? 'We read your file. A quick question first:' : 'All set.'}
+      </p>
+      <div className="mt-2 space-y-3">
+        {fill.questions.map((q) => {
+          if (q.kind === 'column') {
+            return (
+              <label key={`c${q.col}`} className="block text-sm">
+                <span>
+                  What&apos;s in the column {q.header ? `"${q.header}"` : `number ${q.col + 1}`}
+                  {q.sample.length ? ` (${q.sample.slice(0, 3).join(', ')}…)` : ''}?
+                </span>
+                <select className="mt-1" value="" onChange={(e) => e.target.value && onAnswer({ columns: { ...answers.columns, [q.col]: e.target.value as ImportField } })}>
+                  <option value="">Choose…</option>
+                  {q.options.map((f) => <option key={f} value={f}>{TEAM_FIELD_LABELS[f] ?? FIELD_LABELS[f]}</option>)}
+                </select>
+              </label>
+            );
+          }
+          if (q.kind === 'nameFormat') {
+            return (
+              <div key="nameFormat" className="text-sm">
+                <p>Your file has full names{q.sample ? ` ("${q.sample}")` : ''}. What goes on the back of the jersey?</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  <button type="button" className={btn} onClick={() => onAnswer({ nameFormat: 'last' })}>Last name — {q.examples.last}</button>
+                  <button type="button" className={btn} onClick={() => onAnswer({ nameFormat: 'full' })}>Full name — {q.examples.full}</button>
+                  <button type="button" className={btn} onClick={() => onAnswer({ nameFormat: 'first' })}>First name — {q.examples.first}</button>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div key={`b${q.col}`} className="text-sm">
+              <p>
+                The sizes in {q.header ? `"${q.header}"` : 'that column'} are plain letters (S, M, L…). Are they youth or
+                adult sizes?
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                <button type="button" className={btn} onClick={() => onAnswer({ bare: { ...answers.bare, [q.col]: 'senior' } })}>Adult sizes</button>
+                <button type="button" className={btn} onClick={() => onAnswer({ bare: { ...answers.bare, [q.col]: 'youth' } })}>Youth sizes</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" disabled={fill.questions.length > 0} onClick={onFill}
+          className="rounded-lg bg-ppc-gold px-3 py-2 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-40">
+          Fill in the roster
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-muted hover:text-fg">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
@@ -724,9 +1015,11 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 
 function FileList<T extends { fileUrl: string; fileName: string }>({
   token, items, blank, onChange, addLabel, emptyHint, render, previews, onPreview,
-  accept = ARTWORK_ACCEPT, purpose = 'artwork',
+  accept = ARTWORK_ACCEPT, purpose = 'artwork', onPicked,
 }: {
   token: string;
+  /** Told about each file picked, with where it was stored. */
+  onPicked?: (file: File, fileUrl: string) => void;
   /** What the file picker offers; the server's allow-list is what actually decides. */
   accept?: string;
   /** Artwork by default; 'roster' lets spreadsheets and documents through. */
@@ -756,6 +1049,7 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
       for (const f of Array.from(files)) {
         const stored = await upload(token, f, purpose);
         onPreview(stored.fileUrl, stored.previewUrl);
+        onPicked?.(f, stored.fileUrl);
         added.push({ ...blank(), fileUrl: stored.fileUrl, fileName: stored.fileName });
       }
       onChange([...items, ...added]);
@@ -771,8 +1065,9 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
       {items.length === 0 && <p className="text-sm text-muted">{emptyHint}</p>}
       {items.map((item, i) => (
         <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
-          <div className="flex items-center gap-3">
-            <FileThumb url={previews[item.fileUrl] ?? item.fileUrl} fileName={item.fileName} size="md" />
+          {/* What they uploaded, whole: a photo of a crest or a list is checked by seeing all of it. */}
+          <FilePreview url={previews[item.fileUrl] ?? item.fileUrl} fileName={item.fileName} />
+          <div className="mt-2 flex items-center gap-3">
             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.fileName}</span>
             <button type="button" className="text-xs text-muted hover:text-red-300"
               onClick={() => onChange(items.filter((_, j) => j !== i))}>Remove</button>

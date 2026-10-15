@@ -205,3 +205,16 @@ test('list price: pro cut multi-panel socks are +$5 a pair, and only with socks'
   const none = sized({ multiPanelSocks: true });
   assert.equal(listPrice(none)!.lines.some((l) => /Socks/.test(l.label)), false);
 });
+
+test('Premier does not include stitched-on logos: they are a $20-a-jersey add-on', async () => {
+  const { tierById, tierPatch } = await import('@/lib/constants');
+  const premier = tierById('premier')!;
+  assert.equal(premier.addons.includes('stitchedSublimatedLogos'), false);
+  // Applying Premier leaves the add-on as it was rather than ticking it.
+  assert.equal('stitchedSublimatedLogos' in tierPatch(premier), false);
+  const plain = sized({});
+  assert.equal(listPrice(plain)!.lines.some((l) => /Stitched/.test(l.label)), false);
+  const withLogos = sized({ stitchedSublimatedLogos: true });
+  const line = listPrice(withLogos)!.lines.find((l) => /Stitched/.test(l.label))!;
+  assert.equal(line.unit, 20);
+});

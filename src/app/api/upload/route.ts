@@ -1,5 +1,5 @@
 import { requireRole } from '@/lib/auth';
-import { putFile, resolveFileUrl } from '@/lib/storage';
+import { asUploadPurpose, putFile, resolveFileUrl } from '@/lib/storage';
 
 export async function POST(req: Request) {
   await requireRole('staff');
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const stored = await putFile(file);
+    const stored = await putFile(file, asUploadPurpose(form.get('purpose')));
     /*
      * `fileUrl` is what gets stored — a key in the private bucket. The browser
      * can't load that, so hand back a signed link too for the thumbnail it

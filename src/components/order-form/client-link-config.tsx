@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
 import { Toggle } from './fields';
+
+/** The origin never changes while the page is open: nothing to subscribe to. */
+const noSubscribe = () => () => {};
 
 /**
  * The client link panel.
@@ -25,10 +28,12 @@ export function ClientLinkConfig({
   onSectionsChange: (v: ClientLinkSections) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const url =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/roster/${rosterToken}`
-      : `/roster/${rosterToken}`;
+  // The origin only exists in the browser. Read through useSyncExternalStore so
+  // the server's render and the first browser render agree (no origin), and
+  // the full link appears right after — reading `window` during render made
+  // the two differ and React threw a hydration error on every visit.
+  const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => '');
+  const url = `${origin}/roster/${rosterToken}`;
 
   const keys = Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>;
   const anyOn = keys.some((k) => sections[k]);

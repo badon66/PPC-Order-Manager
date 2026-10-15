@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { APPROVAL_STATEMENT, TERMS_URL } from '@/lib/constants';
+import { APPROVAL_STATEMENT, ROSTER_VERIFICATION_STATEMENT, TERMS_URL } from '@/lib/constants';
 import { SignaturePad } from '@/components/signature-pad';
 import { approveOrder } from './actions';
 
@@ -12,10 +12,15 @@ import { approveOrder } from './actions';
  * Approval is irreversible and locks the order, so it should not be something
  * a thumb can do while scrolling — the dialog is the pause.
  *
- * Inside it, three things have to be true before Approve does anything: the
- * terms box is ticked, a name is printed, and a signature has actually been
- * drawn. All three are checked again on the server; the disabled button is a
- * courtesy, not the enforcement.
+ * Inside it, four things have to be true before Approve does anything: the
+ * roster box is ticked (its own box — the roster is where a wrong jersey
+ * comes from), the terms box is ticked, a name is printed, and a signature
+ * has actually been drawn. All four are checked again on the server; the
+ * disabled button is a courtesy, not the enforcement.
+ *
+ * With no roster on the order there's nothing to sign yet: the block says so
+ * instead of offering a button.
+
  *
  * The same block is used on the admin order sheet, so a team can sign in
  * person on Keenan's phone. `audience` only changes the wording around it —
@@ -25,12 +30,19 @@ export function ApproveBlock({
   token,
   teamName,
   audience = 'customer',
+  rosterCount,
+  rosterHref,
 }: {
   token: string;
   teamName: string;
   audience?: 'customer' | 'staff';
+  /** Players on the roster in use. Zero means it isn't in yet, and there's nothing to approve. */
+  rosterCount: number;
+  /** Where to read the roster, when it isn't on this page (the roster form points at the order page). */
+  rosterHref?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [rosterChecked, setRosterChecked] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [name, setName] = useState('');
   const [signature, setSignature] = useState('');
@@ -38,7 +50,7 @@ export function ApproveBlock({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const signable = agreed && name.trim().length >= 2 && signature.length > 0;
+  const signable = rosterChecked && agreed && name.trim().length >= 2 && signature.length > 0;
 
   async function submit() {
     setError(null);
@@ -46,6 +58,7 @@ export function ApproveBlock({
     const res = await approveOrder(token, {
       signedName: name.trim(),
       termsAccepted: agreed,
+      rosterChecked,
       signatureDataUrl: signature,
     });
     setBusy(false);
@@ -64,6 +77,19 @@ export function ApproveBlock({
         <p className="mt-1 text-sm text-muted">
           We&apos;ve recorded the sign-off and we&apos;ll get started. Refresh this page to see it on
           the order.
+        </p>
+      </div>
+    );
+  }
+
+  if (rosterCount === 0) {
+    return (
+      <div className="rounded-xl border border-line bg-surface-2 p-5">
+        <p className="font-semibold">{audience === 'staff' ? 'Customer sign-off' : 'Approving your order'}</p>
+        <p className="mt-1 text-sm text-muted">
+          {audience === 'staff'
+            ? "There's no roster on the order yet. It has to be in before the customer can sign off."
+            : "Your roster isn't on the order yet. Once it is, you'll be able to check it and approve right here."}
         </p>
       </div>
     );
@@ -108,7 +134,35 @@ export function ApproveBlock({
               {APPROVAL_STATEMENT}
             </p>
 
-            <label className="mt-4 flex items-start gap-2 text-sm">
+            {/*
+              * The roster gets its own box, and the sentence beside it is the
+              * same constant that's copied onto the record.
+              */}
+            <label className="mt-4 flex items-start gap-2 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={rosterChecked}
+                onChange={(e) => setRosterChecked(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span>
+                {ROSTER_VERIFICATION_STATEMENT}{' '}
+                <span className="text-muted">
+                  ({rosterCount} player{rosterCount === 1 ? '' : 's'}
+                  {rosterHref ? (
+                    <>
+                      {' — '}
+                      <a href={rosterHref} target="_blank" rel="noreferrer" className="font-semibold text-ppc-gold hover:underline">
+                        see the roster
+                      </a>
+                    </>
+                  ) : null}
+                  )
+                </span>
+              </span>
+            </label>
+
+            <label className="mt-3 flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={agreed}
@@ -170,7 +224,7 @@ export function ApproveBlock({
 
             {!signable && (
               <p className="mt-2 text-right text-xs text-muted">
-                Tick the box, sign in the space above, and print your name to approve.
+                Tick both boxes, sign in the space above, and print your name to approve.
               </p>
             )}
           </div>

@@ -30,9 +30,9 @@ export function WebsiteBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
   );
 }
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
   return (
-    <div className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
+    <div id={id} className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
   );
 }
 
@@ -40,13 +40,16 @@ export function Section({
   title,
   action,
   children,
+  id,
 }: {
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  /** An anchor to link to (`#roster`). */
+  id?: string;
 }) {
   return (
-    <Card className="overflow-hidden">
+    <Card id={id} className={`overflow-hidden ${id ? 'scroll-mt-4' : ''}`}>
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <h2 className="text-sm font-bold tracking-wide text-ppc-gold uppercase">{title}</h2>
         {action}

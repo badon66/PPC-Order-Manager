@@ -25,7 +25,9 @@ import { RosterBulkBar } from './roster-bulk-edit';
  *  - Goalie is a toggle on the row. The old admin table had no goalie control
  *    at all — only the customer-facing form did.
  *  - Sock-only is its own flag rather than a string typed into a size field.
- *  - CSV import previews and reports unparseable rows instead of dropping them.
+ *  - A roster file is never poured into this table. "Import roster file" reads it,
+ *    shows what it found and what it couldn't be sure of, and makes it its own
+ *    roster (components/roster-import) — the rows here are never overwritten.
  *
  * Carried over from Base44, because it was right: in home/away mode the columns
  * become four tick boxes (home jersey, away jersey, home socks, away socks)
@@ -41,6 +43,7 @@ export function RosterTable({
   sockType,
   pantShellType,
   nameStyle,
+  onImport,
   onChange,
 }: {
   orderId: string;
@@ -51,6 +54,12 @@ export function RosterTable({
   pantShellType: Order['pantShellType'];
   /** The order's name style. "No Letters" makes every blank row read as no-name. */
   nameStyle: NameStyle;
+  /**
+   * Opens the importer. A file never adds rows to this table: it's read,
+   * checked on its own screen, and becomes its own roster (see
+   * components/roster-import).
+   */
+  onImport?: () => void;
   onChange: (next: RosterEntry[]) => void;
 }) {
   const homeAway = orderMode === 'home_away_set';
@@ -125,8 +134,6 @@ export function RosterTable({
     const stripped = noSpaces ? stripSpaces(v) : v;
     return allCaps ? stripped.toUpperCase() : stripped;
   };
-  const [importReport, setImportReport] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   function patch(i: number, p: Partial<RosterEntry>) {
     onChange(entries.map((e, idx) => (idx === i ? { ...e, ...p } : e)));
@@ -156,32 +163,6 @@ export function RosterTable({
     const next = entries.filter((_, idx) => idx !== i).map((e, idx) => ({ ...e, sortOrder: idx }));
     onChange(next);
     setSelected((cur) => pruneSelection(cur, next.map((e) => e.id)));
-  }
-
-  async function handleCsv(file: File) {
-    const text = await file.text();
-    const { csvToRoster } = await import('@/lib/csv');
-    const { entries: parsed, problems } = csvToRoster(text, orderId);
-
-    if (parsed.length === 0 && problems.length > 0) {
-      setImportReport(`Couldn't import: ${problems[0].reason} (line ${problems[0].line}).`);
-      return;
-    }
-
-    onChange([
-      ...entries,
-      ...parsed.map((e, i) => ({ ...e, sortOrder: entries.length + i })),
-    ]);
-
-    setImportReport(
-      problems.length === 0
-        ? `Imported ${parsed.length} player${parsed.length === 1 ? '' : 's'}.`
-        : `Imported ${parsed.length}. Skipped ${problems.length} row${
-            problems.length === 1 ? '' : 's'
-          }: ${problems.slice(0, 3).map((p) => `line ${p.line} (${p.reason})`).join(', ')}${
-            problems.length > 3 ? '…' : ''
-          }`,
-    );
   }
 
   const goalies = entries.filter((e) => e.isGoalie && !e.sockOnly).length;
@@ -244,24 +225,16 @@ export function RosterTable({
           ALL CAPS
         </button>
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,text/csv"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleCsv(f);
-            e.target.value = '';
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold hover:border-ppc-gold/60"
-        >
-          Import CSV
-        </button>
+        {onImport && (
+          <button
+            type="button"
+            onClick={onImport}
+            title="A spreadsheet, CSV, Word table, PDF or photo — read, checked, and made its own roster"
+            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold hover:border-ppc-gold/60"
+          >
+            Import roster file
+          </button>
+        )}
         <button
           type="button"
           onClick={addPlayer}
@@ -270,12 +243,6 @@ export function RosterTable({
           + Add Player
         </button>
       </div>
-
-      {importReport && (
-        <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
-          {importReport}
-        </p>
-      )}
 
       {noLetters && (
         <p className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 px-3 py-2 text-xs text-muted">
@@ -296,7 +263,7 @@ export function RosterTable({
 
       {entries.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
-          No players yet. Add one, or import a CSV.
+          No players yet. Add one, or import a roster file.
         </p>
       ) : (
         <>

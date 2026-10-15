@@ -220,7 +220,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       ) : signOffOpen ? (
         <div id="sign-off" className="scroll-mt-4 rounded-xl ring-2 ring-ppc-gold">
           <Section title="Sign off on your order">
-            <ApproveBlock token={token} teamName={view.teamName} />
+            <ApproveBlock token={token} teamName={view.teamName} rosterCount={view.roster.length} />
           </Section>
         </div>
       ) : null}

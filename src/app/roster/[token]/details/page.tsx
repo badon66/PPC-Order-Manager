@@ -21,7 +21,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
   const { token } = await params;
   const data = await loadClientPage(token);
   if (!data) notFound();
-  const { link, previous, previousPreviews } = data;
+  const { link, previous, previousPreviews, currentRoster } = data;
   const copy = stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
 
   return (
@@ -66,6 +66,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
           extraJerseys={link.extraJerseys}
           extraJerseyDetails={link.extraJerseyDetails}
           previousPreviews={previousPreviews}
+          currentRoster={currentRoster}
           previous={
             previous
               ? {
@@ -73,6 +74,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
                   players: previous.players,
                   rosterAnswer: previous.rosterAnswer,
                   rosterFiles: previous.rosterFiles ?? [],
+                  convertedFrom: previous.convertedFrom,
                   extras: previous.extras,
                   logos: previous.logos,
                   inspiration: previous.inspiration ?? [],

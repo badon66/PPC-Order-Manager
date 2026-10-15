@@ -10,8 +10,11 @@ import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
+import {
+  activeRosterIdOf, activeRows, listRosters, planDeleteRoster, planNewRoster, planUseRoster, rosterLabel, rowsOfRoster,
+} from '@/lib/roster-versions';
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
@@ -133,9 +136,11 @@ export const jsonStore: Repository = {
     const db = await load();
     const order = db.orders.find((o) => o.id === id && !o.deletedAt);
     if (!order) return null;
+    const all = db.roster.filter((r) => r.orderId === id).sort((a, b) => a.sortOrder - b.sortOrder);
     return {
       order,
-      roster: db.roster.filter((r) => r.orderId === id).sort((a, b) => a.sortOrder - b.sortOrder),
+      roster: activeRows(order, all),
+      rosters: listRosters(order, all),
       assets: db.assets.filter((a) => a.orderId === id).sort((a, b) => a.slot - b.slot),
       submissions: db.submissions
         .filter((s) => s.orderId === id)
@@ -212,11 +217,19 @@ export const jsonStore: Repository = {
     });
   },
 
-  async replaceRoster(orderId, entries, actor) {
+  async replaceRoster(orderId, entries, actor, rosterId) {
     return withWrite((db) => {
-      const before = db.roster.filter((r) => r.orderId === orderId).length;
-      db.roster = db.roster.filter((r) => r.orderId !== orderId);
-      const normalised = entries.map((e, i) => ({ ...e, orderId, sortOrder: i }));
+      const o = db.orders.find((x) => x.id === orderId);
+      if (!o) throw new Error(`Order ${orderId} not found`);
+      const active = activeRosterIdOf(o);
+      // Refused rather than written into the wrong roster: see the interface.
+      if (rosterId !== undefined && rosterId !== active) {
+        throw new Error('A different roster has been put in use since this page loaded. Reload the page.');
+      }
+      const mine = (r: RosterEntry) => r.orderId === orderId && rowsOfRoster([r], active).length === 1;
+      const before = db.roster.filter(mine).length;
+      db.roster = db.roster.filter((r) => !mine(r));
+      const normalised = entries.map((e, i) => ({ ...e, orderId, sortOrder: i, rosterId: o.activeRosterId || '' }));
       db.roster.push(...normalised);
       db.history.push(
         logEntry({
@@ -227,9 +240,95 @@ export const jsonStore: Repository = {
           actorEmail: actor.email, actorName: actor.name,
         }),
       );
-      const o = db.orders.find((x) => x.id === orderId);
-      if (o) o.updatedAt = new Date().toISOString();
+      o.updatedAt = new Date().toISOString();
       return normalised;
+    });
+  },
+
+  async createRoster(orderId, init, entries, actor) {
+    return withWrite((db) => {
+      const o = db.orders.find((x) => x.id === orderId && !x.deletedAt);
+      if (!o) throw new Error(`Order ${orderId} not found`);
+      const all = db.roster.filter((r) => r.orderId === orderId);
+      const plan = planNewRoster(o, all, init, { newId: newId(), now: new Date().toISOString() });
+      const rows = entries.map((e, i) => ({ ...e, orderId, sortOrder: i, rosterId: plan.version.id }));
+      db.roster.push(...rows);
+      o.rosters = plan.rosters;
+      o.activeRosterId = plan.activeRosterId;
+      o.rosterNumbersUsed = plan.numbersUsed;
+      o.updatedAt = new Date().toISOString();
+      db.history.push(
+        logEntry({
+          orderId, action: 'roster_changed',
+          toValue: `${rows.length} players`,
+          summary: `${rosterLabel(plan.version)} added${init.fileName ? ` from ${init.fileName}` : ''} (${rows.length} players) and put in use`,
+          actorEmail: actor.email, actorName: actor.name,
+        }),
+      );
+      return plan.version;
+    });
+  },
+
+  async useRoster(orderId, rosterId, actor) {
+    await withWrite((db) => {
+      const o = db.orders.find((x) => x.id === orderId && !x.deletedAt);
+      if (!o) throw new Error(`Order ${orderId} not found`);
+      const all = db.roster.filter((r) => r.orderId === orderId);
+      const plan = planUseRoster(o, all, rosterId);
+      if (!plan.ok) throw new Error(plan.error);
+      o.rosters = plan.rosters;
+      o.activeRosterId = plan.activeRosterId;
+      o.updatedAt = new Date().toISOString();
+      const v = plan.rosters.find((x) => x.id === rosterId)!;
+      db.history.push(
+        logEntry({
+          orderId, action: 'roster_changed',
+          summary: `${rosterLabel(v)} put in use`,
+          actorEmail: actor.email, actorName: actor.name,
+        }),
+      );
+    });
+  },
+
+  async deleteRoster(orderId, rosterId, actor) {
+    await withWrite((db) => {
+      const o = db.orders.find((x) => x.id === orderId && !x.deletedAt);
+      if (!o) throw new Error(`Order ${orderId} not found`);
+      const all = db.roster.filter((r) => r.orderId === orderId);
+      const label = listRosters(o, all).find((v) => v.id === rosterId)?.label ?? 'Roster';
+      const plan = planDeleteRoster(o, all, rosterId);
+      if (!plan.ok) throw new Error(plan.error);
+      const gone = new Set(plan.deleteRowIds);
+      db.roster = db.roster.filter((r) => !gone.has(r.id));
+      o.rosters = plan.rosters;
+      o.updatedAt = new Date().toISOString();
+      db.history.push(
+        logEntry({
+          orderId, action: 'roster_changed',
+          fromValue: `${gone.size} players`,
+          summary: `${label} deleted (${gone.size} players)`,
+          actorEmail: actor.email, actorName: actor.name,
+        }),
+      );
+    });
+  },
+
+  async getRosterRows(orderId, rosterId) {
+    const db = await load();
+    const o = db.orders.find((x) => x.id === orderId && !x.deletedAt);
+    if (!o) return null;
+    const all = db.roster.filter((r) => r.orderId === orderId).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (!listRosters(o, all).some((v) => v.id === rosterId)) return null;
+    return rowsOfRoster(all, rosterId);
+  },
+
+  async noteRosterRead(rosterToken, now) {
+    return withWrite((db) => {
+      const o = db.orders.find((x) => x.rosterToken === rosterToken && !x.deletedAt);
+      if (!o) return { allowed: false, orderId: null };
+      const plan = planRosterRead(o.rosterReads ?? [], now);
+      if (plan.allowed) o.rosterReads = plan.reads;
+      return { allowed: plan.allowed, orderId: o.id };
     });
   },
 
@@ -271,7 +370,7 @@ export const jsonStore: Repository = {
     if (!o) return null;
     return publicViewOf(
       o,
-      db.roster.filter((r) => r.orderId === o.id),
+      activeRows(o, db.roster.filter((r) => r.orderId === o.id)),
       db.assets.filter((a) => a.orderId === o.id),
       db.history.filter((h) => h.orderId === o.id),
     );
@@ -284,7 +383,7 @@ export const jsonStore: Repository = {
     if (!o) return null;
     return factoryViewOf(
       o,
-      db.roster.filter((r) => r.orderId === o.id),
+      activeRows(o, db.roster.filter((r) => r.orderId === o.id)),
       db.assets.filter((a) => a.orderId === o.id),
     );
   },
@@ -293,7 +392,7 @@ export const jsonStore: Repository = {
     const db = await load();
     const o = db.orders.find((x) => x.rosterToken === token && !x.deletedAt);
     if (!o) return null;
-    return rosterLinkView(o, db.roster.filter((r) => r.orderId === o.id).length, db.history.filter((h) => h.orderId === o.id));
+    return rosterLinkView(o, activeRows(o, db.roster.filter((r) => r.orderId === o.id)).length, db.history.filter((h) => h.orderId === o.id));
   },
 
   async submitClientRoster(token, submission) {
@@ -327,10 +426,7 @@ export const jsonStore: Repository = {
         db.assets.filter((a) => a.orderId === s.orderId),
       );
 
-      if (plan.removeRosterIds.length) {
-        const gone = new Set(plan.removeRosterIds);
-        db.roster = db.roster.filter((r) => !gone.has(r.id));
-      }
+      // A team's roster becomes its own roster; nothing already on the order is removed.
       db.roster.push(...plan.roster);
       db.assets.push(...plan.assets);
       Object.assign(order, plan.orderPatch);

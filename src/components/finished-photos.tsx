@@ -97,11 +97,12 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
       {error && <p className="mt-2 text-xs font-semibold text-red-300">{error}</p>}
 
       {mine.length > 0 && (
-        <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+        // Whole photos, two to a row at most: each at its own shape, never cropped.
+        <ul className="mt-3 grid items-start gap-2 sm:grid-cols-2">
           {mine.map((p) => (
             <li key={p.id} className="group relative overflow-hidden rounded-lg border border-line bg-black/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.viewUrl} alt="" className="h-16 w-full object-cover" />
+              <img src={p.viewUrl} alt="" className="block h-auto w-full" />
               <button
                 type="button"
                 onClick={() => remove(p.id)}

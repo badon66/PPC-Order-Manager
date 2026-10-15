@@ -447,6 +447,10 @@ export function blankOrder(): Order {
     specialNotes: '',
     factoryNotes: '',
     keeperJerseys: [],
+    rosters: [],
+    activeRosterId: '',
+    rosterNumbersUsed: 0,
+    rosterReads: [],
     approvedBy: '',
     approvedDate: null,
     deliveryConcern: '',
@@ -523,6 +527,7 @@ export function blankRosterEntry(
     // Keenan's own row. Never a client submission's, so accepting one can
     // never delete it.
     fromSubmissionId: '',
+    rosterId: '',
   };
 }
 

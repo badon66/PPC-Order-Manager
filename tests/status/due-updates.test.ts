@@ -27,8 +27,11 @@ test('each status offers its own email, once', () => {
     ['waiting_for_final_approval', 'final_payment_requested'], ['waiting_for_payment', 'final_payment_requested'],
     ['completed', 'completed'],
   ];
+  // Payment receipts and the review request ride along on their own rules, and
+  // the Design Talk "mockup ready" email is optional and repeatable (one per
+  // round, V1-V4; see tests/mockup). None is the status's own email.
   const withoutAutoStages = (list: UpdateStage[]) =>
-    list.filter((s) => s !== 'payment_received' && s !== 'review_request');
+    list.filter((s) => s !== 'payment_received' && s !== 'review_request' && s !== 'mockup_ready');
   for (const [status, stage] of cases) {
     assert.deepEqual(withoutAutoStages(stages(order(status))), [stage], status);
     const sent = order(status, { customerEmails: [{ stage, sentAt: 'x', to: 'sam@example.com', messageId: '' }] });

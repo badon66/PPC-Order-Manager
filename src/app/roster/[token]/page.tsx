@@ -22,7 +22,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
   const { token } = await params;
   const data = await loadClientPage(token);
   if (!data) notFound();
-  const { link, previous, previousPreviews } = data;
+  const { link, previous, previousPreviews, currentRoster } = data;
 
   const keys = Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>;
   const asked = keys.filter((k) => link.sections[k]);
@@ -102,6 +102,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
           extraJerseys={link.extraJerseys}
           extraJerseyDetails={link.extraJerseyDetails}
           previousPreviews={previousPreviews}
+          currentRoster={currentRoster}
           previous={
             previous
               ? {
@@ -109,6 +110,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
                   players: previous.players,
                   rosterAnswer: previous.rosterAnswer,
                   rosterFiles: previous.rosterFiles ?? [],
+                  convertedFrom: previous.convertedFrom,
                   extras: previous.extras,
                   logos: previous.logos,
                   inspiration: previous.inspiration ?? [],
@@ -152,7 +154,13 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
               </a>{' '}
               to check the design, sizes and shipping address.
             </p>
-            <ApproveBlock token={token} teamName={link.teamName} />
+            <ApproveBlock
+              token={token}
+              teamName={link.teamName}
+              rosterCount={link.existingRosterCount}
+              // The roster they're signing is the one on the order, not this form.
+              rosterHref={`/share/${link.shareToken}#roster`}
+            />
           </div>
         )
       )}

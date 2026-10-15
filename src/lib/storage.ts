@@ -215,6 +215,28 @@ export function isBucketKey(fileUrl: string): boolean {
 }
 
 /**
+ * The bytes of a file we stored, for the roster importer to read on the
+ * server. Only our own two kinds of value: a bucket key, or a local
+ * `/uploads/` file — by its base name alone, so a crafted value can't climb
+ * out of that folder. Anything else (a Base44 URL, any other URL) is refused:
+ * this never fetches from the internet on anyone's say-so.
+ */
+export async function readStoredFile(fileUrl: string): Promise<Uint8Array> {
+  if (isBucketKey(fileUrl)) {
+    const key = fileUrl.slice(ARTWORK_BUCKET.length + 1);
+    const { data, error } = await supabase().storage.from(ARTWORK_BUCKET).download(key);
+    if (error || !data) throw new Error(`Couldn't open the stored file: ${error?.message ?? 'not found'}`);
+    return new Uint8Array(await data.arrayBuffer());
+  }
+  if (fileUrl.startsWith('/uploads/')) {
+    const name = path.basename(fileUrl);
+    if (!name || name === '.' || name === '..') throw new Error("That file isn't one of ours.");
+    return new Uint8Array(await fs.readFile(path.join(UPLOAD_DIR, name)));
+  }
+  throw new Error("That file isn't one of ours.");
+}
+
+/**
  * Turn a stored `fileUrl` into something a browser can actually load.
  *
  * Anything that isn't a bucket key — a local dev path, a not-yet-rescued

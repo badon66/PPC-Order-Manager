@@ -353,7 +353,51 @@ export interface ApprovalRecord {
   /** Rough origin, for a "was this really them" conversation. Not identity. */
   ipAddress: string;
   userAgent: string;
+  /**
+   * The roster they verified, separately from the order as a whole: a box of
+   * its own ticked before Approve would go. Absent on approvals from before
+   * the roster check existed. The fingerprint is what lets the order page say
+   * "the roster changed after they checked it".
+   */
+  roster?: RosterVerification | null;
 }
+
+export interface RosterVerification {
+  /** The sentence beside the box, copied in as it read. */
+  statement: string;
+  rosterId: string;
+  /** "Roster 2" — the number at the time, for a person reading the record. */
+  rosterNumber: number;
+  rows: number;
+  /** See rosterFingerprint in lib/roster-versions.ts. */
+  fingerprint: string;
+}
+
+/**
+ * One of the rosters on an order: Roster 1, Roster 2… See lib/roster-versions.ts.
+ * The rows themselves are RosterEntry rows carrying this id.
+ */
+export interface RosterVersion {
+  id: string;
+  /** Never reused, so "Roster 3" still means the same roster after Roster 2 is deleted. */
+  number: number;
+  source: RosterSource;
+  /** The file it was read from, when it came from one. */
+  fileName: string;
+  /**
+   * Where that file is stored (a bucket key), so the original can be opened
+   * beside the roster read from it. Absent on rosters from before imports.
+   */
+  fileUrl?: string;
+  /** The team submission it came from, when it did. */
+  submissionId: string;
+  /** ISO instant. */
+  createdAt: string;
+  /** One line for the list: "Read from roster.pdf (two AI readings, checked)". */
+  note: string;
+}
+
+export type RosterSource = 'manual' | 'import' | 'submission';
 
 /**
  * A spare jersey, with the number and size it should be made in.
@@ -526,6 +570,12 @@ export interface RosterEntry {
    * import) is left alone.
    */
   fromSubmissionId: string;
+  /**
+   * Which of the order's rosters this row belongs to (Roster 1, Roster 2…).
+   * Rows from before there could be more than one have none, and belong to
+   * the original roster — see ORIGINAL_ROSTER_ID in lib/roster-versions.ts.
+   */
+  rosterId: string;
 }
 
 export interface Order {
@@ -705,6 +755,26 @@ export interface Order {
   keeperJerseys: KeeperJersey[];
 
   /**
+   * The order's rosters, and which one is in use (what every sheet, total and
+   * CSV reads). Empty until a second roster arrives; see lib/roster-versions.ts.
+   * Changed only by the roster actions, never by the form's autosave.
+   */
+  rosters: RosterVersion[];
+  activeRosterId: string;
+  /**
+   * The highest roster number ever given on this order. A deleted Roster 3
+   * is never handed to a new roster, so "Roster 3" in last week's text still
+   * means the roster it meant.
+   */
+  rosterNumbersUsed: number;
+  /**
+   * When a team's uploaded roster file was read by AI (ISO instants, the last
+   * few). The public form can trigger a paid AI reading, so it's limited per
+   * order per day, and this is the count.
+   */
+  rosterReads: string[];
+
+  /**
    * Whether the customer's share page shows a sign-off block at all.
    *
    * Off by default. Sign-off is a commitment the customer makes, so it only
@@ -841,6 +911,11 @@ export interface ClientRosterSubmission {
   rosterAnswer?: RosterAnswer;
   /** The list they uploaded instead of typing it in. Never merged onto the roster; Keenan types it up. */
   rosterFiles: SubmittedRosterFile[];
+  /**
+   * The file the players were read from, when the team uploaded a roster file
+   * and the app turned it into rows for them to check before sending.
+   */
+  convertedFrom?: SubmittedRosterFile | null;
   /** Numbers and sizes for the spare jerseys — no names, so not roster rows. */
   extras: ExtraJersey[];
   logos: SubmittedLogo[];

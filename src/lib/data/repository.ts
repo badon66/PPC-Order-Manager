@@ -1,7 +1,8 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RouteVariant,
+  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant,
 } from '@/lib/types';
+import type { RosterVersionSummary } from '@/lib/roster-versions';
 import type { TimelineStep } from './timeline';
 
 /**
@@ -31,7 +32,10 @@ export interface OrderListFilters {
 /** An order plus the related rows a page normally needs alongside it. */
 export interface OrderBundle {
   order: Order;
+  /** The roster IN USE — what every sheet and total reads. Other rosters are in `rosters`. */
   roster: RosterEntry[];
+  /** Every roster on the order (Roster 1, 2…), with row counts and which is in use. */
+  rosters: RosterVersionSummary[];
   assets: OrderAsset[];
   submissions: ClientRosterSubmission[];
 }
@@ -220,7 +224,31 @@ export interface Repository {
   restoreOrder(id: string, actor: Actor): Promise<void>;
 
   /* Roster ------------------------------------------------------------- */
-  replaceRoster(orderId: string, entries: RosterEntry[], actor: Actor): Promise<RosterEntry[]>;
+  /**
+   * Replace the rows of the roster IN USE (other rosters are untouched).
+   * `rosterId` is the roster the caller was editing: if a different roster has
+   * been put in use since (another tab, an import), the save is refused rather
+   * than writing one roster's rows into another.
+   */
+  replaceRoster(orderId: string, entries: RosterEntry[], actor: Actor, rosterId?: string): Promise<RosterEntry[]>;
+  /** Add a roster (an import), put it in use, and return it. */
+  createRoster(
+    orderId: string,
+    init: Omit<RosterVersion, 'id' | 'number' | 'createdAt'>,
+    entries: RosterEntry[],
+    actor: Actor,
+  ): Promise<RosterVersion>;
+  /** Put another of the order's rosters in use. */
+  useRoster(orderId: string, rosterId: string, actor: Actor): Promise<void>;
+  /** Delete a roster that isn't in use, rows and all. */
+  deleteRoster(orderId: string, rosterId: string, actor: Actor): Promise<void>;
+  /** One roster's rows, in use or not. Null when the order or roster doesn't exist. */
+  getRosterRows(orderId: string, rosterId: string): Promise<RosterEntry[] | null>;
+  /**
+   * Count an AI reading of a team's roster file against the order's daily
+   * allowance, and say whether it may go ahead. See planRosterRead.
+   */
+  noteRosterRead(rosterToken: string, now: string): Promise<{ allowed: boolean; orderId: string | null }>;
 
   /* Assets ------------------------------------------------------------- */
   addAsset(asset: Omit<OrderAsset, 'id'>, actor: Actor): Promise<OrderAsset>;

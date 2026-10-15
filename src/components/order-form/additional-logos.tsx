@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { ARTWORK_ACCEPT, MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
-import { ClickableThumb } from '@/components/file-lightbox';
+import { FilePreview } from '@/components/file-preview';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -248,31 +248,29 @@ function LogoCard({
       {error && <p className="mt-2 text-xs font-semibold text-red-300">{error}</p>}
 
       {group.assets.length > 0 && (
-        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+        <ul className="mt-2 space-y-2">
           {group.assets.map((a) => (
-            <li
-              key={a.id}
-              className="flex items-center gap-3 rounded border border-line bg-surface p-2"
-            >
-              {/* The file was uploaded and then shown only as a name. The
-                  signed URL was already here; it just wasn't used. */}
-              <ClickableThumb fileName={a.fileName} url={a.viewUrl} />
-              <a
-                href={a.viewUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="min-w-0 flex-1 truncate text-xs font-semibold text-ppc-gold hover:underline"
-              >
-                {a.fileName}
-              </a>
-              <button
-                type="button"
-                onClick={() => onRemove(a.id)}
-                aria-label="Remove file"
-                className="rounded px-1.5 py-1 text-xs text-muted hover:text-red-300"
-              >
-                ✕
-              </button>
+            <li key={a.id} className="rounded border border-line bg-surface p-2">
+              {/* The whole picture, at its own shape — never a crop to click into. */}
+              <FilePreview fileName={a.fileName} url={a.viewUrl} />
+              <div className="mt-2 flex items-center gap-2">
+                <a
+                  href={a.viewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-w-0 flex-1 truncate text-xs font-semibold text-ppc-gold hover:underline"
+                >
+                  {a.fileName}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onRemove(a.id)}
+                  aria-label="Remove file"
+                  className="rounded px-1.5 py-1 text-xs text-muted hover:text-red-300"
+                >
+                  ✕
+                </button>
+              </div>
             </li>
           ))}
         </ul>

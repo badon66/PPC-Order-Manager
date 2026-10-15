@@ -16,6 +16,10 @@ import type {
 import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
 import { ChoiceGroup, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
 import { RosterTable } from './roster-table';
+import { RosterImporter } from '@/components/roster-import/importer';
+import { RosterVersions } from '@/components/roster-import/versions';
+import { importContextOf } from '@/lib/roster-import/analyze';
+import { activeRosterIdOf, nextRosterNumber, type RosterVersionSummary } from '@/lib/roster-versions';
 import { AssetGroup } from './assets';
 import { AdditionalLogos } from './additional-logos';
 import { ClientLinkConfig } from './client-link-config';
@@ -48,11 +52,18 @@ export function OrderForm({
   initialOrder,
   initialRoster,
   initialAssets,
+  initialRosters = [],
+  rosterFileLinks = {},
   isNew = false,
 }: {
   initialOrder: Order;
+  /** The rows of the roster in use. */
   initialRoster: RosterEntry[];
   initialAssets: ViewableAsset[];
+  /** Every roster on the order (Roster 1, 2…), for the list above the table. */
+  initialRosters?: RosterVersionSummary[];
+  /** Roster id → signed link to the file it was imported from. */
+  rosterFileLinks?: Record<string, string>;
   /** True when arriving from + New Order — offers the wizard first. */
   isNew?: boolean;
 }) {
@@ -63,6 +74,10 @@ export function OrderForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  /** Why the roster table didn't save, when it didn't (another roster put in use elsewhere). */
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  /** The import screen: closed, open to pick a file. */
+  const [importing, setImporting] = useState(false);
 
   // The chooser shows only for a genuinely fresh order. Once a mode is picked
   // (or anything has been typed) a refresh must land back in the form —
@@ -82,6 +97,8 @@ export function OrderForm({
 
   const dirty = useRef(false);
   const rosterDirty = useRef(false);
+  /** The roster this page loaded — the only one its table may save into. */
+  const loadedRosterId = activeRosterIdOf(initialOrder);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /*
@@ -136,13 +153,20 @@ export function OrderForm({
       }
     }
     if (rosterDirty.current) {
-      await saveRoster(draft.id, roster);
+      // Saved into the roster this page loaded, and only that one: if another
+      // roster went in use meanwhile, the save is refused, not misfiled.
+      const res = await saveRoster(draft.id, roster, loadedRosterId);
       rosterDirty.current = false;
+      if (res.ok) setRosterError(null);
+      else {
+        setRosterError(res.error);
+        ok = false;
+      }
     }
 
     setSaveState(ok ? 'saved' : 'error');
     if (ok) setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1800);
-  }, [draft, roster]);
+  }, [draft, roster, loadedRosterId]);
 
   useEffect(() => {
     if (!dirty.current && !rosterDirty.current) return;
@@ -304,7 +328,7 @@ export function OrderForm({
           complete: Boolean(draft.pantShellType),
         } as SectionDef]
       : []),
-    { id: 'roster', title: `Player Roster (${roster.length})`, icon: '👥', wide: true, blurb: 'Names, numbers, sizes — or import a CSV.', complete: roster.length > 0 },
+    { id: 'roster', title: `Player Roster (${roster.length})`, icon: '👥', wide: true, blurb: 'Names, numbers, sizes — or import a roster file.', complete: roster.length > 0 },
     { id: 'notes', title: 'Notes & Approval', icon: '✅', blurb: 'Notes for the customer sheet, notes for the factory only, and customer sign-off.', complete: Boolean(draft.approvedBy || draft.approvedDate || draft.specialNotes || draft.factoryNotes) },
   ];
 
@@ -933,19 +957,46 @@ export function OrderForm({
     ),
 
     roster: (
-      <RosterTable
-        orderId={draft.id}
-        entries={roster}
-        orderMode={draft.orderMode}
-        sets={draft.sets}
-        sockType={draft.sockType}
-        pantShellType={draft.pantShellType}
-        nameStyle={draft.nameStyle}
-        onChange={(next) => {
-          rosterDirty.current = true;
-          setRoster(next);
-        }}
-      />
+      <>
+        {rosterError && (
+          <p className="rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-300">
+            The roster wasn&apos;t saved: {rosterError}
+          </p>
+        )}
+        <RosterVersions
+          orderId={draft.id}
+          versions={initialRosters}
+          fileLinks={rosterFileLinks}
+          beforeChange={flush}
+          // The table holds its rows in this page's state: reload to pick up the roster now in use.
+          afterChange={() => window.location.reload()}
+        />
+        <RosterTable
+          orderId={draft.id}
+          entries={roster}
+          orderMode={draft.orderMode}
+          sets={draft.sets}
+          sockType={draft.sockType}
+          pantShellType={draft.pantShellType}
+          nameStyle={draft.nameStyle}
+          onImport={() => setImporting(true)}
+          onChange={(next) => {
+            rosterDirty.current = true;
+            setRoster(next);
+          }}
+        />
+        {importing && (
+          <RosterImporter
+            orderId={draft.id}
+            ctx={importContextOf(draft)}
+            nextNumber={nextRosterNumber(initialRosters.length ? initialRosters : roster.length ? [{ number: 1 }] : [], initialOrder.rosterNumbersUsed ?? 0)}
+            signedOff={isApproved}
+            beforeAccept={flush}
+            onAccepted={() => window.location.reload()}
+            onClose={() => setImporting(false)}
+          />
+        )}
+      </>
     ),
 
     notes: (

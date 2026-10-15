@@ -3,11 +3,12 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { repo } from '@/lib/data';
-import { APPROVAL_STATEMENT, TERMS_URL } from '@/lib/constants';
+import { APPROVAL_STATEMENT, ROSTER_VERIFICATION_STATEMENT, TERMS_URL } from '@/lib/constants';
 import { today } from '@/lib/dates';
 import type { ApprovalRecord } from '@/lib/types';
 import { statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { sendCustomerUpdate } from '@/lib/customer-updates';
+import { rosterVerificationOf } from '@/lib/roster-versions';
 
 /**
  * Record a customer's sign-off.
@@ -33,7 +34,7 @@ const SIGNATURE_MAX_CHARS = 250_000;
 
 export async function approveOrder(
   token: string,
-  input: { signedName: string; termsAccepted: boolean; signatureDataUrl: string },
+  input: { signedName: string; termsAccepted: boolean; rosterChecked: boolean; signatureDataUrl: string },
 ): Promise<{ ok: boolean; error?: string }> {
   /*
    * Either public token can sign.
@@ -66,6 +67,20 @@ export async function approveOrder(
    */
   if (view.approvedDate || view.approvalRecord) {
     return { ok: false, error: 'This order has already been approved.' };
+  }
+
+  /*
+   * The roster has to be in, and checked, before anything is signed: it's
+   * where a wrong jersey comes from. Read from the full order here — which
+   * roster is in use, and a fingerprint of what it prints — so a change after
+   * this moment shows up on Keenan's order page.
+   */
+  const bundle = await repo.getOrder(view.orderId);
+  if (!bundle || bundle.roster.length === 0) {
+    return { ok: false, error: "The roster isn't on the order yet — it has to be in before the order can be approved." };
+  }
+  if (!input.rosterChecked) {
+    return { ok: false, error: "Please tick the box to say you've checked the roster." };
   }
 
   if (!input.termsAccepted) {
@@ -104,6 +119,7 @@ export async function approveOrder(
     statement: APPROVAL_STATEMENT,
     ipAddress: (h.get('x-forwarded-for') ?? '').split(',')[0].trim(),
     userAgent: (h.get('user-agent') ?? '').slice(0, 300),
+    roster: rosterVerificationOf(bundle.order, bundle.roster, bundle.rosters, ROSTER_VERIFICATION_STATEMENT),
   };
 
   const client = { email: 'client', name: signedName || view.teamName || 'Client' };

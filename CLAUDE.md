@@ -62,6 +62,9 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 - **Two note boxes, two readers.** `specialNotes` is on the customer's sheet
   AND the factory's; `factoryNotes` is on the factory's only. Don't merge them
   and don't put a factory-only note on `BuildSheet`.
+- **Premier does not include stitched-on logos.** They're the $20-a-jersey
+  add-on on any sublimated tier (`STITCHED_ON_SUBLIMATED_PER_JERSEY`); the
+  Premier preset no longer ticks them (Keenan, 2026-10-15).
 - **Customer update emails are offered, never sent, on a status change.** The
   panel on the order page asks first; only the approval receipt is automatic.
   Leaving the pre-production deposit gate in either direction counts as the
@@ -154,6 +157,12 @@ src/lib/order-utils.ts    set scaffolding, totals reconciliation, tokens
 src/lib/csv.ts            roster CSV export/import (round-trips)
 src/lib/session.ts        access codes (admin + factory) + signed cookies
 src/lib/keepers.ts        keeper jerseys — count, free numbers, common size (pure, tested)
+src/lib/roster-versions.ts  Roster 1, 2… — which is in use, numbering, sign-off fingerprint (pure, tested)
+src/lib/roster-import/    reading a roster file: read.ts (bytes → cells), ai.ts (the only API
+                          caller), reconcile.ts, columns.ts, sizes.ts, build.ts (the checks),
+                          team.ts (the team form's version), validate.ts (what Accept sends back)
+src/components/roster-import/  the importer screen, the roster list, the order page's roster tools
+src/components/file-preview.tsx  every uploaded picture, shown whole
 src/components/build-sheet.tsx  the build sections both sheets render
 src/lib/auth.ts           who-is-this + requireRole (placeholder for per-person)
 src/lib/storage.ts        uploads -> private Supabase bucket, or public/uploads/ locally
@@ -181,6 +190,73 @@ scripts/build-call-template.mjs  regenerates public/templates/… and the test f
 src/components/order-form/  the big form: index, fields, roster-table,
                             roster-tally, assets, additional-logos
 ```
+
+## Rosters: versions, imports, sign-off
+
+Decided by Keenan 2026-10-15. Design notes live in the file headers named here.
+
+- **An order has rosters, not a roster.** Roster 1, Roster 2… (`Order.rosters`,
+  `RosterEntry.rosterId`); exactly one is in use (`activeRosterId`). The share
+  sheet, the factory sheet, the totals, the tally and every CSV read only the
+  roster in use (`activeRows`, applied inside both stores). Every accepted import
+  and every accepted team submission becomes its OWN new roster and goes in use;
+  nothing is merged and the previous roster is kept until Keenan deletes it. The
+  one in use can't be deleted. Numbers are never reused: `rosterNumbersUsed`
+  keeps a deleted Roster 3 retired.
+- **The roster table saves into the roster the page loaded, and only that one.**
+  `saveRoster(orderId, rows, rosterId)` → `replaceRoster` refuses if another
+  roster went in use meanwhile ("Reload the page"), rather than writing one
+  roster's rows into another. The form reloads after any switch or import.
+- **Importing a file (Keenan's importer, and the team's form):**
+  READ — CSV, Excel, a Word table, a web page saved as .xls are read by code,
+  cell for cell; the AI never retypes a spreadsheet cell. A PDF, a photo or a
+  document with no table is transcribed by AI TWICE, independently (by rows,
+  then by columns) and `reconcile` compares them cell by cell: agreement is
+  kept, any difference becomes a question showing both readings. No two
+  readings with the same shape → nothing is filled in.
+  MAP — each column needs its heading rules and the AI to agree, or a person
+  picks. A bare "Size" column is always asked (jersey/sock/pant is exactly the
+  mix-up this exists to stop), except the one size column on a jerseys-only order.
+  CHECK — `buildImport` is deterministic and runs again on the server at Accept
+  (`acceptRosterImport`, after `cleanAnalysis`/`cleanDecisions`); it refuses
+  while anything is open. Sizes go through the fixed table in `sizes.ts`; a
+  bare S/M/L (youth or adult?), a goalie with no goalie cut, a number size are
+  questions, never guesses. Suggestions are shown, never applied.
+- **The AI.** `ai.ts` is the only file that calls the API: plain `fetch`,
+  forced tool use, temperature 0, file content treated as data (the system
+  prompt says so). `ANTHROPIC_API_KEY` is server-only — never `NEXT_PUBLIC_`.
+  `ROSTER_AI_MODEL` overrides the model (default `claude-opus-5-5`);
+  `ANTHROPIC_BASE_URL` is the standard endpoint override. Without a key,
+  spreadsheets still import on the heading rules alone (more questions), and a
+  PDF or photo says it needs the AI. The order context sent with a file is
+  counts only (`aiContextOf`) — no money, no contact details.
+- **Two read routes, both `maxDuration = 60`** (read.ts keeps a time budget
+  inside that): `/api/orders/[id]/roster-read` (staff) and
+  `/api/roster-read/[token]` (public: the roster token, link on and not locked,
+  `ROSTER_READS_PER_DAY` per order, bytes only — a public caller can never
+  point the server at a stored file). Photos are shrunk in the browser for
+  READING only (`readableCopy`); the file kept is the original.
+- **The team's form converts their file into rows for them to check.** Only
+  three things are asked first (an uncertain column, which part of a full name,
+  youth or adult letters); everything else uncertain is left blank and marked
+  on the row. The submission records `convertedFrom`. The form starts from the
+  roster in use when they have no submission waiting, because what they send
+  becomes the roster.
+- **Sign-off needs a roster, and its own tick.** No rows → no Approve button.
+  The roster box (`ROSTER_VERIFICATION_STATEMENT`) is separate from the terms
+  box and checked again on the server; `ApprovalRecord.roster` keeps which
+  roster, how many players and a fingerprint, and the order page warns when
+  the roster in use no longer matches what they checked
+  (`rosterChangedSinceSignOff`).
+
+## Pictures are shown whole
+
+Keenan, 2026-10-15: no photo is ever shrunk into a thumbnail you have to click
+to see all of it. Every uploaded picture renders through `FilePreview` (or the
+gallery tile, same rule): the whole image, its own proportions, as wide as it
+really is up to the width of its space — scaled down to fit, never cropped,
+never boxed, never blown up. No `object-cover` on a photo. Non-image files (AI,
+EPS, PDF) keep their format badge.
 
 ## Conventions
 

@@ -176,33 +176,37 @@ function Tile({
         className="block"
       >
       {/*
-       * Fixed height, not an aspect ratio.
+       * The whole picture, at its own shape and its own size.
        *
-       * The tracks stretch to fill the row (see Grid), so a group holding one
-       * file gets one very wide tile — and a square one would then be a metre
-       * tall. A fixed height keeps every tile the same size down the page
-       * whether its group has one file or nine, and `object-contain` centres
-       * the artwork inside it at whatever shape it really is.
+       * Keenan's rule (2026-10-15): nobody should have to click a photo to see
+       * all of it. So there's no fixed box: the image is as wide as it really
+       * is, up to the width of its tile, and as tall as that makes it. A big
+       * one is scaled down to fit (proportions kept); a small crest is never
+       * blown up past its own pixels. It used to sit in a fixed-height box,
+       * which shrank every tall reference shot to a sliver.
+       *
+       * A file a browser can't draw (.ai, .eps) has no picture, so it keeps a
+       * card with its format on it.
        */}
-      <div
-        className={`relative flex items-center justify-center overflow-hidden bg-[repeating-conic-gradient(#ffffff0d_0_25%,transparent_0_50%)] bg-[length:16px_16px] ${
-          hero ? 'h-80 sm:h-[28rem] xl:h-[34rem]' : 'h-44 sm:h-52 xl:h-60'
-        }`}
-      >
-        {/* Behind the image, so a file that never paints shows this instead. */}
-        <span className="absolute text-sm font-bold tracking-wide text-muted">
-          {extensionOf(asset.fileName, asset.viewUrl)}
-        </span>
-        {image && (
-          // eslint-disable-next-line @next/next/no-img-element
+      {image ? (
+        // min-h keeps a tile's place while a lazy image is still on its way;
+        // once it's in, the tile is as tall as the picture.
+        <div className="flex min-h-24 items-center justify-center bg-[repeating-conic-gradient(#ffffff0d_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={shownUrl}
-            alt={title}
+            alt={`${title} (${extensionOf(asset.fileName, asset.viewUrl)})`}
             loading="lazy"
-            className="relative max-h-full max-w-full object-contain p-2 transition group-hover:scale-[1.03]"
+            className="block h-auto max-w-full"
           />
-        )}
         </div>
+      ) : (
+        <div className={`flex items-center justify-center bg-surface-2 ${hero ? 'h-48' : 'h-32'}`}>
+          <span className="text-sm font-bold tracking-wide text-muted">
+            {extensionOf(asset.fileName, asset.viewUrl)}
+          </span>
+        </div>
+      )}
       </a>
 
       <div className="border-t border-line/60 px-3 py-2">
@@ -283,7 +287,8 @@ function Grid({
 }) {
   return (
     <div
-      className="grid gap-4"
+      // Tiles keep their own heights: each picture is as tall as it is.
+      className="grid items-start gap-4"
       style={{
         // A hero group is one image across the full width; everything else
         // packs as many ~17rem tiles into the row as fit.

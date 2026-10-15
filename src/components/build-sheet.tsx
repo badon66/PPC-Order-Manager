@@ -319,7 +319,7 @@ export function RosterSection({
     orderIncludesPantShells(sheet) || sheet.roster.some((r) => (r.pantShellSize ?? '').trim() !== '');
 
   return (
-    <Section title={title}>
+    <Section title={title} id="roster">
       {/*
         * The sizes, counted, before the rows. "How many larges?" is what the
         * factory asks and what a manager checks their list against, and

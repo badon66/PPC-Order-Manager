@@ -60,6 +60,7 @@ function players(
     notes: '',
     sortOrder: i,
     fromSubmissionId: '',
+    rosterId: '',
   }));
 }
 

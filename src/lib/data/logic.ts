@@ -1,10 +1,11 @@
 import type { CalendarDate } from '@/lib/dates';
 import type {
-  ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, SubmissionChange, SubmittedContact,
+  ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, RosterVersion, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
 import { STATUS_META, awaitingFinish, captaincyLabel } from '@/lib/constants';
 import { nextHomeAwayClaims } from '@/lib/roster-edit';
+import { planNewRoster, rosterLabel } from '@/lib/roster-versions';
 import {
   approvalOpen, extraRowCount, newId, orderIncludesPantShells, orderIncludesSocks, rosterSlotCount,
 } from '@/lib/order-utils';
@@ -69,6 +70,10 @@ export function healOrder(o: Order): Order {
   o.requestApproval ??= false;
   o.extraJerseyDetails ??= [];
   o.keeperJerseys ??= [];
+  o.rosters ??= [];
+  o.activeRosterId ??= '';
+  o.rosterNumbersUsed ??= o.rosters.reduce((m, v) => Math.max(m, v.number), 0);
+  o.rosterReads ??= [];
   o.factoryNotes ??= '';
   o.brandingNotes ??= '';
   // Not minted here: a heal runs on every read and isn't persisted, so a token
@@ -114,6 +119,8 @@ export function healRosterEntry(r: RosterEntry): RosterEntry {
   // the first replacing accept after this ships can't delete work he typed.
   r.fromSubmissionId ??= '';
   r.noName ??= false;
+  // Rows from before an order could hold more than one roster belong to the original one.
+  r.rosterId ??= '';
   return r;
 }
 
@@ -131,7 +138,8 @@ export function healSettings(s: Partial<AppSettings> | null | undefined): AppSet
  * ------------------------------------------------------------------ */
 
 /** Fields not worth a history line of their own — noise. */
-const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'factoryToken', 'sets', 'customerEmails']);
+// Roster list changes write their own history lines (see the roster actions); the raw JSON diff would be noise.
+const UNLOGGED = new Set(['updatedAt', 'createdAt', 'id', 'shareToken', 'rosterToken', 'factoryToken', 'sets', 'customerEmails', 'rosters', 'activeRosterId', 'rosterNumbersUsed', 'rosterReads']);
 
 export function diffFields(
   before: Order,
@@ -403,7 +411,9 @@ export function submissionLogEntries(
 
   if (created.revision === 1) {
     const parts: string[] = [];
-    if (created.players.length) parts.push(`${created.players.length} player(s)`);
+    if (created.players.length) {
+      parts.push(`${created.players.length} player(s)${created.convertedFrom ? ` (converted from ${created.convertedFrom.fileName || 'their file'} and checked by them)` : ''}`);
+    }
     if (created.rosterFiles.length) parts.push(`${created.rosterFiles.length} roster file(s)`);
     if (created.rosterAnswer === 'later') parts.push('roster not ready yet');
     if (created.logos.length) parts.push(`${created.logos.length} logo(s)`);
@@ -447,14 +457,12 @@ export function submissionLogEntries(
 /**
  * What accepting a submission produces.
  *
- *  players      → REPLACES the rows a previous submission put on the roster,
- *                 and leaves every hand-made row alone. The form prefills
- *                 from the last submission, so a team correcting two sizes
- *                 sends back the whole roster — appending it made 20 players
- *                 into 40, then 60. Provenance lives on the row
- *                 (`fromSubmissionId`) rather than being guessed by matching
- *                 names, because two kids called J. Smith is a real roster
- *                 and a name match is not an identity.
+ *  players      → a NEW roster of their own (Roster N), put in use. The
+ *                 previous roster is kept exactly as it was — nothing Keenan
+ *                 typed is overwritten by a team's resend, and he deletes the
+ *                 rosters he doesn't need. (It used to replace the rows of the
+ *                 previous submission inside one roster; "a separate roster
+ *                 per upload" is Keenan's call, 2026-10-15.)
  *  logos        → additional_logo assets, one group per submitted logo
  *  inspiration  → design_reference assets
  *  contact      → only the fields the customer actually filled in, so a partial
@@ -464,9 +472,10 @@ export function submissionLogEntries(
  * the submission itself is kept, marked accepted.
  */
 export interface AcceptancePlan {
+  /** Rows of the new roster, already stamped with its id. Empty when the submission has no players. */
   roster: RosterEntry[];
-  /** Rows a previous submission created, to delete as this one supersedes them. */
-  removeRosterIds: string[];
+  /** The roster those rows make, when there are any. */
+  newRoster: RosterVersion | null;
   assets: OrderAsset[];
   orderPatch: Partial<Order>;
   summary: string;
@@ -475,63 +484,59 @@ export interface AcceptancePlan {
 export function planAcceptance(
   submission: ClientRosterSubmission,
   order: Order,
-  /**
-   * The rows already on the order — not just how many.
-   *
-   * The count was enough when every accepted player claimed one of
-   * everything. Now that a row only claims what the order still has left, the
-   * quantities already assigned have to be known, or accepting a second
-   * submission would start its budget over.
-   */
+  /** Every roster row on the order, all rosters — needed to number the new roster. */
   existingRoster: RosterEntry[],
   existingAssets: OrderAsset[],
+  now: string = new Date().toISOString(),
 ): AcceptancePlan {
   const parts: string[] = [];
   const roster: RosterEntry[] = [];
-  /*
-   * Only a submission that actually carries the roster section may clear it.
-   * A logos-only submission must not empty the team sheet.
-   */
-  const replacesRoster = submission.sections.roster === true;
-  const superseded = replacesRoster
-    ? existingRoster.filter((r) => r.fromSubmissionId)
-    : [];
-  const supersededIds = new Set(superseded.map((r) => r.id));
-  /* Hand-typed and CSV-imported rows survive, and still hold their budget. */
-  const keptRoster = existingRoster.filter((r) => !supersededIds.has(r.id));
   const assets: OrderAsset[] = [];
   const orderPatch: Partial<Order> = {};
+  let newRoster: RosterVersion | null = null;
 
   const homeAway = order.orderMode === 'home_away_set';
-  let sortOrder = keptRoster.length;
+  let sortOrder = 0;
 
   /*
-   * Budgets, so accepting a submission can't over-assign.
+   * Budgets, so a new roster can't over-assign what was ordered.
    *
-   * Counted down across the whole batch: twelve pairs of socks against fifteen
-   * accepted players gives the first twelve a pair and the rest none. Started
-   * from what the order declares minus what the existing roster already holds,
-   * so accepting a second submission doesn't reset the count.
+   * Counted down across the batch: twelve pairs of socks against fifteen
+   * players gives the first twelve a pair and the rest none. The new roster
+   * stands on its own, so it starts from what the order declares — not from
+   * what an older roster happens to hold.
    */
   const declared = (pick: (s: Order['sets'][number]) => number) =>
     order.sets.reduce((n, x) => n + (pick(x) || 0), 0);
 
-  const assigned = (pick: (r: RosterEntry) => number) =>
-    keptRoster.reduce((n, r) => n + (pick(r) || 0), 0);
-
-  let jerseyBudget =
-    declared((x) => (x.playerJerseys || 0) + (x.goalieJerseys || 0)) -
-    assigned((r) => r.jerseysPerPlayer);
-  let sockBudget = declared((x) => x.sockPairs || 0) - assigned((r) => r.socksPerPlayer);
-  let shellBudget = declared((x) => x.pantShells || 0) - assigned((r) => r.shellsPerPlayer);
+  let jerseyBudget = declared((x) => (x.playerJerseys || 0) + (x.goalieJerseys || 0));
+  let sockBudget = declared((x) => x.sockPairs || 0);
+  let shellBudget = declared((x) => x.pantShells || 0);
 
   // Home/away sock ticks are budgeted per set against what this batch has
   // already placed, same as the table does for a hand-added row.
-  const ticks = () => nextHomeAwayClaims(order.sets, [...keptRoster, ...roster]);
+  const ticks = () => nextHomeAwayClaims(order.sets, roster);
 
   const takeJersey = () => jerseyBudget-- > 0;
   const takeSocks = () => sockBudget-- > 0;
   const takeShells = () => shellBudget-- > 0;
+
+  if (submission.players.length) {
+    const fromFile = submission.convertedFrom?.fileName ?? '';
+    const plan = planNewRoster(order, existingRoster, {
+      source: 'submission',
+      fileName: fromFile,
+      fileUrl: submission.convertedFrom?.fileUrl ?? '',
+      submissionId: submission.id,
+      note: fromFile
+        ? `Sent by the team (revision ${submission.revision}), converted from ${fromFile} and checked by them`
+        : `Sent by the team (revision ${submission.revision})`,
+    }, { newId: newId(), now });
+    newRoster = plan.version;
+    orderPatch.rosters = plan.rosters;
+    orderPatch.activeRosterId = plan.activeRosterId;
+    orderPatch.rosterNumbersUsed = plan.numbersUsed;
+  }
 
   for (const p of submission.players) {
     roster.push({
@@ -561,9 +566,7 @@ export function planAcceptance(
       socksPerPlayer: takeSocks() ? 1 : 0,
       shellsPerPlayer: takeShells() ? 1 : 0,
       // In home/away mode a submitted player is assumed to get one of each;
-      // Keenan can un-tick in the roster table.
-      // Away socks used to be left unticked here, so every accepted roster
-      // needed a pass down that column by hand. Same per-set rule as a row
+      // Keenan can un-tick in the roster table. Same per-set rule as a row
       // added in the table: ticked while that set still has quantity.
       homeJersey: homeAway && !p.sockOnly ? 1 : 0,
       awayJersey: homeAway && !p.sockOnly ? 1 : 0,
@@ -573,20 +576,17 @@ export function planAcceptance(
       notes: p.notes,
       sortOrder: sortOrder++,
       fromSubmissionId: submission.id,
+      rosterId: newRoster?.id ?? '',
     });
   }
-  if (submission.players.length || superseded.length) {
-    parts.push(
-      superseded.length
-        ? `roster replaced: ${superseded.length} player(s) out, ${submission.players.length} in`
-        : `${submission.players.length} player(s) added to roster`,
-    );
+  if (newRoster) {
+    parts.push(`${submission.players.length} player(s) as ${rosterLabel(newRoster)}, now in use (the previous roster is kept)`);
   }
-  // A roster file is never merged: nobody's name goes on a jersey off a
-  // spreadsheet we haven't read. It stays on the submission and under Player
-  // Roster on the order page for Keenan to type up (a CSV imports straight in).
+  // A roster file that wasn't converted is never merged: nobody's name goes on
+  // a jersey off a file nobody checked. It stays on the submission and under
+  // Player Roster on the order page, where Keenan can import it.
   if (submission.rosterFiles?.length) {
-    parts.push(`${submission.rosterFiles.length} roster file(s) kept for typing up`);
+    parts.push(`${submission.rosterFiles.length} roster file(s) kept for importing`);
   }
 
   const logoSlots = existingAssets.filter((a) => a.role === 'additional_logo').length;
@@ -650,11 +650,32 @@ export function planAcceptance(
 
   return {
     roster,
-    removeRosterIds: superseded.map((r) => r.id),
+    newRoster,
     assets,
     orderPatch,
     summary: `Accepted client submission: ${parts.length ? parts.join('; ') : 'nothing to add'}`,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * AI readings of a team's roster file
+ * ------------------------------------------------------------------ */
+
+/**
+ * How many times a day a team's form may have its roster file read by AI.
+ *
+ * The form is public (the roster link is the only credential) and a reading
+ * costs money, so a stuck refresh loop or a curious forward can't run it up.
+ * Six is far more than a real team needs: one upload, maybe a corrected one.
+ * Keenan's own imports don't count.
+ */
+export const ROSTER_READS_PER_DAY = 6;
+
+export function planRosterRead(reads: string[], now: string): { allowed: boolean; reads: string[] } {
+  const cutoff = Date.parse(now) - 24 * 60 * 60 * 1000;
+  const recent = (reads ?? []).filter((x) => Date.parse(x) > cutoff);
+  if (recent.length >= ROSTER_READS_PER_DAY) return { allowed: false, reads: reads ?? [] };
+  return { allowed: true, reads: [...recent, now].slice(-20) };
 }
 
 /* ------------------------------------------------------------------ *

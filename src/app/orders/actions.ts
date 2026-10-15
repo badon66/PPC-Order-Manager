@@ -9,6 +9,11 @@ import { ORDER_STATUSES } from '@/lib/types';
 import type { Order, OrderAsset, OrderStatus, RosterEntry, ViewableAsset } from '@/lib/types';
 import { setsForMode } from '@/lib/order-utils';
 import { resolveFileUrl } from '@/lib/storage';
+import { buildImport, toRosterEntries } from '@/lib/roster-import/build';
+import { importContextOf } from '@/lib/roster-import/analyze';
+import { cleanAnalysis, cleanDecisions } from '@/lib/roster-import/validate';
+import { readByAi } from '@/lib/roster-import/types';
+import { rosterLabel } from '@/lib/roster-versions';
 
 /**
  * Every mutation goes through a server action. Authorization is checked here,
@@ -221,12 +226,109 @@ export async function saveOrder(
     : { ok: true, warnings };
 }
 
-export async function saveRoster(orderId: string, entries: RosterEntry[]): Promise<SaveResult> {
+/**
+ * Save the roster table. `rosterId` is the roster the form loaded: if another
+ * one has been put in use since (another tab, the order page), the save is
+ * refused rather than written over the roster now in use.
+ */
+export async function saveRoster(orderId: string, entries: RosterEntry[], rosterId?: string): Promise<SaveResult> {
   await requireRole('staff');
   const actor = await currentActor();
-  await repo.replaceRoster(orderId, entries, actor);
+  try {
+    await repo.replaceRoster(orderId, entries, actor, rosterId);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
   revalidatePath(`/orders/${orderId}`);
   revalidatePath('/orders');
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * Rosters: import, switch, delete
+ * ------------------------------------------------------------------ */
+
+export type ImportAcceptResult = { ok: true; label: string } | { ok: false; error: string };
+
+/**
+ * Accept a previewed import: it becomes the next roster and goes in use.
+ *
+ * The screen's rows are not trusted. The analysis and the decisions come back
+ * from the browser, are checked field by field, and `buildImport` runs again
+ * here; if anything is still open, nothing is written. The previous roster is
+ * kept as it was.
+ */
+export async function acceptRosterImport(orderId: string, analysis: unknown, decisions: unknown): Promise<ImportAcceptResult> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  const a = cleanAnalysis(analysis);
+  if (!a) return { ok: false, error: 'The preview was damaged on the way. Read the file again.' };
+  const d = cleanDecisions(decisions, a);
+  const bundle = await repo.getOrder(orderId);
+  if (!bundle) return { ok: false, error: 'Order not found.' };
+
+  const ctx = importContextOf(bundle.order);
+  const result = buildImport(a, d, ctx);
+  if (!result.ready) {
+    return {
+      ok: false,
+      error: result.rows.length === 0
+        ? 'There are no players to add.'
+        : result.counts.block > 0
+          ? 'There are still questions to answer on the preview.'
+          : 'Tick the things to check on the preview first.',
+    };
+  }
+
+  const entries = toRosterEntries(result, ctx, orderId, '');
+  try {
+    const version = await repo.createRoster(
+      orderId,
+      {
+        source: 'import',
+        fileName: a.fileName,
+        fileUrl: a.fileUrl,
+        submissionId: '',
+        note: `Imported from ${a.fileName || 'a file'}${readByAi(a.kind) ? ' (read by AI twice and compared)' : ''}`,
+      },
+      entries,
+      actor,
+    );
+    revalidatePath(`/orders/${orderId}`);
+    revalidatePath(`/orders/${orderId}/edit`);
+    revalidatePath('/orders');
+    return { ok: true, label: rosterLabel(version) };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** Put another roster in use. The one it replaces is kept. */
+export async function putRosterInUse(orderId: string, rosterId: string): Promise<SaveResult> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  try {
+    await repo.useRoster(orderId, rosterId, actor);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath(`/orders/${orderId}/edit`);
+  revalidatePath('/orders');
+  return { ok: true };
+}
+
+/** Delete a roster that isn't in use, rows and all. */
+export async function deleteRosterVersion(orderId: string, rosterId: string): Promise<SaveResult> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  try {
+    await repo.deleteRoster(orderId, rosterId, actor);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath(`/orders/${orderId}/edit`);
   return { ok: true };
 }
 

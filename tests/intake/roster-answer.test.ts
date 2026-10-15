@@ -101,7 +101,8 @@ test('accepting keeps a roster file on the submission and says so, adding nobody
   const plan = planAcceptance(stored({ rosterAnswer: 'file', rosterFiles: [file] }), blankOrder(), [], []);
   assert.deepEqual(plan.roster, []);
   assert.deepEqual(plan.assets, []);
-  assert.match(plan.summary, /1 roster file\(s\) kept for typing up/);
+  // The file is imported from the order page now, rather than typed up by hand.
+  assert.match(plan.summary, /1 roster file\(s\) kept for importing/);
 });
 
 test('an order without socks keeps no socks-only rows and no spare sock sizes', () => {
