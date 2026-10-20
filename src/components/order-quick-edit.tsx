@@ -40,6 +40,7 @@ export type QuickEditOrder = Pick<
   | 'estimatedFinishDate' | 'completedAt' | 'createdAt' | 'sentToFactoryAt'
   | 'jerseyTier' | 'jerseyType' | 'sockType' | 'pantShellType' | 'sets' | 'orderMode'
   | 'stitchedSublimatedLogos' | 'shoulderCut' | 'hasCaptainPatches' | 'captainCQuantity' | 'captainAQuantity'
+  | 'captainAwayCQuantity' | 'captainAwayAQuantity'
   | 'multiPanelSocks' | 'customerEmails' | 'paymentsReceived' | 'contactEmail'
 >;
 

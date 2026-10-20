@@ -27,6 +27,12 @@ export interface AssetGroupProps {
    * says which is which without anyone typing it.
    */
   slotLabels?: readonly string[];
+  /**
+   * Only the files of one group within the role — one custom branding logo
+   * among several. New uploads get this groupId. `includeUngrouped` also
+   * claims files from before groups existed (the first logo does).
+   */
+  group?: { id: string; includeUngrouped?: boolean };
   assets: ViewableAsset[];
   notes?: string;
   onNotesChange?: (v: string) => void;
@@ -109,13 +115,16 @@ export function AssetGroup({
   hint,
   max: baseMax = MAX_FILES_PER_REFERENCE_GROUP,
   slotLabels,
+  group,
   assets,
   notes,
   onNotesChange,
   onAdd,
   onRemove,
 }: AssetGroupProps) {
-  const mine = assets.filter((a) => a.role === role).sort((a, b) => a.slot - b.slot);
+  const mine = assets
+    .filter((a) => a.role === role && (!group || a.groupId === group.id || (group.includeUngrouped && !a.groupId)))
+    .sort((a, b) => a.slot - b.slot);
   const { max, stretched, stretch } = useStretchableMax(baseMax, mine.length);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +149,7 @@ export function AssetGroup({
           fileName: stored.fileName,
           displayName: slotLabels?.[slot] ?? '',
           notes: '',
+          ...(group ? { groupId: group.id } : {}),
         });
         slot++;
       }

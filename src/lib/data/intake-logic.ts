@@ -93,6 +93,7 @@ export function parseIntake(body: unknown): ParseResult {
  */
 export function tierFromStyle(style: string): { jerseyTier: JerseyTier; jerseyType: JerseyType } | null {
   const s = style.toLowerCase();
+  if (/\bhybrid\b/.test(s)) return { jerseyTier: 'hybrid', jerseyType: 'sublimated' };
   if (/\breversible\b/.test(s)) return { jerseyTier: 'reversible', jerseyType: 'reversible_sublimated' };
   if (/\belite\b/.test(s)) return { jerseyTier: 'elite', jerseyType: 'embroidered' };
   if (/\blite\b/.test(s)) return { jerseyTier: 'lite', jerseyType: 'sublimated' };

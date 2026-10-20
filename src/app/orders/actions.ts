@@ -140,7 +140,8 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
    */
   'productionStartDate', 'productionFinishDate',
   'extraJerseyDetails', 'requestApproval',
-  'customBranding', 'customBrandingNotes', 'sectionComments',
+  'customBranding', 'customBrandingNotes', 'customBrandingItems', 'sectionComments',
+  'captainAwayCQuantity', 'captainAwayAQuantity',
 ];
 
 /**

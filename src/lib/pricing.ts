@@ -1,5 +1,5 @@
 import type { JerseyTier, Order, PantShellType, SockType } from './types';
-import { computeTotals } from './order-utils';
+import { buildsDiffer, captainCounts, computeTotals, setBuilds } from './order-utils';
 
 /**
  * Pricing. KEENAN ONLY — see the money rule in CLAUDE.md.
@@ -19,6 +19,10 @@ import { computeTotals } from './order-utils';
 export const JERSEY_LIST_PRICE: Record<JerseyTier, number> = {
   lite: 75,
   premier: 95,
+  // Hybrid = Premier + stitched-on logos. The logos are priced by their own
+  // line below ($20 a jersey, as on any sublimated build), so the jersey
+  // itself is Premier's price: $115 all in.
+  hybrid: 95,
   reversible: 130, // reference flags this as unsettled: quoted at 120 twice
   elite: 120,
   pro: 140,
@@ -71,6 +75,7 @@ type Priceable = Pick<
   Order,
   | 'jerseyTier' | 'jerseyType' | 'sockType' | 'pantShellType' | 'sets' | 'orderMode'
   | 'stitchedSublimatedLogos' | 'shoulderCut' | 'hasCaptainPatches' | 'captainCQuantity' | 'captainAQuantity'
+  | 'captainAwayCQuantity' | 'captainAwayAQuantity'
   | 'multiPanelSocks'
 >;
 
@@ -83,25 +88,50 @@ export function listPrice(order: Priceable): Pricing | null {
   const jerseys = t.totalJerseys;
   const players = order.sets.reduce((m, s) => Math.max(m, (s.playerJerseys || 0) + (s.goalieJerseys || 0)), 0);
 
-  let jerseyUnit = JERSEY_LIST_PRICE[order.jerseyTier];
-  if (jerseys > 0 && jerseys < SMALL_ORDER_THRESHOLD) {
-    jerseyUnit = Math.round(jerseyUnit * SMALL_ORDER_MULTIPLIER);
-    caveats.push(`Under ${SMALL_ORDER_THRESHOLD} jerseys: +50% each, and shipping isn't free.`);
-  }
-  if (jerseys > 0) {
-    lines.push({ label: `${tierLabel(order.jerseyTier)} jerseys`, qty: jerseys, unit: jerseyUnit, amount: jerseys * jerseyUnit });
+  const small = jerseys > 0 && jerseys < SMALL_ORDER_THRESHOLD;
+  if (small) caveats.push(`Under ${SMALL_ORDER_THRESHOLD} jerseys: +50% each, and shipping isn't free.`);
+  const unitOf = (tier: JerseyTier) =>
+    small ? Math.round(JERSEY_LIST_PRICE[tier] * SMALL_ORDER_MULTIPLIER) : JERSEY_LIST_PRICE[tier];
+
+  /*
+   * One build, one line, as always. Sets built differently (home embroidered,
+   * away sublimated) are priced set by set at each set's own tier.
+   */
+  const builds = setBuilds(order);
+  const perSet = order.sets.map((s, i) => ({
+    build: builds[i],
+    jerseys: (s.playerJerseys || 0) + (s.goalieJerseys || 0) + (s.extraJerseys || 0),
+  }));
+  const differ = buildsDiffer(order) && perSet.reduce((n, p) => n + p.jerseys, 0) === jerseys;
+  const groups = differ
+    ? perSet.filter((p) => p.jerseys > 0)
+    : [{ build: { label: '', jerseyType: order.jerseyType, jerseyTier: order.jerseyTier }, jerseys }];
+
+  for (const g of groups) {
+    if (g.jerseys <= 0) continue;
+    const tier = g.build.jerseyTier;
+    if (!tier) {
+      caveats.push(`${g.build.label || 'A set'} has no build tier yet, so its ${g.jerseys} jerseys aren't priced.`);
+      continue;
+    }
+    const unit = unitOf(tier);
+    const label = differ ? `${tierLabel(tier)} jerseys (${g.build.label})` : `${tierLabel(tier)} jerseys`;
+    lines.push({ label, qty: g.jerseys, unit, amount: g.jerseys * unit });
   }
 
-  if (jerseys > 0 && order.stitchedSublimatedLogos && order.jerseyType !== 'embroidered') {
-    lines.push({ label: 'Stitched twill logos (sublimated body)', qty: jerseys, unit: STITCHED_ON_SUBLIMATED_PER_JERSEY, amount: jerseys * STITCHED_ON_SUBLIMATED_PER_JERSEY });
+  const sublimatedJerseys = groups.filter((g) => g.build.jerseyType !== 'embroidered').reduce((n, g) => n + g.jerseys, 0);
+  if (sublimatedJerseys > 0 && order.stitchedSublimatedLogos) {
+    lines.push({ label: 'Stitched twill logos (sublimated body)', qty: sublimatedJerseys, unit: STITCHED_ON_SUBLIMATED_PER_JERSEY, amount: sublimatedJerseys * STITCHED_ON_SUBLIMATED_PER_JERSEY });
   }
-  if (jerseys > 0 && order.jerseyTier === 'elite' && order.shoulderCut === 'rounded') {
-    lines.push({ label: 'Rounded shoulders on Elite', qty: jerseys, unit: ROUNDED_SHOULDERS_ON_ELITE, amount: jerseys * ROUNDED_SHOULDERS_ON_ELITE });
+  const eliteJerseys = groups.filter((g) => g.build.jerseyTier === 'elite').reduce((n, g) => n + g.jerseys, 0);
+  if (eliteJerseys > 0 && order.shoulderCut === 'rounded') {
+    lines.push({ label: 'Rounded shoulders on Elite', qty: eliteJerseys, unit: ROUNDED_SHOULDERS_ON_ELITE, amount: eliteJerseys * ROUNDED_SHOULDERS_ON_ELITE });
   }
-  if (order.hasCaptainPatches && (order.captainCQuantity || order.captainAQuantity)) {
-    const sets = Math.max(
-      Math.ceil((order.captainCQuantity || 0) / CAPTAIN_SET_C),
-      Math.ceil((order.captainAQuantity || 0) / CAPTAIN_SET_A),
+  if (order.hasCaptainPatches) {
+    // Home and away are separate designs, so each is counted in its own sets.
+    const sets = captainCounts(order).reduce(
+      (n, k) => n + Math.max(Math.ceil(k.c / CAPTAIN_SET_C), Math.ceil(k.a / CAPTAIN_SET_A)),
+      0,
     );
     if (sets > 0) lines.push({ label: "C's and A's, stitched (1 C + 3 A per set)", qty: sets, unit: CAPTAIN_SET_PRICE, amount: sets * CAPTAIN_SET_PRICE });
   }
@@ -121,7 +151,7 @@ export function listPrice(order: Priceable): Pricing | null {
     lines.push({ label: 'Team bundle (jerseys + socks + shells)', qty: players, unit: -BUNDLE_SAVING_PER_PLAYER, amount: -players * BUNDLE_SAVING_PER_PLAYER });
   }
 
-  if (order.jerseyTier === 'reversible') caveats.push('Reversible has been quoted at both $120 and $130; this uses $130.');
+  if (groups.some((g) => g.build.jerseyTier === 'reversible')) caveats.push('Reversible has been quoted at both $120 and $130; this uses $130.');
   caveats.push('Before GST and card fees. Sponsorship upgrades, vectorizing, extra graphics and samples are not included.');
 
   return { lines, total: lines.reduce((n, l) => n + l.amount, 0), caveats };

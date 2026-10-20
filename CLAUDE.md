@@ -69,11 +69,27 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   comments; `publicViewOf` and `factoryViewOf` each add their own via
   `sheetComments(o, audiences)`, and the build-sheet sections show them at the
   top (`SectionComments`). Never fill comments in `buildSheetOf`.
-- **Custom branding** (`customBranding`, `customBrandingNotes`, asset roles
-  `custom_branding_logo` + `custom_branding_placement`) sits in the Powerplay
-  Branding section: the extra (sponsor) logo and where it goes, shown side by
-  side with the branding on both sheets and kept out of the logo gallery
-  (`CUSTOM_BRANDING_ROLES`). Tier presets never touch it.
+- **Custom branding** sits in the Powerplay Branding section: `customBranding`
+  (the switch) and `customBrandingItems` — any number of logos, each with a
+  name, notes and two files (asset roles `custom_branding_logo` +
+  `custom_branding_placement`, matched to the logo by `groupId`; files from
+  before there could be several have no groupId and belong to the first —
+  `customBrandingFiles`). `customBrandingNotes` is the old single description,
+  healed into the first item. Shown with the branding on both sheets
+  (`CustomBrandingList`), kept out of the logo gallery (`CUSTOM_BRANDING_ROLES`).
+  Tier presets never touch it.
+- **Sets can be different builds** (Keenan, 2026-10-20). The order's
+  `jerseyType`/`jerseyTier` are the FIRST set's; a later set carries its own
+  `jerseyType`/`jerseyTier` only when it differs. Read builds through
+  `setBuilds` / `buildsDiffer` / `jerseyTypesInUse` (order-utils), never
+  `order.jerseyType` alone: pricing goes set by set, add-ons are offered for
+  every type in use, the sheets list each set's build (`SetBuildsList`).
+- **Hybrid** is a sublimated tier: Premier's add-ons plus stitched-on logos
+  (`alsoOn` in TIER_DEFS — turned on by the preset, never turned off by the
+  others). Priced as Premier + the $20 stitched-logo line.
+- **Home/away captain patches are two designs**: `captainC/AQuantity` is the
+  home set's and `captainAwayC/AQuantity` the away set's on a home/away order;
+  read them through `captainCounts`. Priced in sets per design.
 - **Pictures are two to a row** (2026-10-20) in the artwork galleries and the
   form's upload groups — still whole, scaled to their half.
 - **Two note boxes, two readers.** `specialNotes` is on the customer's sheet

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
+import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
+import { tiersForJerseyType } from '@/lib/constants';
 import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
@@ -316,7 +318,7 @@ export function OrderForm({
     { id: 'totals', title: 'Order Totals', icon: '🔢', blurb: 'How many of everything, per set.', complete: anyQty },
     { id: 'build', title: 'Build Type', icon: '👕', blurb: 'Sublimated, reversible, or embroidered — per item.', complete: draft.jerseyType !== null },
     { id: 'numbers', title: 'Numbers & Names', icon: '🔟', wide: true, blurb: 'Name style, number styling, and reference images.', complete: Boolean(draft.numberDetails) || assets.some((a) => a.role.startsWith('number_reference')) },
-    { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: buildAddonsForJerseyType(draft.jerseyType).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
+    { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: buildAddonsForJerseyType(jerseyTypesInUse(draft)).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
     { id: 'branding', title: 'Powerplay Branding', icon: '🏷️', blurb: 'Back label, rubberized crest, size tag, any changes to them — and custom branding like a sponsor logo.', complete: BRANDING_ADDONS.some(({ key }) => Boolean(draft[key as keyof Order])) || Boolean(draft.brandingNotes) || draft.customBranding },
     { id: 'artwork', title: 'Logos & Artwork', icon: '🎨', wide: true, blurb: 'Design references, crest, shoulder logos, sponsor logos, fonts.', complete: hasArtwork },
     ...(hasPantShells
@@ -707,10 +709,68 @@ export function OrderForm({
     build: (
       <>
         <ChoiceGroup<JerseyType>
-          label="Jersey Type" value={draft.jerseyType} allowClear
+          label={buildsDiffer(draft) ? `Jersey Type — ${draft.sets[0]?.label ?? 'first set'}` : 'Jersey Type'}
+          value={draft.jerseyType} allowClear
           onChange={(v) => set('jerseyType', v)}
           choices={(Object.keys(JERSEY_TYPE_LABELS) as JerseyType[]).map((v) => ({ value: v, label: JERSEY_TYPE_LABELS[v] }))}
         />
+        {/*
+          * Home and away aren't always the same build — home embroidered,
+          * away sublimated, or the other way round. The first set is the
+          * order's own type and tier (above, and the tier in Add-Ons); each
+          * later set can have its own. Priced set by set.
+          */}
+        {draft.sets.length > 1 && (
+          <div className="space-y-3 rounded-lg border border-line bg-surface-2 p-3">
+            <Toggle
+              label={draft.orderMode === 'home_away_set'
+                ? 'Home and away are different builds (e.g. one embroidered, one sublimated)'
+                : 'The sets are different builds'}
+              checked={buildsDiffer(draft)}
+              onChange={(on) => set('sets', draft.sets.map((s, i) => {
+                if (i === 0) return s;
+                if (on) return { ...s, jerseyType: s.jerseyType ?? draft.jerseyType ?? 'sublimated', jerseyTier: s.jerseyTier ?? null };
+                const { jerseyType: _t, jerseyTier: _r, ...rest } = s;
+                void _t; void _r;
+                return rest;
+              }))}
+            />
+            {buildsDiffer(draft) && draft.sets.slice(1).map((s, k) => {
+              const i = k + 1;
+              const type = s.jerseyType ?? draft.jerseyType;
+              const tiers = tiersForJerseyType(type ?? null);
+              const patchSet = (p: Partial<typeof s>) =>
+                set('sets', draft.sets.map((x, j) => (j === i ? { ...x, ...p } : x)));
+              return (
+                <div key={i} className="space-y-2 border-t border-line/60 pt-3">
+                  <ChoiceGroup<JerseyType>
+                    label={`Jersey Type — ${s.label}`} value={type ?? null}
+                    onChange={(v) => v && patchSet({
+                      jerseyType: v,
+                      // A tier from the other build can't stay.
+                      jerseyTier: tiersForJerseyType(v).some((t) => t.id === s.jerseyTier) ? s.jerseyTier : null,
+                    })}
+                    choices={(Object.keys(JERSEY_TYPE_LABELS) as JerseyType[]).map((v) => ({ value: v, label: JERSEY_TYPE_LABELS[v] }))}
+                  />
+                  {tiers.length > 0 && (
+                    <ChoiceGroup<JerseyTier>
+                      label={`Build Tier — ${s.label}`} value={s.jerseyTier ?? null} columns={3}
+                      onChange={(v) => patchSet({ jerseyTier: v })}
+                      choices={tiers.map((t) => ({ value: t.id, label: t.label }))}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {buildsDiffer(draft) && (
+              <p className="text-xs text-muted">
+                The {draft.sets[0]?.label ?? 'first set'}&apos;s tier is picked in{' '}
+                <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span>, and the
+                add-ons there apply to every set they fit.
+              </p>
+            )}
+          </div>
+        )}
         <ChoiceGroup<SockType>
           label="Sock Type" value={draft.sockType} allowClear
           onChange={(v) => set('sockType', v)}
@@ -722,10 +782,13 @@ export function OrderForm({
             <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span>.
           </p>
         )}
+        {/* Right here with the jersey and sock builds, whenever shells are on the order. */}
         {hasPantShells && (
-          <p className="text-xs text-muted">
-            Pant shell build is set in the <span className="font-semibold text-ppc-gold">Pants &amp; Pant Shells</span> section.
-          </p>
+          <ChoiceGroup<PantShellType>
+            label="Pant Shell Type" value={draft.pantShellType} allowClear columns={2}
+            onChange={(v) => set('pantShellType', v)}
+            choices={(Object.keys(PANT_SHELL_TYPE_LABELS) as PantShellType[]).map((v) => ({ value: v, label: PANT_SHELL_TYPE_LABELS[v] }))}
+          />
         )}
       </>
     ),
@@ -782,7 +845,7 @@ export function OrderForm({
         )}
         {/* Build add-ons only. The three Powerplay branding ones have their own section below. */}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {buildAddonsForJerseyType(draft.jerseyType).map((a) => (
+          {buildAddonsForJerseyType(jerseyTypesInUse(draft)).map((a) => (
             <div key={a.key}>
               <Toggle label={a.label} checked={Boolean(draft[a.key as keyof Order])} onChange={(v) => set(a.key as keyof Order, v as never)} />
               {addonHint(a) && <p className="mt-1 px-1 text-xs text-muted">{addonHint(a)}</p>}
@@ -806,14 +869,24 @@ export function OrderForm({
                 value: v, label: CAPTAIN_PATCH_STYLE_META[v].label, blurb: CAPTAIN_PATCH_STYLE_META[v].blurb,
               }))}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <NumberField label="Quantity of C's (Captain)" value={draft.captainCQuantity} onChange={(v) => set('captainCQuantity', v)} />
-              <NumberField label="Quantity of A's (Alternate)" value={draft.captainAQuantity} onChange={(v) => set('captainAQuantity', v)} />
-            </div>
+            {/* Home and away are different designs, so each set has its own count. */}
+            {draft.orderMode === 'home_away_set' ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <NumberField label="Home set — C's (Captain)" value={draft.captainCQuantity} onChange={(v) => set('captainCQuantity', v)} />
+                <NumberField label="Home set — A's (Alternate)" value={draft.captainAQuantity} onChange={(v) => set('captainAQuantity', v)} />
+                <NumberField label="Away set — C's (Captain)" value={draft.captainAwayCQuantity ?? 0} onChange={(v) => set('captainAwayCQuantity', v)} />
+                <NumberField label="Away set — A's (Alternate)" value={draft.captainAwayAQuantity ?? 0} onChange={(v) => set('captainAwayAQuantity', v)} />
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <NumberField label="Quantity of C's (Captain)" value={draft.captainCQuantity} onChange={(v) => set('captainCQuantity', v)} />
+                <NumberField label="Quantity of A's (Alternate)" value={draft.captainAQuantity} onChange={(v) => set('captainAQuantity', v)} />
+              </div>
+            )}
             {draft.captainPatchStyle === 'custom_design' && (
               <div className="grid gap-3 sm:grid-cols-2">
-                <AssetGroup orderId={draft.id} role="captain_c" title="C Design" max={2} assets={assets} onAdd={addAsset} onRemove={removeAsset} />
-                <AssetGroup orderId={draft.id} role="captain_a" title="A Design" max={2} assets={assets} onAdd={addAsset} onRemove={removeAsset} />
+                <AssetGroup orderId={draft.id} role="captain_c" title="C Design" max={2} slotLabels={draft.orderMode === 'home_away_set' ? ['Home C', 'Away C'] : undefined} assets={assets} onAdd={addAsset} onRemove={removeAsset} />
+                <AssetGroup orderId={draft.id} role="captain_a" title="A Design" max={2} slotLabels={draft.orderMode === 'home_away_set' ? ['Home A', 'Away A'] : undefined} assets={assets} onAdd={addAsset} onRemove={removeAsset} />
               </div>
             )}
             <TextArea label="Notes" value={draft.captainPatchNotes} onChange={(v) => set('captainPatchNotes', v)} />
@@ -850,30 +923,73 @@ export function OrderForm({
           * pictures as standard: the logo, and where it goes on the jersey.
           */}
         <Toggle
-          label="Custom branding — an extra logo (sponsor or similar)"
+          label="Custom branding — extra logos (sponsors or similar)"
           checked={draft.customBranding}
-          onChange={(v) => set('customBranding', v)}
+          onChange={(v) => {
+            set('customBranding', v);
+            // Switching it on starts the first logo, ready to fill in.
+            if (v && !(draft.customBrandingItems ?? []).length) {
+              set('customBrandingItems', [{ id: newId(), name: '', notes: '' }]);
+            }
+          }}
         />
         {draft.customBranding && (
-          <div className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
-            <TextArea
-              label="What it is and where it goes"
-              value={draft.customBrandingNotes}
-              onChange={(v) => set('customBrandingNotes', v)}
-              placeholder="e.g. Smith Plumbing logo, 3 inches wide, centred above the back label, white on all jerseys"
-            />
-            <div className="grid gap-3 lg:grid-cols-2">
-              <AssetGroup
-                orderId={draft.id} role="custom_branding_logo" title="The Logo" max={1}
-                hint="The logo file itself — vector if you have it."
-                assets={assets} onAdd={addAsset} onRemove={removeAsset}
-              />
-              <AssetGroup
-                orderId={draft.id} role="custom_branding_placement" title="Location on the Jersey" max={1}
-                hint="A mockup or marked-up picture showing where it goes."
-                assets={assets} onAdd={addAsset} onRemove={removeAsset}
-              />
-            </div>
+          <div className="space-y-3">
+            {(draft.customBrandingItems ?? []).map((item, n, items) => {
+              const patchItem = (p: Partial<typeof item>) =>
+                set('customBrandingItems', items.map((x) => (x.id === item.id ? { ...x, ...p } : x)));
+              const group = { id: item.id, includeUngrouped: n === 0 };
+              return (
+                <div key={item.id} className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Logo {n + 1}</span>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Its files go with it.
+                          for (const a of assets.filter((x) =>
+                            (x.role === 'custom_branding_logo' || x.role === 'custom_branding_placement') &&
+                            (x.groupId === item.id || (n === 0 && !x.groupId)))) {
+                            await removeAsset(a.id);
+                          }
+                          set('customBrandingItems', items.filter((x) => x.id !== item.id));
+                        }}
+                        className="text-xs font-semibold text-muted hover:text-red-300"
+                      >
+                        Remove this logo
+                      </button>
+                    )}
+                  </div>
+                  <TextField label="Whose logo" value={item.name} onChange={(v) => patchItem({ name: v })} placeholder="e.g. Smith Plumbing" />
+                  <TextArea
+                    label="What it is and where it goes"
+                    value={item.notes}
+                    onChange={(v) => patchItem({ notes: v })}
+                    placeholder="e.g. 3 inches wide, centred above the back label, white on all jerseys"
+                  />
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <AssetGroup
+                      orderId={draft.id} role="custom_branding_logo" title="The Logo" max={1} group={group}
+                      hint="The logo file itself — vector if you have it."
+                      assets={assets} onAdd={addAsset} onRemove={removeAsset}
+                    />
+                    <AssetGroup
+                      orderId={draft.id} role="custom_branding_placement" title="Location on the Jersey" max={1} group={group}
+                      hint="A mockup or marked-up picture showing where it goes."
+                      assets={assets} onAdd={addAsset} onRemove={removeAsset}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => set('customBrandingItems', [...(draft.customBrandingItems ?? []), { id: newId(), name: '', notes: '' }])}
+              className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-semibold hover:border-ppc-gold/60"
+            >
+              + Add another logo
+            </button>
             <p className="text-xs text-muted">
               Shown with the branding on the customer&apos;s sheet and the factory sheet.
             </p>

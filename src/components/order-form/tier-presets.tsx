@@ -57,7 +57,13 @@ export function TierPresets({
   const applied = tierById(appliedTier);
   // A stored tier from a different jersey type is stale — the type changed under it.
   const appliedIsValid = applied ? applied.jerseyTypes.includes(jerseyType) : false;
-  const exact = available.find((t) => matchesTier(order, t));
+  // The applied tier first: Premier still matches a Hybrid build (its
+  // stitched-on logos are an add-on Premier leaves alone), so a plain search
+  // would call an applied Hybrid "modified".
+  const exact =
+    applied && appliedIsValid && matchesTier(order, applied)
+      ? applied
+      : available.find((t) => matchesTier(order, t));
 
   return (
     <div className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/[0.04] p-4">
@@ -122,7 +128,7 @@ function TierCard({
       </div>
       <p className="mt-0.5 text-xs text-muted">{tier.blurb}</p>
       <ul className="mt-2 space-y-0.5">
-        {tier.addons.map((key) => (
+        {[...tier.addons, ...(tier.alsoOn ?? [])].map((key) => (
           <li key={key} className="text-xs text-muted">
             <span className="text-ppc-gold">·</span> {LABELS[key]}
           </li>

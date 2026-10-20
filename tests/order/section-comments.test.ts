@@ -47,15 +47,26 @@ test('saving keeps known sections only, and an unknown audience becomes "just me
   assert.deepEqual(cleanSectionComments(null), {});
 });
 
-test('custom branding travels to both sheets; old orders heal without it', () => {
-  const o = order({ customBranding: true, customBrandingNotes: 'Smith Plumbing, above the back label' });
-  assert.equal(publicViewOf(o, [], [], []).customBranding, true);
-  assert.equal(factoryViewOf(o, [], []).customBrandingNotes, 'Smith Plumbing, above the back label');
-  assert.equal(publicViewOf(order({ customBranding: false, customBrandingNotes: 'old' }), [], [], []).customBrandingNotes, '');
-  const old = order();
-  delete (old as Partial<Order>).customBranding;
-  delete (old as Partial<Order>).sectionComments;
-  const healed = healOrder(old);
+test('custom branding travels to both sheets as a list of logos; old orders heal into it', () => {
+  const items = [
+    { id: 'a', name: 'Smith Plumbing', notes: 'Above the back label' },
+    { id: 'b', name: 'Bison Feed', notes: 'Left sleeve' },
+  ];
+  const o = order({ customBranding: true, customBrandingItems: items });
+  assert.deepEqual(publicViewOf(o, [], [], []).customBrandingItems, items);
+  assert.deepEqual(factoryViewOf(o, [], []).customBrandingItems, items);
+  assert.deepEqual(publicViewOf(order({ customBranding: false, customBrandingItems: items }), [], [], []).customBrandingItems, [], 'off means none');
+
+  // An order from before several logos: its one description becomes logo 1.
+  const old = order({ customBranding: true, customBrandingNotes: 'Sponsor above the label' });
+  delete (old as Partial<Order>).customBrandingItems;
+  assert.deepEqual(healOrder(old).customBrandingItems, [{ id: 'custom-branding-1', name: '', notes: 'Sponsor above the label' }]);
+  const older = order();
+  delete (older as Partial<Order>).customBranding;
+  delete (older as Partial<Order>).customBrandingItems;
+  delete (older as Partial<Order>).sectionComments;
+  const healed = healOrder(older);
   assert.equal(healed.customBranding, false);
+  assert.deepEqual(healed.customBrandingItems, []);
   assert.deepEqual(healed.sectionComments, {});
 });

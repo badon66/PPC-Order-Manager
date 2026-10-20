@@ -4,13 +4,14 @@ import {
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
   addonHint, buildAddonsForJerseyType, tierById,
 } from '@/lib/constants';
+import { buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, setBuilds } from '@/lib/order-utils';
 import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludesPantShells, orderIncludesSocks, type OrderTotals } from '@/lib/order-utils';
 import { isNoName } from '@/lib/roster-edit';
 import { keepersOfSet } from '@/lib/keepers';
 import type { BuildSheet } from '@/lib/data/repository';
 import {
   COMMENT_AUDIENCE_LABEL, COMMENT_SECTIONS,
-  type AssetRole, type CommentSection, type KeeperJersey, type SectionComment, type SheetComment, type ViewableAsset,
+  type AssetRole, type CommentSection, type CustomBrandingItem, type KeeperJersey, type SectionComment, type SheetComment, type ViewableAsset,
 } from '@/lib/types';
 import { Card, Field, Section, Stat } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
@@ -122,6 +123,72 @@ export function CustomBrandingPictures({ assets, teamName }: { assets: ViewableA
   );
 }
 
+/**
+ * Every custom branding logo: whose it is, what and where, and its two
+ * pictures side by side. Same on both sheets and Keenan's page.
+ */
+export function CustomBrandingList({
+  items,
+  assets,
+  teamName,
+}: {
+  items: CustomBrandingItem[];
+  assets: ViewableAsset[];
+  teamName: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="space-y-4">
+      {items.map((item, n) => {
+        const files = customBrandingFiles(items, assets, item.id);
+        return (
+          <div key={item.id} className={n > 0 ? 'border-t border-line/60 pt-4' : ''}>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
+              <span aria-hidden>&#10003;</span> {item.name.trim() || (items.length > 1 ? `Custom branding ${n + 1}` : 'Custom branding')}
+            </span>
+            {item.notes.trim() && <p className="mt-2 whitespace-pre-wrap text-sm">{item.notes}</p>}
+            {files.length > 0 && <CustomBrandingPictures assets={files} teamName={teamName} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * How each set is built, when they aren't all the same (home embroidered,
+ * away sublimated). Nothing when they are: the one type and tier say it.
+ */
+export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier'> }) {
+  if (!buildsDiffer(order)) return null;
+  return (
+    <div className="mb-4 grid gap-2 sm:grid-cols-2">
+      {setBuilds(order).map((b, i) => (
+        <div key={i} className="rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-2">
+          <div className="text-xs font-bold uppercase tracking-wide text-muted">{b.label}</div>
+          <div className="text-sm font-bold text-ppc-gold">
+            {[tierById(b.jerseyTier)?.label, b.jerseyType ? JERSEY_TYPE_LABELS[b.jerseyType] : null].filter(Boolean).join(' · ') || 'Not set yet'}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** C's and A's — one count, or home and away separately (different designs). */
+export function CaptainCountFields({ order }: { order: Parameters<typeof captainCounts>[0] }) {
+  return (
+    <>
+      {captainCounts(order).map((k) => (
+        <div key={k.label || 'all'} className="contents">
+          <Field label={`${k.label ? `${k.label} — ` : ''}Quantity of C's`}>{k.c}</Field>
+          <Field label={`${k.label ? `${k.label} — ` : ''}Quantity of A's`}>{k.a}</Field>
+        </div>
+      ))}
+    </>
+  );
+}
+
 const hasComment = (comments: SheetComment[], sections: CommentSection[]) =>
   comments.some((c) => sections.includes(c.section));
 
@@ -206,16 +273,20 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
       <SectionComments comments={sheet.sectionComments} sections={['build', 'numbers', 'pants']} sheetTitle="Build Type" />
       {/* The tier is the headline fact about what was bought — it was on the
           order sheet and nowhere on this page. */}
-      {tier && (
+      {tier && !buildsDiffer(sheet) && (
         <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
           {tier.label} build
         </div>
       )}
+      {/* Sets built differently: each set's tier and type, in place of the one. */}
+      <SetBuildsList order={sheet} />
       <div className="grid gap-4 sm:grid-cols-3">
         {sheet.numberOfSets > 1 && (
           <Field label="Number of Sets">{sheet.numberOfSets}</Field>
         )}
-        <Field label="Jersey Type">{sheet.jerseyType ? JERSEY_TYPE_LABELS[sheet.jerseyType] : ''}</Field>
+        {!buildsDiffer(sheet) && (
+          <Field label="Jersey Type">{sheet.jerseyType ? JERSEY_TYPE_LABELS[sheet.jerseyType] : ''}</Field>
+        )}
         <Field label="Sock Type">
           {sheet.sockType ? SOCK_TYPE_LABELS[sheet.sockType] : ''}
           {sheet.sockType && sheet.multiPanelSocks && (
@@ -268,7 +339,7 @@ export function AddOnsSection({
    */
   // Build add-ons here; the Powerplay branding has its own block below.
   const toggles = [
-    ...buildAddonsForJerseyType(sheet.jerseyType).map((a) => ({ key: a.key, label: a.label, hint: addonHint(a) })),
+    ...buildAddonsForJerseyType(jerseyTypesInUse(sheet)).map((a) => ({ key: a.key, label: a.label, hint: addonHint(a) })),
     ...(hasPantShells ? PANT_TOGGLES : []),
     // Goalie shells with the logos on the back of the legs — only a question
     // when there's a goalie and shells, so it's only listed then.
@@ -355,15 +426,9 @@ export function AddOnsSection({
           * logo and a picture of where it goes, shown whole, with what Keenan
           * wrote about it.
           */}
-        {sheet.customBranding && (
+        {sheet.customBranding && sheet.customBrandingItems.length > 0 && (
           <div className="mt-3 border-t border-line/60 pt-3">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
-              <span aria-hidden>&#10003;</span> Custom branding
-            </span>
-            {sheet.customBrandingNotes && (
-              <p className="mt-2 whitespace-pre-wrap text-sm">{sheet.customBrandingNotes}</p>
-            )}
-            {brandingFiles.length > 0 && <CustomBrandingPictures assets={brandingFiles} teamName={sheet.teamName} />}
+            <CustomBrandingList items={sheet.customBrandingItems} assets={brandingFiles} teamName={sheet.teamName} />
           </div>
         )}
       </div>
@@ -388,8 +453,7 @@ export function AddOnsSection({
             <Field label="Style">
               {sheet.captainPatchStyle ? CAPTAIN_PATCH_STYLE_META[sheet.captainPatchStyle].label : ''}
             </Field>
-            <Field label="Quantity of C&apos;s">{sheet.captainCQuantity || 0}</Field>
-            <Field label="Quantity of A&apos;s">{sheet.captainAQuantity || 0}</Field>
+            <CaptainCountFields order={sheet} />
           </div>
           {sheet.captainPatchNotes && (
             <p className="mt-2 text-sm text-muted">{sheet.captainPatchNotes}</p>

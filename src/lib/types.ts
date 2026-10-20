@@ -193,6 +193,19 @@ export const COMMENT_AUDIENCE_LABEL: Record<CommentAudience, string> = {
   internal: 'Just me',
 };
 
+/**
+ * One custom branding logo — a sponsor's, say. Its files are the
+ * `custom_branding_logo` / `custom_branding_placement` assets carrying this
+ * id as their groupId. An order can have several.
+ */
+export interface CustomBrandingItem {
+  id: string;
+  /** Whose logo: "Smith Plumbing". */
+  name: string;
+  /** What it is and where it goes. */
+  notes: string;
+}
+
 export interface SectionComment {
   text: string;
   audience: CommentAudience;
@@ -242,7 +255,7 @@ export type UserRole = (typeof USER_ROLES)[number];
  * Reversible sublimated is its own single tier.
  * ------------------------------------------------------------------ */
 
-export const JERSEY_TIERS = ['lite', 'premier', 'elite', 'pro', 'reversible'] as const;
+export const JERSEY_TIERS = ['lite', 'premier', 'hybrid', 'elite', 'pro', 'reversible'] as const;
 export type JerseyTier = (typeof JERSEY_TIERS)[number];
 
 /* ------------------------------------------------------------------ *
@@ -361,6 +374,15 @@ export interface SetQuantities {
   extraJerseys: number;
   extraSockPairs: number;
   extraPantShells: number;
+
+  /**
+   * This set's own build, when the sets aren't all built the same — a home
+   * set embroidered and an away set sublimated (Keenan, 2026-10-20). Absent
+   * or null = the order's own jersey type and tier, which are the first
+   * set's. Only sets after the first ever carry one (see setBuilds).
+   */
+  jerseyType?: JerseyType | null;
+  jerseyTier?: JerseyTier | null;
   /** Who or what the extras are for, and what sizes. */
   extrasNotes: string;
 
@@ -754,6 +776,12 @@ export interface Order {
   captainPatchStyle: CaptainPatchStyle | null;
   captainCQuantity: number;
   captainAQuantity: number;
+  /**
+   * Home/away orders: the away set's C's and A's, a different design from the
+   * home set's (captainC/AQuantity above are then the home set's).
+   */
+  captainAwayCQuantity: number;
+  captainAwayAQuantity: number;
   captainPatchNotes: string;
 
   hasShoulderLogos: boolean;
@@ -784,7 +812,10 @@ export interface Order {
    * this says what it is and where it goes. Both sheets.
    */
   customBranding: boolean;
+  /** Before several logos were allowed: the one description. Healed into customBrandingItems[0]. */
   customBrandingNotes: string;
+  /** Each custom branding logo, with its own name, notes and files (by groupId). */
+  customBrandingItems: CustomBrandingItem[];
   /**
    * One comment per form section, keyed by section id (COMMENT_SECTIONS), each
    * with its own audience: everyone, the factory only, or just Keenan.

@@ -210,17 +210,23 @@ function isBranding(a: AddonToggle): boolean {
   return (a as { group?: string }).group === 'branding';
 }
 
-/** Add-ons that apply to the chosen jersey type — build and branding both. */
-export function addonsForJerseyType(jerseyType: JerseyType | null) {
+/**
+ * Add-ons that apply to the chosen jersey type(s) — build and branding both.
+ * Several types when the sets are built differently: an option for any of
+ * them is offered (twill outlines for the embroidered home set, stitched-on
+ * logos for the sublimated away set).
+ */
+export function addonsForJerseyType(jerseyType: JerseyType | null | Array<JerseyType | null>) {
+  const types = (Array.isArray(jerseyType) ? jerseyType : [jerseyType]).filter((t): t is JerseyType => Boolean(t));
   return ADDON_TOGGLES.filter((a) => {
     const limit = (a as { jerseyTypes?: JerseyType[] }).jerseyTypes;
     if (!limit) return true;
-    return jerseyType ? limit.includes(jerseyType) : false;
+    return types.some((t) => limit.includes(t));
   });
 }
 
-/** The build add-ons for the chosen jersey type: everything above except the branding. */
-export function buildAddonsForJerseyType(jerseyType: JerseyType | null) {
+/** The build add-ons for the chosen jersey type(s): everything above except the branding. */
+export function buildAddonsForJerseyType(jerseyType: JerseyType | null | Array<JerseyType | null>) {
   return addonsForJerseyType(jerseyType).filter((a) => !isBranding(a));
 }
 
@@ -264,6 +270,12 @@ export interface TierDef {
   /** Jersey types this tier can be used with. */
   jerseyTypes: JerseyType[];
   addons: AddonKey[];
+  /**
+   * Add-ons this tier turns ON that the other tiers leave alone. Hybrid's
+   * stitched-on logos: an add-on on any other sublimated build, so picking
+   * Lite or Premier must not untick one somebody added.
+   */
+  alsoOn?: AddonKey[];
 }
 
 const LITE_BASE: AddonKey[] = [
@@ -290,6 +302,15 @@ export const TIER_DEFS: TierDef[] = [
     blurb: 'Lite plus vents and reinforced elbows. Stitched-on logos are an add-on.',
     jerseyTypes: ['sublimated'],
     addons: [...LITE_BASE, 'underarmVents', 'reinforcedElbows'],
+  },
+  {
+    id: 'hybrid',
+    label: 'Hybrid',
+    // Everything Premier has, plus the stitched-on logos (Keenan, 2026-10-20).
+    blurb: 'Premier with stitched-on logos.',
+    jerseyTypes: ['sublimated'],
+    addons: [...LITE_BASE, 'underarmVents', 'reinforcedElbows'],
+    alsoOn: ['stitchedSublimatedLogos'],
   },
   {
     id: 'elite',
@@ -330,16 +351,18 @@ export function tierById(id: JerseyTier | null): TierDef | undefined {
 
 /** Does the order's current toggles exactly match this tier? */
 export function matchesTier(order: Pick<Order, AddonKey>, tier: TierDef): boolean {
-  return TIER_CONTROLLED_ADDONS.every(
-    (key) => Boolean(order[key]) === tier.addons.includes(key),
+  return (
+    TIER_CONTROLLED_ADDONS.every((key) => Boolean(order[key]) === tier.addons.includes(key)) &&
+    (tier.alsoOn ?? []).every((key) => Boolean(order[key]))
   );
 }
 
 /** The toggle changes a tier implies. Non-tier add-ons are absent from this. */
 export function tierPatch(tier: TierDef): Record<AddonKey, boolean> {
-  return Object.fromEntries(
-    TIER_CONTROLLED_ADDONS.map((key) => [key, tier.addons.includes(key)]),
-  ) as Record<AddonKey, boolean>;
+  return {
+    ...Object.fromEntries(TIER_CONTROLLED_ADDONS.map((key) => [key, tier.addons.includes(key)])),
+    ...Object.fromEntries((tier.alsoOn ?? []).map((key) => [key, true])),
+  } as Record<AddonKey, boolean>;
 }
 
 /* ------------------------------------------------------------------ *

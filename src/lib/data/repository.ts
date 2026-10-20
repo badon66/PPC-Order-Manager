@@ -1,6 +1,6 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment,
+  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment, CustomBrandingItem,
 } from '@/lib/types';
 import type { RosterVersionSummary } from '@/lib/roster-versions';
 import type { TimelineStep } from './timeline';
@@ -115,6 +115,9 @@ export interface BuildSheet {
   captainPatchStyle: Order['captainPatchStyle'];
   captainCQuantity: number;
   captainAQuantity: number;
+  /** Home/away: the away set's own C's and A's (see captainCounts). */
+  captainAwayCQuantity: number;
+  captainAwayAQuantity: number;
   shoulderLogosSame: boolean;
   roster: RosterEntry[];
   /** Numbers and sizes for the spare jerseys. */
@@ -125,7 +128,8 @@ export interface BuildSheet {
   brandingNotes: string;
   /** A sponsor's (or other) logo on top of Powerplay's branding: what and where. Files are assets. */
   customBranding: boolean;
-  customBrandingNotes: string;
+  /** Each logo's name and notes; files are assets matched by groupId (customBrandingFiles). Empty when off. */
+  customBrandingItems: CustomBrandingItem[];
   /**
    * Keenan's section comments THIS reader may see — set by each view, never
    * by buildSheetOf: the customer's view keeps "everyone", the factory's adds

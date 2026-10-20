@@ -79,6 +79,12 @@ export function healOrder(o: Order): Order {
   o.brandingNotes ??= '';
   o.customBranding ??= false;
   o.customBrandingNotes ??= '';
+  // One description became a list of logos: the old one is the first.
+  o.customBrandingItems ??= o.customBranding || o.customBrandingNotes
+    ? [{ id: 'custom-branding-1', name: '', notes: o.customBrandingNotes ?? '' }]
+    : [];
+  o.captainAwayCQuantity ??= 0;
+  o.captainAwayAQuantity ??= 0;
   o.sectionComments ??= {};
   // Not minted here: a heal runs on every read and isn't persisted, so a token
   // made here would change on every page load. createFactoryLink mints it.
@@ -746,6 +752,8 @@ export function buildSheetOf(o: Order, roster: RosterEntry[]): BuildSheet {
     captainPatchStyle: o.captainPatchStyle,
     captainCQuantity: o.captainCQuantity,
     captainAQuantity: o.captainAQuantity,
+    captainAwayCQuantity: o.captainAwayCQuantity ?? 0,
+    captainAwayAQuantity: o.captainAwayAQuantity ?? 0,
     shoulderLogosSame: o.shoulderLogosSame,
     roster: [...roster].sort((a, b) => a.sortOrder - b.sortOrder),
     // Spares are on both sheets — they're part of what's being made, and a
@@ -756,7 +764,7 @@ export function buildSheetOf(o: Order, roster: RosterEntry[]): BuildSheet {
     approvedDate: o.approvedDate,
     brandingNotes: o.brandingNotes ?? '',
     customBranding: Boolean(o.customBranding),
-    customBrandingNotes: o.customBranding ? o.customBrandingNotes ?? '' : '',
+    customBrandingItems: o.customBranding ? (o.customBrandingItems ?? []).map((i) => ({ id: i.id, name: i.name, notes: i.notes })) : [],
     // Deliberately empty here: who may read a comment depends on the sheet,
     // so publicViewOf and factoryViewOf each fill in their own.
     sectionComments: [],

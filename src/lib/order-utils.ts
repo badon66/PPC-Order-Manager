@@ -1,4 +1,4 @@
-import type { ExtraJersey, JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
+import type { ExtraJersey, JerseyTier, JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from './types';
 import { LEAD_TIME_DAYS } from './constants';
 import { addDays, type CalendarDate } from './dates';
@@ -31,12 +31,95 @@ export function setsForMode(mode: OrderMode, numberOfSets = 1, existing: SetQuan
     extraPantShells: existing[i]?.extraPantShells ?? 0,
     extrasNotes: existing[i]?.extrasNotes ?? '',
     notes: existing[i]?.notes ?? '',
+    // A set's own build is kept when the mode is re-applied; the first set never has one.
+    ...(i > 0 && existing[i]?.jerseyType ? { jerseyType: existing[i].jerseyType, jerseyTier: existing[i].jerseyTier ?? null } : {}),
   });
 
   if (mode === 'single_set') return [blank('Single Set', 0)];
   if (mode === 'home_away_set') return [blank('Home Set', 0), blank('Away Set', 1)];
   const n = Math.max(1, Math.min(numberOfSets || 1, 12));
   return Array.from({ length: n }, (_, i) => blank(`Set ${i + 1}`, i));
+}
+
+/* ------------------------------------------------------------------ *
+ * Captain patches per set
+ *
+ * A home/away order's C's and A's are two designs, so they're counted
+ * separately: captainC/AQuantity is the home set's, captainAwayC/AQuantity
+ * the away set's. Any other order has one count.
+ * ------------------------------------------------------------------ */
+
+export interface CaptainCount {
+  /** 'Home' / 'Away', or '' when there's only one count. */
+  label: string;
+  c: number;
+  a: number;
+}
+
+export function captainCounts(
+  o: Pick<Order, 'orderMode' | 'captainCQuantity' | 'captainAQuantity' | 'captainAwayCQuantity' | 'captainAwayAQuantity'>,
+): CaptainCount[] {
+  if (o.orderMode === 'home_away_set') {
+    return [
+      { label: 'Home', c: o.captainCQuantity || 0, a: o.captainAQuantity || 0 },
+      { label: 'Away', c: o.captainAwayCQuantity || 0, a: o.captainAwayAQuantity || 0 },
+    ];
+  }
+  return [{ label: '', c: o.captainCQuantity || 0, a: o.captainAQuantity || 0 }];
+}
+
+/* ------------------------------------------------------------------ *
+ * Custom branding files
+ * ------------------------------------------------------------------ */
+
+/**
+ * The files of one custom branding logo. Files uploaded before an order could
+ * have several have no groupId; they belong to the first.
+ */
+export function customBrandingFiles<A extends { role: string; groupId?: string }>(
+  items: Array<{ id: string }>,
+  assets: A[],
+  itemId: string,
+): A[] {
+  const first = items[0]?.id;
+  return assets.filter(
+    (a) =>
+      (a.role === 'custom_branding_logo' || a.role === 'custom_branding_placement') &&
+      (a.groupId === itemId || (!a.groupId && itemId === first)),
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Builds per set
+ *
+ * Usually the whole order is one build. Home and away (or several sets) can
+ * differ — home embroidered, away sublimated. The order's own jerseyType and
+ * jerseyTier are the FIRST set's; a later set carries its own only when it
+ * differs. Everything that reads a build per set goes through here.
+ * ------------------------------------------------------------------ */
+
+export interface SetBuild {
+  label: string;
+  jerseyType: JerseyType | null;
+  jerseyTier: JerseyTier | null;
+}
+
+export function setBuilds(o: Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'>): SetBuild[] {
+  return o.sets.map((s, i) => ({
+    label: s.label,
+    jerseyType: i > 0 && s.jerseyType ? s.jerseyType : o.jerseyType,
+    jerseyTier: i > 0 && s.jerseyType ? s.jerseyTier ?? null : o.jerseyTier,
+  }));
+}
+
+/** Are the sets built differently? (Only a later set with its own type counts.) */
+export function buildsDiffer(o: Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'>): boolean {
+  return o.sets.some((s, i) => i > 0 && Boolean(s.jerseyType));
+}
+
+/** Every jersey type on the order — one, or more when the sets differ. */
+export function jerseyTypesInUse(o: Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'>): Array<JerseyType | null> {
+  return [...new Set(setBuilds(o).map((b) => b.jerseyType))];
 }
 
 /* ------------------------------------------------------------------ *
@@ -433,6 +516,8 @@ export function blankOrder(): Order {
     captainPatchStyle: null,
     captainCQuantity: 0,
     captainAQuantity: 0,
+    captainAwayCQuantity: 0,
+    captainAwayAQuantity: 0,
     captainPatchNotes: '',
 
     hasShoulderLogos: false,
@@ -446,6 +531,7 @@ export function blankOrder(): Order {
     brandingNotes: '',
     customBranding: false,
     customBrandingNotes: '',
+    customBrandingItems: [],
     sectionComments: {},
     specialNotes: '',
     factoryNotes: '',

@@ -16,7 +16,8 @@ import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge,
 import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { FactoryLink } from '@/components/factory-link';
-import { CUSTOM_BRANDING_ROLES, CustomBrandingPictures, KeeperBadge, OwnerSectionComments } from '@/components/build-sheet';
+import { CUSTOM_BRANDING_ROLES, CaptainCountFields, CustomBrandingList, KeeperBadge, OwnerSectionComments, SetBuildsList } from '@/components/build-sheet';
+import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
 import { keepersOfSet } from '@/lib/keepers';
 import { SubmissionReview } from '@/components/submission-review';
 import { SignatureProof } from '@/components/signature-proof';
@@ -428,10 +429,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
       <Section title="Build Type">
         <OwnerSectionComments comments={order.sectionComments} sections={['build', 'numbers', 'pants']} />
+        <SetBuildsList order={order} />
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Jersey Type">
-            {order.jerseyType ? JERSEY_TYPE_LABELS[order.jerseyType] : ''}
-          </Field>
+          {!buildsDiffer(order) && (
+            <Field label="Jersey Type">
+              {order.jerseyType ? JERSEY_TYPE_LABELS[order.jerseyType] : ''}
+            </Field>
+          )}
           <Field label="Sock Type">
             {order.sockType ? SOCK_TYPE_LABELS[order.sockType] : ''}
             {order.sockType && order.multiPanelSocks && (
@@ -478,7 +482,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {/* Same filter the form uses — an embroidered order shouldn't list
               a sublimated-only option just to say "No" to it. Build add-ons
               only; the branding has its own block below. */}
-          {buildAddonsForJerseyType(order.jerseyType).map((a) => (
+          {buildAddonsForJerseyType(jerseyTypesInUse(order)).map((a) => (
             <div key={a.key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm" title={addonHint(a)}>
               <span className="text-muted">{a.label}</span>
               <YesNo value={Boolean(order[a.key as keyof Order])} />
@@ -530,13 +534,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {order.brandingNotes && (
             <p className="mt-2 whitespace-pre-wrap text-sm"><span className="text-xs font-medium text-muted">Changes: </span>{order.brandingNotes}</p>
           )}
-          {order.customBranding && (
+          {order.customBranding && order.customBrandingItems.length > 0 && (
             <div className="mt-3 border-t border-line/60 pt-3">
-              <p className="text-sm font-semibold">Custom branding</p>
-              {order.customBrandingNotes && <p className="mt-1 whitespace-pre-wrap text-sm">{order.customBrandingNotes}</p>}
-              {assets.some((a) => CUSTOM_BRANDING_ROLES.includes(a.role)) && (
-                <CustomBrandingPictures assets={assets.filter((a) => CUSTOM_BRANDING_ROLES.includes(a.role))} teamName={order.teamName} />
-              )}
+              <CustomBrandingList
+                items={order.customBrandingItems}
+                assets={assets.filter((a) => CUSTOM_BRANDING_ROLES.includes(a.role))}
+                teamName={order.teamName}
+              />
             </div>
           )}
         </div>
@@ -548,8 +552,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
               <Field label="Style">
                 {order.captainPatchStyle ? CAPTAIN_PATCH_STYLE_META[order.captainPatchStyle].label : ''}
               </Field>
-              <Field label="Quantity of C's">{order.captainCQuantity || 0}</Field>
-              <Field label="Quantity of A's">{order.captainAQuantity || 0}</Field>
+              <CaptainCountFields order={order} />
             </div>
             {order.captainPatchNotes && (
               <p className="mt-2 text-sm text-muted">{order.captainPatchNotes}</p>
