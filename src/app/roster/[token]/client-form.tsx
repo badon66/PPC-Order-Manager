@@ -71,6 +71,11 @@ type Props = {
   /** Which stage page rendered this form, if any — passed straight through
    *  to the submit action so it sends only that stage's fixed sections. */
   stage?: StagePage | null;
+  /**
+   * What the details step starts from: their own unaccepted details, else
+   * what's on the order (see load.ts). Absent = blank, as before.
+   */
+  contactOnFile?: SubmittedContact;
 };
 
 const blankPlayer = (): SubmittedPlayer => ({
@@ -181,6 +186,7 @@ function sizeOptions(options: readonly string[], current: string) {
 export function ClientForm({
   token, teamName, sections, existingRosterCount, includesSocks, includesPantShells,
   jerseyCount, extraJerseys, extraJerseyDetails, previous, previousPreviews, variant, stage, currentRoster = [],
+  contactOnFile,
 }: Props) {
   /*
    * Spares are their own list, not extra roster rows.
@@ -350,7 +356,7 @@ export function ClientForm({
   const [logos, setLogos] = useState<SubmittedLogo[]>(previous?.logos ?? []);
   const [inspiration, setInspiration] = useState<SubmittedInspiration[]>(previous?.inspiration ?? []);
   const [colours, setColours] = useState(previous?.colours ?? '');
-  const [contact, setContact] = useState<SubmittedContact>(previous?.contact ?? blankContact());
+  const [contact, setContact] = useState<SubmittedContact>(contactOnFile ?? previous?.contact ?? blankContact());
   const [previews, setPreviews] = useState<Record<string, string>>(previousPreviews);
   const addPreview = (fileUrl: string, url: string) =>
     setPreviews((p) => ({ ...p, [fileUrl]: url }));
@@ -382,6 +388,9 @@ export function ClientForm({
         convertedFrom: rosterAnswer === 'typed' ? convertedFrom : null,
         contact: sections.personalDetails ? contact : undefined,
         confirmed,
+        // What this form shows, so a page opened before production can't
+        // send the roster afterwards and be told it went through.
+        sectionsShown: sections,
       },
       stage ?? undefined,
     );

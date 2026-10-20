@@ -15,6 +15,13 @@ import { FinishedPhotos } from '@/components/finished-photos';
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/** The payment picker's buttons. Keenan's words for them; the email and the history keep PAYMENT_KIND_LABEL. */
+const PAYMENT_KIND_BUTTON: Record<PaymentKind, string> = {
+  initial_deposit: 'Initial deposit',
+  production_deposit: 'Pre-production deposit (50%)',
+  final_payment: 'Final payment',
+};
+
 /** Reverse of `PAYMENT_KIND_LABEL`: which kind a sent record's `detail` names,
  *  or null if it doesn't match any (older records, or no detail at all). */
 function paymentKindFromDetail(detail: string | undefined): PaymentKind | null {
@@ -41,9 +48,10 @@ function paymentKindFromDetail(detail: string | undefined): PaymentKind | null {
  * again.
  *
  * `payment_received` is repeatable and lives outside that dismiss flow
- * entirely: it's a quiet, always-there option (initial deposit, then
- * pre-production, then final payment can each be confirmed this way as they
- * arrive), not a one-shot reminder to earn a "Not now". `mockup_ready` is
+ * entirely: it's a quiet, always-there option at every status — any of the
+ * initial deposit, the pre-production deposit and the final payment can be
+ * confirmed whenever it lands, early included — not a one-shot reminder to
+ * earn a "Not now". `mockup_ready` is
  * the same shape during Design Talk: one card, a V1–V4 picker that defaults
  * to the round after the last one sent, sendable as many times as there are
  * rounds.
@@ -372,23 +380,38 @@ export function SendUpdatePanel({
         const m = composeUpdateMail(d.stage, { ...preview, paymentKind: kind });
         const sending = inFlight === d.stage;
         const canSend = !d.blocked;
+        // Which payments have had a receipt already, so a second one is a choice, not an accident.
+        const confirmed = PAYMENT_KINDS.filter((k) =>
+          sent.some((r) => r.stage === 'payment_received' && r.detail === PAYMENT_KIND_LABEL[k]),
+        );
         return (
           <div className="rounded-xl border border-line bg-surface-2 p-4">
             <p className="text-base font-bold">Payment received? Tell the customer.</p>
             <p className="text-sm text-muted">To {to || 'nobody yet'} · Subject: {m.subject}</p>
+            <p className="mt-1 text-xs text-muted">
+              Any of the three, at any stage. Paid early is fine: the email says what it covers.
+              {confirmed.length > 0 && ` Already confirmed: ${confirmed.map((k) => PAYMENT_KIND_LABEL[k]).join(', ')}.`}
+            </p>
             {d.blocked && <p className="mt-2 text-sm text-amber-300">{d.blocked}</p>}
             <div className="mt-3">
-              <label htmlFor="payment-kind" className="text-xs font-medium text-muted">Which payment</label>
-              <select
-                id="payment-kind"
-                className="mt-1 w-full sm:w-64"
-                value={kind}
-                onChange={(e) => setPaymentKind(e.target.value as PaymentKind)}
-              >
+              <span className="text-xs font-medium text-muted">Which payment</span>
+              <div role="radiogroup" aria-label="Which payment" className="mt-1 flex flex-wrap gap-1.5">
                 {PAYMENT_KINDS.map((k) => (
-                  <option key={k} value={k}>{capitalize(PAYMENT_KIND_LABEL[k])}</option>
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={kind === k}
+                    onClick={() => setPaymentKind(k)}
+                    className={`rounded-lg border px-3.5 py-1.5 text-sm font-bold ${
+                      kind === k ? 'border-ppc-gold bg-ppc-gold text-black' : 'border-line bg-surface hover:border-ppc-gold/60'
+                    }`}
+                  >
+                    {PAYMENT_KIND_BUTTON[k]}
+                    {confirmed.includes(k) && kind !== k ? ' ✓' : ''}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
             <button type="button" className="mt-3 text-xs font-semibold text-ppc-gold hover:underline" onClick={() => setOpen(open === d.stage ? null : d.stage)}>
               {open === d.stage ? 'Hide preview' : 'Preview'}
@@ -401,7 +424,7 @@ export function SendUpdatePanel({
                 className="rounded-lg border border-ppc-gold/60 px-3.5 py-2 text-sm font-semibold text-ppc-gold disabled:opacity-50"
                 onClick={() => send('payment_received', { paymentKind: kind })}
               >
-                {sending ? 'Sending…' : 'Send'}
+                {sending ? 'Sending…' : `Send: ${PAYMENT_KIND_LABEL[kind]} received`}
               </button>
               <span aria-live="polite">
                 {msg?.stage === d.stage && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}

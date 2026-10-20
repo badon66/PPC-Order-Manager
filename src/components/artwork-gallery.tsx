@@ -47,6 +47,8 @@ const ROLE_LABELS: Record<AssetRole, string> = {
   font: 'Font',
   design_svg: 'Design File',
   finished_photo: 'Finished jerseys',
+  custom_branding_logo: 'Custom Branding — Logo',
+  custom_branding_placement: 'Custom Branding — Location on the Jersey',
 };
 
 // Design intent order, not database order or alphabetical: the crest and the
@@ -65,6 +67,8 @@ const ROLE_ORDER: AssetRole[] = [
   'captain_a',
   'captain_extra',
   'additional_logo',
+  'custom_branding_logo',
+  'custom_branding_placement',
   'pant_design',
   'pant_logo',
   'pant_number',
@@ -266,15 +270,10 @@ function Tile({
 }
 
 /*
- * `auto-fit`, not a fixed column count.
- *
- * A fixed six-column grid sizes its tracks for six files and leaves the rest of
- * the row empty — a group of two then sits in the left third of a wide screen,
- * tiles small, most of the section unused. `auto-fit` drops the empty tracks so
- * the files present expand into the whole width.
- *
- * `min(100%, 17rem)` rather than a bare `17rem`: on a narrow phone a 17rem
- * minimum would overflow the viewport instead of falling back to one column.
+ * Two to a row, always (Keenan, 2026-10-20). It used to pack as many ~17rem
+ * tiles as fit, with design references a full row each, and a single
+ * reference filled the screen. Two columns keeps every picture whole and a
+ * size you can still judge, with the next pair underneath.
  */
 function Grid({
   assets,
@@ -288,14 +287,10 @@ function Grid({
   return (
     <div
       // Tiles keep their own heights: each picture is as tall as it is.
-      className="grid items-start gap-4"
-      style={{
-        // A hero group is one image across the full width; everything else
-        // packs as many ~17rem tiles into the row as fit.
-        gridTemplateColumns: hero
-          ? '1fr'
-          : 'repeat(auto-fit, minmax(min(100%, 17rem), 1fr))',
-      }}
+      // Two pictures to a row, then the next row — design references
+      // included (Keenan, 2026-10-20: full width was far too big). Each stays
+      // whole, scaled to its half. One column on a phone.
+      className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2"
     >
       {assets.map((a, i) => (
         <Tile

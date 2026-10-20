@@ -8,7 +8,10 @@ import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludes
 import { isNoName } from '@/lib/roster-edit';
 import { keepersOfSet } from '@/lib/keepers';
 import type { BuildSheet } from '@/lib/data/repository';
-import type { AssetRole, KeeperJersey, ViewableAsset } from '@/lib/types';
+import {
+  COMMENT_AUDIENCE_LABEL, COMMENT_SECTIONS,
+  type AssetRole, type CommentSection, type KeeperJersey, type SectionComment, type SheetComment, type ViewableAsset,
+} from '@/lib/types';
 import { Card, Field, Section, Stat } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
@@ -36,6 +39,92 @@ import { RosterBreakdown } from '@/components/order-form/roster-breakdown';
  */
 export const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
 
+/** Custom branding's two pictures live with the branding, not in the logo gallery. */
+export const CUSTOM_BRANDING_ROLES: AssetRole[] = ['custom_branding_logo', 'custom_branding_placement'];
+
+/*
+ * Keenan's section comments, at the top of the section they belong to.
+ *
+ * The sheet's sections are coarser than the form's (Build Type carries the
+ * numbers and the pants too), so a comment from a form section with another
+ * name is labelled with it. What arrives here is already filtered for the
+ * reader — see sheetComments in data/logic.ts.
+ */
+export function SectionComments({
+  comments,
+  sections,
+  sheetTitle,
+}: {
+  comments: SheetComment[];
+  sections: CommentSection[];
+  /** The section's own title: a comment from the form section of that name isn't labelled. */
+  sheetTitle?: string;
+}) {
+  const mine = comments.filter((c) => sections.includes(c.section));
+  if (!mine.length) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {mine.map((c) => (
+        <div key={c.section} className="rounded-lg border-l-4 border-ppc-gold bg-ppc-gold/10 px-3 py-2">
+          {COMMENT_SECTIONS[c.section] !== sheetTitle && (
+            <p className="text-[0.7rem] font-bold uppercase tracking-wide text-ppc-gold">{COMMENT_SECTIONS[c.section]}</p>
+          )}
+          <p className="whitespace-pre-wrap text-sm">{c.text}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Keenan's own order page: every comment, whoever it's for, with who sees it.
+ */
+export function OwnerSectionComments({
+  comments,
+  sections,
+}: {
+  comments: Partial<Record<CommentSection, SectionComment>> | undefined;
+  sections: CommentSection[];
+}) {
+  const mine = sections.flatMap((s) => {
+    const c = comments?.[s];
+    return c && c.text.trim() ? [{ section: s, ...c }] : [];
+  });
+  if (!mine.length) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {mine.map((c) => (
+        <div key={c.section} className="rounded-lg border-l-4 border-ppc-gold bg-ppc-gold/10 px-3 py-2">
+          <p className="text-[0.7rem] font-bold uppercase tracking-wide text-ppc-gold">
+            {COMMENT_SECTIONS[c.section]} · <span className="text-muted">{COMMENT_AUDIENCE_LABEL[c.audience]}</span>
+          </p>
+          <p className="whitespace-pre-wrap text-sm">{c.text.trim()}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The custom branding's logo and its location, side by side. */
+export function CustomBrandingPictures({ assets, teamName }: { assets: ViewableAsset[]; teamName: string }) {
+  return (
+    <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+      {CUSTOM_BRANDING_ROLES.map((role) => {
+        const files = assets.filter((a) => a.role === role);
+        return files.length ? (
+          // Each half holds one role, so its own gallery is one column wide.
+          <div key={role} className="[&_.grid]:grid-cols-1">
+            <ArtworkGallery assets={files} teamName={teamName} />
+          </div>
+        ) : null;
+      })}
+    </div>
+  );
+}
+
+const hasComment = (comments: SheetComment[], sections: CommentSection[]) =>
+  comments.some((c) => sections.includes(c.section));
+
 
 export function sheetHasPantShells(sheet: Pick<BuildSheet, 'sets' | 'pantShellType'>): boolean {
   return (
@@ -61,6 +150,7 @@ export function OrderTotalsSection({
   const keeperCount = keepers?.length ?? 0;
   return (
     <Section title="Order Totals">
+      <SectionComments comments={sheet.sectionComments} sections={['mode', 'totals']} sheetTitle="Order Totals" />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
         <Stat label="Sock Pairs" value={totals.totalSockPairs} hideWhenZero />
@@ -113,6 +203,7 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
   const tier = tierById(sheet.jerseyTier);
   return (
     <Section title="Build Type">
+      <SectionComments comments={sheet.sectionComments} sections={['build', 'numbers', 'pants']} sheetTitle="Build Type" />
       {/* The tier is the headline fact about what was bought — it was on the
           order sheet and nowhere on this page. */}
       {tier && (
@@ -159,7 +250,15 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
  * Add-ons
  * ------------------------------------------------------------------ */
 
-export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
+export function AddOnsSection({
+  sheet,
+  assets = [],
+}: {
+  sheet: BuildSheet;
+  /** For the custom branding pictures, shown with the branding. */
+  assets?: ViewableAsset[];
+}) {
+  const brandingFiles = assets.filter((a) => CUSTOM_BRANDING_ROLES.includes(a.role));
   const hasPantShells = sheetHasPantShells(sheet);
   /*
    * Two lists instead of a grid of label/Yes/No rows. In the grid, each
@@ -185,6 +284,7 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
 
   return (
     <Section title="Add-Ons & Customization">
+      <SectionComments comments={sheet.sectionComments} sections={['addons']} sheetTitle="Add-Ons & Customization" />
       <div className="text-xs font-bold uppercase tracking-wide text-muted">Included on this order</div>
       {on.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -222,6 +322,9 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
         */}
       <div className="mt-5 rounded-lg border border-line bg-surface-2 p-3">
         <div className="text-xs font-bold uppercase tracking-wide text-muted">Powerplay branding</div>
+        <div className="mt-2">
+          <SectionComments comments={sheet.sectionComments} sections={['branding']} sheetTitle="Powerplay Branding" />
+        </div>
         {brandingOn.length ? (
           <div className="mt-2 flex flex-wrap gap-2">
             {brandingOn.map((a) => (
@@ -245,6 +348,22 @@ export function AddOnsSection({ sheet }: { sheet: BuildSheet }) {
           <div className="mt-3 border-t border-line/60 pt-3">
             <p className="text-xs font-medium text-muted">Changes to the branding</p>
             <p className="mt-1 whitespace-pre-wrap text-sm">{sheet.brandingNotes}</p>
+          </div>
+        )}
+        {/*
+          * Someone else's logo in the branding — a sponsor's, usually. The
+          * logo and a picture of where it goes, shown whole, with what Keenan
+          * wrote about it.
+          */}
+        {sheet.customBranding && (
+          <div className="mt-3 border-t border-line/60 pt-3">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
+              <span aria-hidden>&#10003;</span> Custom branding
+            </span>
+            {sheet.customBrandingNotes && (
+              <p className="mt-2 whitespace-pre-wrap text-sm">{sheet.customBrandingNotes}</p>
+            )}
+            {brandingFiles.length > 0 && <CustomBrandingPictures assets={brandingFiles} teamName={sheet.teamName} />}
           </div>
         )}
       </div>
@@ -307,7 +426,10 @@ export function RosterSection({
 }) {
   const spares = sheet.extraJerseyDetails;
   const keeperRows = keepers ?? [];
-  if (sheet.roster.length === 0 && spares.length === 0 && keeperRows.length === 0) return null;
+  if (
+    sheet.roster.length === 0 && spares.length === 0 && keeperRows.length === 0 &&
+    !hasComment(sheet.sectionComments, ['roster'])
+  ) return null;
 
   const title = `Player Roster (${sheet.roster.length}${
     spares.length ? ` + ${spares.length} spare${spares.length > 1 ? 's' : ''}` : ''
@@ -320,6 +442,7 @@ export function RosterSection({
 
   return (
     <Section title={title} id="roster">
+      <SectionComments comments={sheet.sectionComments} sections={['roster']} sheetTitle="Player Roster" />
       {/*
         * The sizes, counted, before the rows. "How many larges?" is what the
         * factory asks and what a manager checks their list against, and
@@ -451,10 +574,13 @@ export function ArtworkSection({
   /** Roles shown elsewhere on the page. The number photos always are (Build Type); the factory sheet adds the font, which it offers as a download. */
   hideRoles?: AssetRole[];
 }) {
-  if (assets.length === 0) return null;
+  const hidden = [...hideRoles, ...CUSTOM_BRANDING_ROLES];
+  const shown = assets.filter((a) => !hidden.includes(a.role));
+  if (shown.length === 0 && !hasComment(sheet.sectionComments, ['artwork'])) return null;
   return (
     <Section title="Logos & Artwork">
-      <ArtworkGallery assets={assets} hideRoles={hideRoles} teamName={sheet.teamName} />
+      <SectionComments comments={sheet.sectionComments} sections={['artwork']} sheetTitle="Logos & Artwork" />
+      {shown.length > 0 && <ArtworkGallery assets={assets} hideRoles={hidden} teamName={sheet.teamName} />}
       {/*
         * The notes that go with the artwork, same as the order sheet shows
         * them. Whoever is making these needs the instruction as much as
@@ -479,6 +605,7 @@ export function ContactSection({ sheet, intro, title }: { sheet: BuildSheet; tit
   const c = sheet.contact;
   return (
     <Section title={title}>
+      <SectionComments comments={sheet.sectionComments} sections={['contact']} />
       {intro}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Contact Name">
@@ -507,9 +634,10 @@ export function ContactSection({ sheet, intro, title }: { sheet: BuildSheet; tit
  * into it reached nobody. Whitespace is preserved: these get typed as lists.
  */
 export function NotesSection({ sheet }: { sheet: BuildSheet }) {
-  if (!sheet.specialNotes && !sheet.captainPatchNotes) return null;
+  if (!sheet.specialNotes && !sheet.captainPatchNotes && !hasComment(sheet.sectionComments, ['team', 'notes'])) return null;
   return (
     <Section title="Notes">
+      <SectionComments comments={sheet.sectionComments} sections={['team', 'notes']} />
       {sheet.specialNotes && (
         <p className="whitespace-pre-wrap text-sm">{sheet.specialNotes}</p>
       )}

@@ -171,8 +171,58 @@ export const ASSET_ROLES = [
   'font',
   'design_svg',
   'finished_photo',
+  // Custom branding: the extra logo (a sponsor's, say) and where it goes.
+  'custom_branding_logo',
+  'custom_branding_placement',
 ] as const;
 export type AssetRole = (typeof ASSET_ROLES)[number];
+
+/* ------------------------------------------------------------------ *
+ * Section comments
+ *
+ * A comment Keenan pins to the top of one section of the order form ("Add
+ * comment" beside the section's tick), with who gets to read it.
+ * ------------------------------------------------------------------ */
+
+export const COMMENT_AUDIENCES = ['everyone', 'factory', 'internal'] as const;
+export type CommentAudience = (typeof COMMENT_AUDIENCES)[number];
+
+export const COMMENT_AUDIENCE_LABEL: Record<CommentAudience, string> = {
+  everyone: 'Customer + factory',
+  factory: 'Factory only',
+  internal: 'Just me',
+};
+
+export interface SectionComment {
+  text: string;
+  audience: CommentAudience;
+}
+
+/**
+ * The form sections a comment can sit on, with the name the sheets show it
+ * under. Keys are the order form's section ids.
+ */
+export const COMMENT_SECTIONS = {
+  team: 'Team & Payment',
+  contact: 'Shipping & Contact',
+  mode: 'Order Mode',
+  totals: 'Order Totals',
+  build: 'Build Type',
+  numbers: 'Numbers & Names',
+  addons: 'Add-Ons & Customization',
+  branding: 'Powerplay Branding',
+  artwork: 'Logos & Artwork',
+  pants: 'Pants & Pant Shells',
+  roster: 'Player Roster',
+  notes: 'Notes & Approval',
+} as const;
+export type CommentSection = keyof typeof COMMENT_SECTIONS;
+
+/** A comment as a sheet carries it: already filtered for that sheet's reader. */
+export interface SheetComment {
+  section: CommentSection;
+  text: string;
+}
 
 export const USER_ROLES = ['admin', 'staff'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
@@ -728,6 +778,18 @@ export interface Order {
    * in gold". Travels with the branding toggles to both sheets.
    */
   brandingNotes: string;
+  /**
+   * Branding that isn't Powerplay's: an extra logo for a sponsor or the like.
+   * The files are assets (`custom_branding_logo`, `custom_branding_placement`);
+   * this says what it is and where it goes. Both sheets.
+   */
+  customBranding: boolean;
+  customBrandingNotes: string;
+  /**
+   * One comment per form section, keyed by section id (COMMENT_SECTIONS), each
+   * with its own audience: everyone, the factory only, or just Keenan.
+   */
+  sectionComments: Partial<Record<CommentSection, SectionComment>>;
   /** Order notes. On the customer's sheet AND the factory's: instructions about what to make. */
   specialNotes: string;
   /**

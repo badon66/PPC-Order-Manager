@@ -164,7 +164,7 @@ export default async function FactorySheet({ params }: { params: Promise<{ token
 
       <OrderTotalsSection sheet={view} totals={totals} keepers={keepers} />
       <BuildTypeSection sheet={view} assets={assets} />
-      <AddOnsSection sheet={view} />
+      <AddOnsSection sheet={view} assets={assets} />
       <RosterSection sheet={view} csvHref={`/api/factory/${token}/roster.csv`} keepers={keepers} />
       <ArtworkSection sheet={view} assets={assets} hideRoles={[...NUMBER_ROLES, 'font', 'finished_photo']} />
       <NotesSection sheet={view} />

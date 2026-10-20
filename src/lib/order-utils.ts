@@ -444,6 +444,9 @@ export function blankOrder(): Order {
     mainCrestNotes: '',
 
     brandingNotes: '',
+    customBranding: false,
+    customBrandingNotes: '',
+    sectionComments: {},
     specialNotes: '',
     factoryNotes: '',
     keeperJerseys: [],

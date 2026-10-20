@@ -59,6 +59,23 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   priced, never in `computeTotals` or the roster tally. Keenan's order page
   and the factory sheet show them marked *Keep for Powerplay*. The leak test
   checks the public view carries no `keeper*`/`factory*` key.
+- **Section comments say who reads them** (Keenan, 2026-10-20). "Add comment"
+  beside each form section's tick (`SectionCard`/`WizardFrame` in
+  `order-form/shell.tsx`) stores one `Order.sectionComments[section]` with an
+  audience: `everyone` (customer + factory sheets), `factory` (factory sheet
+  only) or `internal` (Keenan's order page only). New comments start as
+  `internal`, and `cleanSectionComments` turns any unknown audience into
+  `internal`, so nothing is published by accident. `buildSheetOf` carries NO
+  comments; `publicViewOf` and `factoryViewOf` each add their own via
+  `sheetComments(o, audiences)`, and the build-sheet sections show them at the
+  top (`SectionComments`). Never fill comments in `buildSheetOf`.
+- **Custom branding** (`customBranding`, `customBrandingNotes`, asset roles
+  `custom_branding_logo` + `custom_branding_placement`) sits in the Powerplay
+  Branding section: the extra (sponsor) logo and where it goes, shown side by
+  side with the branding on both sheets and kept out of the logo gallery
+  (`CUSTOM_BRANDING_ROLES`). Tier presets never touch it.
+- **Pictures are two to a row** (2026-10-20) in the artwork galleries and the
+  form's upload groups — still whole, scaled to their half.
 - **Two note boxes, two readers.** `specialNotes` is on the customer's sheet
   AND the factory's; `factoryNotes` is on the factory's only. Don't merge them
   and don't put a factory-only note on `BuildSheet`.
@@ -69,6 +86,34 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   panel on the order page asks first; only the approval receipt is automatic.
   Leaving the pre-production deposit gate in either direction counts as the
   deposit received (see `statusAfterApproval`).
+- **"Payment received" is offered at every status, for all three payments.**
+  Teams pay early — all of it during Design Talk happens (Keenan, 2026-10-16).
+  The panel offers initial deposit, pre-production deposit (50%) and final
+  payment as buttons whatever the status; the status only picks the default.
+  The email's second line comes from `paymentReceivedNext(kind, status)`: an
+  early payment says what it covers ("once the design is signed off, your
+  order goes straight into production"), never a next step that isn't next.
+- **The customer's form locks by section, not all at once** (Keenan,
+  2026-10-16). `openClientSections` in `data/logic.ts` is the one rule:
+  before In Production everything ticked is open; from In Production the
+  roster, logos and inspiration lock (`clientEditingLocked` — they're what's
+  being made) but the personal details (contact + shipping address) stay open
+  until Shipped (`clientDetailsLocked`), because production finishing before
+  the address is in is normal. While anything is open the team page shows the
+  form — never "your jerseys are done, everything's locked in" — with
+  `detailsStillOpenMessage` on top: "check your shipping details" when what
+  the form holds is complete (`contactComplete`), "we still need" when not.
+  The details step starts from what we have (`contactOnFile` in
+  `roster/[token]/load.ts`: their unaccepted details, else the order's). A
+  stage page after production asks only for what the link still asks for
+  (`pageAsks`), so an old `/details` email link respects an unticked box. A
+  tab opened before production that posts
+  the roster afterwards is refused with "reload", not trimmed
+  (`submittableSections`, using the `sectionsShown` the form sends); both
+  stores check again at the write (`assertSectionsOpen`). The roster/artwork
+  upload routes still close at In Production (`link.locked`). The share
+  sheet's reminder after production shows only while the order is missing
+  the shipping details (`clientFormReminder`, `shippingDetailsMissing`).
 - **Dates never pass through a timezone.** `datePaid`, `approvedDate`,
   `estimatedFinishDate` are `YYYY-MM-DD` strings. Format with helpers in
   `src/lib/dates.ts`. Never `new Date(str)` a date-only string. The old app
@@ -232,7 +277,8 @@ Decided by Keenan 2026-10-15. Design notes live in the file headers named here.
   counts only (`aiContextOf`) — no money, no contact details.
 - **Two read routes, both `maxDuration = 60`** (read.ts keeps a time budget
   inside that): `/api/orders/[id]/roster-read` (staff) and
-  `/api/roster-read/[token]` (public: the roster token, link on and not locked,
+  `/api/roster-read/[token]` (public: the roster token, link on and not locked
+  — the roster locks at In Production even though the details don't,
   `ROSTER_READS_PER_DAY` per order, bytes only — a public caller can never
   point the server at a stored file). Photos are shrunk in the browser for
   READING only (`readableCopy`); the file kept is the original.
@@ -256,7 +302,8 @@ to see all of it. Every uploaded picture renders through `FilePreview` (or the
 gallery tile, same rule): the whole image, its own proportions, as wide as it
 really is up to the width of its space — scaled down to fit, never cropped,
 never boxed, never blown up. No `object-cover` on a photo. Non-image files (AI,
-EPS, PDF) keep their format badge.
+EPS, PDF) keep their format badge. Galleries and upload groups lay them out two
+to a row (2026-10-20: full-width ones were far too big), the next pair below.
 
 ## Conventions
 

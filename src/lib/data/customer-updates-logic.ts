@@ -20,8 +20,10 @@ export function formatAmount(raw: string): string {
  * Every email is offered at most once per order (customerEmails remembers
  * what went out), except `payment_received` — repeatable, since it confirms
  * whichever payment (initial deposit, pre-production deposit, final payment)
- * last arrived, and each is worth its own confirmation. Nothing here sends
- * anything.
+ * last arrived, and each is worth its own confirmation. It's offered at every
+ * status: teams pay early, sometimes all of it during Design Talk (Keenan,
+ * 2026-10-16), and the email says what an early payment covers. Nothing here
+ * sends anything.
  */
 
 export const MONEY_STAGES: ReadonlySet<UpdateStage> = new Set<UpdateStage>([
@@ -74,7 +76,7 @@ export function recipientOf(order: Pick<Order, 'contactEmail'>): string {
   return (order.contactEmail ?? '').trim();
 }
 
-/** Which payment a "payment received" email should default to, given where the order sits. */
+/** Which payment a "payment received" email should default to, given where the order sits. Keenan can pick any of the three. */
 export function defaultPaymentKind(status: OrderStatus): PaymentKind {
   const p = pos(status);
   if (p <= pos('waiting_for_deposit')) return 'initial_deposit';
@@ -118,9 +120,9 @@ export function dueUpdates(order: DueInput, _history: ChangeLogEntry[]): DueUpda
   if (s === 'waiting_for_final_approval' || s === 'waiting_for_payment') offer('final_payment_requested');
   if (s === 'shipped') offer('shipped', order.trackingCode.trim() ? null : 'Add a tracking code first.');
   if (s === 'completed') offer('completed');
-  if (p >= pos('waiting_for_deposit') && p <= pos('shipped')) {
-    offer('payment_received', null, { repeatable: true, paymentKind: defaultPaymentKind(s) });
-  }
+  // Any of the three payments, at any stage — paid early is common. The kind
+  // only defaults from the status; the panel offers all three.
+  offer('payment_received', null, { repeatable: true, paymentKind: defaultPaymentKind(s) });
   if (s === 'completed') offer('review_request');
 
   if (!recipientOf(order)) {

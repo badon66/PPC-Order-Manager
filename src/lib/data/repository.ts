@@ -1,6 +1,6 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant,
+  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment,
 } from '@/lib/types';
 import type { RosterVersionSummary } from '@/lib/roster-versions';
 import type { TimelineStep } from './timeline';
@@ -123,6 +123,15 @@ export interface BuildSheet {
   approvedDate: Order['approvedDate'];
   /** Changes to the Powerplay branding, shown with the branding toggles. */
   brandingNotes: string;
+  /** A sponsor's (or other) logo on top of Powerplay's branding: what and where. Files are assets. */
+  customBranding: boolean;
+  customBrandingNotes: string;
+  /**
+   * Keenan's section comments THIS reader may see — set by each view, never
+   * by buildSheetOf: the customer's view keeps "everyone", the factory's adds
+   * "factory only", and "just me" is on neither.
+   */
+  sectionComments: SheetComment[];
   specialNotes: string;
   /*
    * Production notes. These describe what to make, not what we think about the
@@ -265,11 +274,19 @@ export interface Repository {
     enabled: boolean;
     status: Order['status'];
     /**
-     * True once the order reached production. The form renders read-only and
-     * the write is refused — a customer cannot change a jersey being sewn.
+     * True once the order reached production: the roster, logos and
+     * inspiration can't change — a customer cannot change a jersey being
+     * sewn — and the roster/artwork uploads refuse. The contact and shipping
+     * details can still be open; that's `open`.
      */
     locked: boolean;
+    /** What Keenan ticked. */
     sections: ClientLinkSections;
+    /**
+     * What the form still takes: `sections` minus whatever the order has moved
+     * past (openClientSections in logic.ts). All off when the link is off.
+     */
+    open: ClientLinkSections;
     variant: RouteVariant | null;
     orderMode: Order['orderMode'];
     /** Whether the order actually includes socks / pant shells. */

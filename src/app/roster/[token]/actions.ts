@@ -1,7 +1,7 @@
 'use server';
 
 import { repo } from '@/lib/data';
-import { CLIENT_LOCKED_MESSAGE } from '@/lib/data/logic';
+import { isClientLockedError, pageAsks, submittableSections } from '@/lib/data/logic';
 import { cleanSubmission, type SubmitPayload } from '@/lib/data/submission-logic';
 import { STAGE_SECTIONS, type StagePage } from '@/lib/data/stage-pages';
 
@@ -17,6 +17,11 @@ import { STAGE_SECTIONS, type StagePage } from '@/lib/data/stage-pages';
  * rather than whatever the hub link is configured for — a customer sent
  * straight to the design page still only sees, and only sends, logos and
  * inspiration, whatever else the order's own link asks for.
+ *
+ * Which of those sections are still open is `submittableSections`: from
+ * production on only the contact and shipping details, until the order
+ * ships. A form opened before production that still shows the roster is
+ * refused, not trimmed.
  */
 
 export type { SubmitPayload } from '@/lib/data/submission-logic';
@@ -32,11 +37,16 @@ export async function submitClientForm(
   if (!link || !link.enabled) return { ok: false, error: 'This link is no longer active.' };
   // Checked again in the store, at the write. Here so the customer gets the
   // real reason rather than a generic failure.
-  if (link.locked) return { ok: false, error: CLIENT_LOCKED_MESSAGE };
+  const allowed = submittableSections(
+    pageAsks(link.sections, link.status, stage ? STAGE_SECTIONS[stage] : undefined),
+    link.status,
+    payload.sectionsShown,
+  );
+  if (!allowed.ok) return allowed;
 
   const cleaned = cleanSubmission(
     {
-      sections: stage ? STAGE_SECTIONS[stage] : link.sections,
+      sections: allowed.sections,
       includesSocks: link.includesSocks,
       includesPantShells: link.includesPantShells,
       extraJerseys: link.extraJerseys,
@@ -45,7 +55,15 @@ export async function submitClientForm(
   );
   if (!cleaned.ok) return cleaned;
 
-  await repo.submitClientRoster(token, cleaned.value);
+  try {
+    await repo.submitClientRoster(token, cleaned.value);
+  } catch (e) {
+    // The store's own check, for a status that changed between the check
+    // above and the write. Its message is written for the customer; anything
+    // else is a real failure and stays one.
+    if (isClientLockedError(e)) return { ok: false, error: e.message };
+    throw e;
+  }
 
   return { ok: true };
 }

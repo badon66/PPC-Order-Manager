@@ -188,9 +188,9 @@ export function AssetGroup({
       {error && <p className="mt-2 text-xs font-semibold text-red-300">{error}</p>}
 
       {mine.length > 0 && (
-        // One file per row, each picture whole and as wide as it is (up to the
-        // card): checking artwork means seeing all of it, not a cropped square.
-        <ul className="mt-3 space-y-2">
+        // Two to a row (Keenan, 2026-10-20: one per row made them far too
+        // big), each picture still whole — scaled to its half, never cropped.
+        <ul className="mt-3 grid items-start gap-2 sm:grid-cols-2">
           {mine.map((a) => (
             <li key={a.id} className="rounded border border-line bg-surface p-2">
               <FilePreview fileName={a.fileName} url={a.viewUrl} />

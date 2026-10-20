@@ -44,6 +44,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
   const stagePaths = stagePagePaths(order.rosterToken);
   const gate = lastStatusChange(history);
   return {
+    status: order.status,
     teamName: order.teamName,
     firstName: firstNameOf(order.contactFirstName ?? ''),
     rosterUrl: `${base}/roster/${order.rosterToken}`,

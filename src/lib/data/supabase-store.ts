@@ -9,7 +9,7 @@ import type {
   Actor, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  approvalLogEntry, assertSectionsOpen, buildSubmission, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
 import {
   activeRosterIdOf, activeRows, listRosters, planDeleteRoster, planNewRoster, planUseRoster, rosterLabel, rowsOfRoster,
@@ -460,10 +460,11 @@ export const supabaseStore: Repository = {
     const o = await orderByToken('roster_token', token);
     if (!o) throw new Error('Invalid link');
 
-    // The form is hidden once the order is in production, but hiding a form
-    // does not stop a POST from a tab that was open beforehand. Checked here,
-    // at the write, where it cannot be skipped.
-    if (clientEditingLocked(o.status)) throw new Error(CLIENT_LOCKED_MESSAGE);
+    // The roster and artwork are hidden once the order is in production, but
+    // hiding a form does not stop a POST from a tab that was open beforehand.
+    // Checked here, at the write, where it cannot be skipped: every section
+    // this carries must still be open (openClientSections in logic.ts).
+    assertSectionsOpen(o.status, submission.sections);
 
     const previous = await this.getLatestSubmissionByRosterToken(token);
     const created = buildSubmission(o.id, previous, submission);

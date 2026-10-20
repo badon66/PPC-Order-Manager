@@ -13,6 +13,7 @@ import { CLIENT_LINK_SECTION_META } from '@/lib/types';
 import type { ClientLinkSections } from '@/lib/types';
 import { Timeline } from '@/components/timeline';
 import { stageMessage } from '@/lib/data/timeline';
+import { clientEditingLocked } from '@/lib/data/logic';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { resolveAll } from '@/lib/storage';
 
@@ -93,7 +94,23 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </div>
       )}
 
-      {view.clientFormOpen && (
+      {/*
+        * From production on the only thing the form can still want is the
+        * contact and shipping details, and the box only shows while the order
+        * is missing them (clientFormReminder) — so it says exactly that.
+        */}
+      {view.clientFormOpen && clientEditingLocked(view.status) && (
+        <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-4">
+          <p className="font-bold text-ppc-gold">We still need your shipping details</p>
+          <p className="mt-1 text-sm text-muted">
+            The jerseys can&apos;t ship until we know who to contact and where they&apos;re going.
+            Use the form link we sent you to fill in your contact and shipping details. Can&apos;t
+            find the link? Just reply to our email and we&apos;ll resend it.
+          </p>
+        </div>
+      )}
+
+      {view.clientFormOpen && !clientEditingLocked(view.status) && (
         <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-4">
           <p className="font-bold text-ppc-gold">We still need a few things from you</p>
           <p className="mt-1 text-sm text-muted">
@@ -181,7 +198,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         intro={
           <p className="mb-4 text-sm text-muted">
             This is where the order ships and who we&apos;ll contact. If anything here is wrong,
-            tell us before the order goes into production — we can&apos;t reroute it afterwards.
+            tell us before the order ships — we can&apos;t reroute it once it&apos;s on its way.
           </p>
         }
       />
@@ -193,7 +210,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         */}
       <OrderTotalsSection sheet={view} totals={totals} />
       <BuildTypeSection sheet={view} assets={assets} />
-      <AddOnsSection sheet={view} />
+      <AddOnsSection sheet={view} assets={assets} />
       <RosterSection sheet={view} csvHref={`/api/share/${token}/roster.csv`} />
       <ArtworkSection sheet={view} assets={assets} />
       <NotesSection sheet={view} />

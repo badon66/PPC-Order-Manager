@@ -45,6 +45,29 @@ export function stageMessage(status: OrderStatus): { title: string; text: string
   }
 }
 
+/**
+ * What the team pages say once production has started but the contact and
+ * shipping details are still open (openClientSections in data/logic.ts): the
+ * roster and design can't change, the address can. Shown in place of the
+ * "everything's locked in" box, never alongside it — the form is right below.
+ *
+ * `onFile`: the form below already holds everything the box needs (theirs,
+ * or what's on the order), so the ask is "check it" rather than "we still
+ * need it".
+ */
+export function detailsStillOpenMessage(status: OrderStatus, onFile: boolean): { title: string; text: string } {
+  const where = stageMessage(status)?.title ?? 'Your order is being made.';
+  return onFile
+    ? {
+        title: 'Check your shipping details',
+        text: `${where} The roster and design can't change now, but your contact and shipping details can, right up until the order ships. If anything's changed, update it below and send it again.`,
+      }
+    : {
+        title: 'Where should we ship them?',
+        text: `${where} The roster and design can't change now, but we still need your contact and shipping details before the order can ship. Fill them in below.`,
+      };
+}
+
 export type TimelineStepKey =
   | 'received' | 'designing' | 'finalizing' | 'initial_deposit' | 'proof' | 'production_deposit'
   | 'in_production' | 'final_check' | 'final_payment' | 'shipped' | 'delivered';

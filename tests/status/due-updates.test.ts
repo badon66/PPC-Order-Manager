@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MONEY_STAGES, dueUpdates, formatAmount, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { blankOrder } from '@/lib/order-utils';
-import type { ChangeLogEntry, OrderStatus, UpdateStage } from '@/lib/types';
+import { ORDER_STATUSES, type ChangeLogEntry, type OrderStatus, type UpdateStage } from '@/lib/types';
 
 function moved(from: OrderStatus, to: OrderStatus, at = '2026-09-21T10:00:00Z'): ChangeLogEntry {
   return { id: `${from}-${to}-${at}`, orderId: 'o1', action: 'status_changed', field: 'status', fromValue: from, toValue: to, summary: '', actorEmail: 'k', actorName: 'Keenan', at };
@@ -37,7 +37,8 @@ test('each status offers its own email, once', () => {
     const sent = order(status, { customerEmails: [{ stage, sentAt: 'x', to: 'sam@example.com', messageId: '' }] });
     assert.deepEqual(withoutAutoStages(stages(sent)), [], `${status} already sent`);
   }
-  assert.deepEqual(stages(order('draft')), []);
+  // A draft has no email of its own; only the payment receipt, which every status offers.
+  assert.deepEqual(stages(order('draft')), ['payment_received']);
 });
 
 test('the three request emails need an amount, nothing else does', () => {
@@ -55,16 +56,22 @@ test('shipped waits for a tracking code; no recipient blocks everything', () => 
   assert.match(n.blocked ?? '', /no customer email/i);
 });
 
-test('payment received is offered from the initial deposit through shipped, repeatable, with a sensible default kind', () => {
+test('payment received is offered at every status, repeatable, with a sensible default kind', () => {
   const at = (s: OrderStatus) => dueUpdates(order(s), []).find((d) => d.stage === 'payment_received');
-  assert.equal(at('draft'), undefined);
-  assert.equal(at('finalizing_details'), undefined);
+  // Teams pay early — a full payment during Design Talk happens — so it is
+  // never missing, whatever the status (Keenan, 2026-10-16).
+  for (const s of ORDER_STATUSES) assert.ok(at(s), `${s} offers payment received`);
+  assert.equal(at('draft')?.paymentKind, 'initial_deposit');
+  assert.equal(at('design_talk')?.paymentKind, 'initial_deposit');
+  assert.equal(at('finalizing_details')?.paymentKind, 'initial_deposit');
   assert.equal(at('waiting_for_deposit')?.paymentKind, 'initial_deposit');
   assert.equal(at('waiting_for_approval')?.paymentKind, 'production_deposit');
   assert.equal(at('in_production')?.paymentKind, 'production_deposit');
   assert.equal(at('waiting_for_payment')?.paymentKind, 'final_payment');
   assert.equal(at('shipped')?.paymentKind, 'final_payment');
-  assert.equal(at('completed'), undefined);
+  assert.equal(at('completed')?.paymentKind, 'final_payment');
+  assert.equal(at('design_talk')?.blocked, null);
+  assert.match(dueUpdates(order('design_talk', { contactEmail: '' }), []).find((d) => d.stage === 'payment_received')?.blocked ?? '', /no customer email/i);
   const sentTwice = order('shipped', { trackingCode: 'x', customerEmails: [{ stage: 'payment_received', sentAt: 'x', to: 'sam@example.com', messageId: '' }] });
   assert.equal(dueUpdates(sentTwice, []).find((d) => d.stage === 'payment_received')?.repeatable, true);
 });

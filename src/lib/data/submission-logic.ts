@@ -30,6 +30,12 @@ export interface SubmitPayload {
   colours?: string;
   contact?: SubmittedContact;
   confirmed: boolean;
+  /**
+   * The sections the form on the customer's screen showed. Read by the
+   * submit action (submittableSections in logic.ts) to refuse a form opened
+   * before production, not by cleanSubmission.
+   */
+  sectionsShown?: ClientLinkSections;
 }
 
 /** The parts of the link the rules depend on. */

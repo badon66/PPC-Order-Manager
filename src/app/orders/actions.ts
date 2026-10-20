@@ -14,6 +14,7 @@ import { importContextOf } from '@/lib/roster-import/analyze';
 import { cleanAnalysis, cleanDecisions } from '@/lib/roster-import/validate';
 import { readByAi } from '@/lib/roster-import/types';
 import { rosterLabel } from '@/lib/roster-versions';
+import { cleanSectionComments } from '@/lib/data/logic';
 
 /**
  * Every mutation goes through a server action. Authorization is checked here,
@@ -139,6 +140,7 @@ const EDITABLE: ReadonlyArray<keyof Order> = [
    */
   'productionStartDate', 'productionFinishDate',
   'extraJerseyDetails', 'requestApproval',
+  'customBranding', 'customBrandingNotes', 'sectionComments',
 ];
 
 /**
@@ -195,6 +197,9 @@ export async function saveOrder(
   for (const key of EDITABLE) {
     if (key in patch) (clean as Record<string, unknown>)[key] = patch[key];
   }
+
+  // Comments carry who may read them; an unknown audience must never publish.
+  if (clean.sectionComments !== undefined) clean.sectionComments = cleanSectionComments(clean.sectionComments);
 
   // Empty date strings are null, not "".
   for (const f of DATE_FIELDS) {

@@ -10,7 +10,7 @@ import type {
   Actor, CallListBundle, OrderBundle, OrderListFilters, PublicOrderView, Repository,
 } from './repository';
 import {
-  CLIENT_LOCKED_MESSAGE, approvalLogEntry, buildSubmission, clientEditingLocked, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
+  approvalLogEntry, assertSectionsOpen, buildSubmission, healOrder, healRosterEntry, healSettings, healSubmission, logEntry, matchesSearch, planAcceptance, planRosterRead, factoryViewOf, publicViewOf, rosterLinkView, submissionLogEntries, updateLogEntries, stampCompletion,
 } from './logic';
 import {
   activeRosterIdOf, activeRows, listRosters, planDeleteRoster, planNewRoster, planUseRoster, rosterLabel, rowsOfRoster,
@@ -399,8 +399,9 @@ export const jsonStore: Repository = {
     await withWrite((db) => {
       const o = db.orders.find((x) => x.rosterToken === token && !x.deletedAt);
       if (!o) throw new Error('Invalid link');
-      // Same rule as the Supabase store, enforced at the write. See logic.ts.
-      if (clientEditingLocked(o.status)) throw new Error(CLIENT_LOCKED_MESSAGE);
+      // Same rule as the Supabase store, enforced at the write: every section
+      // this carries must still be open. See openClientSections in logic.ts.
+      assertSectionsOpen(o.status, submission.sections);
       const previous = db.submissions
         .filter((x) => x.orderId === o.id)
         .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt))

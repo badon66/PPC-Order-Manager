@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { COMMENT_AUDIENCES, COMMENT_AUDIENCE_LABEL, type CommentAudience, type SectionComment } from '@/lib/types';
 
 /**
  * The form's three faces, per Keenan's spec:
@@ -229,10 +230,12 @@ export function SectionCard({
   def,
   children,
   anchored = false,
+  comment,
 }: {
   def: SectionDef;
   children: ReactNode;
   anchored?: boolean;
+  comment?: CommentControl;
 }) {
   return (
     <section
@@ -246,14 +249,95 @@ export function SectionCard({
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-bold uppercase tracking-wide text-ppc-gold">{def.title}</h2>
         </div>
+        <AddCommentButton control={comment} />
         {def.complete && (
           <span className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-300">
             ✓
           </span>
         )}
       </div>
-      <div className="space-y-4 p-4">{children}</div>
+      <div className="space-y-4 p-4">
+        <SectionCommentEditor control={comment} />
+        {children}
+      </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Section comments
+ *
+ * "Add comment" sits beside a section's tick; the comment then sits at the
+ * top of that section, with who gets to read it. It lands at the top of the
+ * same section on the sheets the reader is allowed (sheetComments in
+ * data/logic.ts).
+ * ------------------------------------------------------------------ */
+
+export interface CommentControl {
+  value: SectionComment | undefined;
+  onChange: (c: SectionComment | null) => void;
+}
+
+const AUDIENCE_HINT: Record<CommentAudience, string> = {
+  everyone: "Shown at the top of this section on the customer's sheet and the factory sheet.",
+  factory: 'Shown on the factory sheet only. The team never sees it.',
+  internal: 'Only on your order page. On no sheet.',
+};
+
+export function AddCommentButton({ control }: { control?: CommentControl }) {
+  if (!control || control.value) return null;
+  return (
+    <button
+      type="button"
+      // Starts as "just me": a note typed in a hurry is never published by default.
+      onClick={() => control.onChange({ text: '', audience: 'internal' })}
+      className="shrink-0 rounded-full border border-line px-2.5 py-0.5 text-[0.7rem] font-semibold text-muted hover:border-ppc-gold/60 hover:text-ppc-gold"
+    >
+      + Add comment
+    </button>
+  );
+}
+
+export function SectionCommentEditor({ control }: { control?: CommentControl }) {
+  const c = control?.value;
+  if (!control || !c) return null;
+  return (
+    <div className="rounded-lg border border-ppc-gold/50 bg-ppc-gold/5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Comment</span>
+        <button
+          type="button"
+          onClick={() => control.onChange(null)}
+          className="text-xs font-semibold text-muted hover:text-red-300"
+        >
+          Remove
+        </button>
+      </div>
+      <textarea
+        className="mt-2 w-full"
+        rows={2}
+        value={c.text}
+        placeholder="e.g. Sponsor logo goes above the back label on all jerseys"
+        onChange={(e) => control.onChange({ ...c, text: e.target.value })}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted">Who sees it:</span>
+        {COMMENT_AUDIENCES.map((a) => (
+          <button
+            key={a}
+            type="button"
+            aria-pressed={c.audience === a}
+            onClick={() => control.onChange({ ...c, audience: a })}
+            className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
+              c.audience === a ? 'border-ppc-gold bg-ppc-gold text-black' : 'border-line bg-surface hover:border-ppc-gold/60'
+            }`}
+          >
+            {COMMENT_AUDIENCE_LABEL[a]}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted">{AUDIENCE_HINT[c.audience]}</p>
+    </div>
   );
 }
 
@@ -267,12 +351,14 @@ export function WizardFrame({
   onStep,
   onFinish,
   children,
+  comment,
 }: {
   sections: SectionDef[];
   stepIndex: number;
   onStep: (i: number) => void;
   onFinish: () => void;
   children: ReactNode;
+  comment?: CommentControl;
 }) {
   const def = sections[stepIndex];
   const last = stepIndex === sections.length - 1;
@@ -319,12 +405,16 @@ export function WizardFrame({
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ppc-gold/10 text-xl">
             {def.icon}
           </span>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold">{def.title}</h2>
             <p className="text-xs text-muted">{def.blurb}</p>
           </div>
+          <AddCommentButton control={comment} />
         </div>
-        <div className="space-y-4 p-5">{children}</div>
+        <div className="space-y-4 p-5">
+          <SectionCommentEditor control={comment} />
+          {children}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">

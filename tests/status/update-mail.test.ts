@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
+import { composeUpdateMail, paymentReceivedNext, type UpdateMailInput } from '@/lib/data/update-mail';
 import { PRODUCTION_NOTE } from '@/lib/data/timeline';
-import { PAYMENT_KIND_LABEL, UPDATE_STAGES } from '@/lib/types';
+import { PAYMENT_KIND_LABEL, ORDER_STATUSES, UPDATE_STAGES, type OrderStatus, type PaymentKind } from '@/lib/types';
 
 const base: UpdateMailInput = {
+  status: 'waiting_for_payment',
   teamName: 'Ice Cats', firstName: 'Sam',
   rosterUrl: 'https://orders.powerplaycustoms.ca/roster/' + 'a'.repeat(64),
   shareUrl: 'https://orders.powerplaycustoms.ca/share/' + 'b'.repeat(64),
@@ -89,11 +90,44 @@ test('the two link emails point at their stage pages', () => {
 });
 
 test('payment received names the payment and what comes next, never an amount', () => {
-  for (const [kind, next] of [['initial_deposit', /next mockup/], ['production_deposit', /Production is next/], ['final_payment', /tracking number/]] as const) {
-    const m = composeUpdateMail('payment_received', { ...base, paymentKind: kind });
+  const onTime = [
+    ['initial_deposit', 'design_talk', /next mockup/],
+    ['production_deposit', 'waiting_for_production_deposit', /Production is next/],
+    ['final_payment', 'waiting_for_payment', /tracking number/],
+  ] as const;
+  for (const [kind, status, next] of onTime) {
+    const m = composeUpdateMail('payment_received', { ...base, status, paymentKind: kind });
     assert.match(m.text, next);
-    assert.ok(m.text.includes(PAYMENT_KIND_LABEL[kind]));
+    assert.ok(m.text.includes(`We've received your ${PAYMENT_KIND_LABEL[kind]} for Ice Cats.`));
     assert.ok(!/\$\s?\d/.test(m.text));
+  }
+});
+
+test('payment received early says what it covers, never a next step that is not next', () => {
+  // Paid in full during Design Talk: no "tracking number follows shortly".
+  const full = composeUpdateMail('payment_received', { ...base, status: 'design_talk', paymentKind: 'final_payment' });
+  assert.match(full.text, /paid in full, so once the jerseys are made they ship straight to you/);
+  assert.doesNotMatch(full.text, /tracking number|Production is next/);
+  // The 50% deposit before sign-off: production waits on the design, not the money.
+  const half = composeUpdateMail('payment_received', { ...base, status: 'design_talk', paymentKind: 'production_deposit' });
+  assert.match(half.text, /once the design is signed off, your order goes straight into production/);
+  assert.doesNotMatch(half.text, /Production is next/);
+  // Before the design has started at all.
+  assert.match(paymentReceivedNext('initial_deposit', 'draft'), /get your design started/);
+  // Late ones are simply counted.
+  assert.match(paymentReceivedNext('initial_deposit', 'in_production'), /straight off your total/);
+  assert.match(paymentReceivedNext('production_deposit', 'waiting_for_payment'), /straight off your total/);
+  assert.match(paymentReceivedNext('final_payment', 'completed'), /paid in full/);
+});
+
+test('every payment, at every status, composes a receipt that names it and carries no amount', () => {
+  for (const status of ORDER_STATUSES as readonly OrderStatus[]) {
+    for (const kind of Object.keys(PAYMENT_KIND_LABEL) as PaymentKind[]) {
+      const m = composeUpdateMail('payment_received', { ...base, status, paymentKind: kind, amount: '$999' });
+      assert.ok(m.text.includes(PAYMENT_KIND_LABEL[kind]), `${status} ${kind}`);
+      assert.ok(paymentReceivedNext(kind, status).length > 10, `${status} ${kind} has a next line`);
+      assert.ok(!m.text.includes('999') && !m.html.includes('999'), `${status} ${kind} carries no amount`);
+    }
   }
 });
 
@@ -131,18 +165,21 @@ test('"nearly there" asks only for the sizes of what is on the order', () => {
   assert.match(all.html, /jersey, sock and pant shell sizes/);
 });
 
-test('payment received links the order sheet, plus the upload page after the initial deposit only', () => {
-  const initial = composeUpdateMail('payment_received', { ...base, paymentKind: 'initial_deposit' });
+test('payment received links the order sheet, plus the upload page only before production', () => {
+  const initial = composeUpdateMail('payment_received', { ...base, status: 'design_talk', paymentKind: 'initial_deposit' });
   for (const body of [initial.text, initial.html]) {
     assert.ok(body.includes(base.shareUrl), 'order sheet');
     assert.ok(body.includes(base.rosterUrl), 'upload page');
   }
   assert.match(initial.text, /See your order: /);
   assert.match(initial.text, /Upload your info and files: /);
-  for (const kind of ['production_deposit', 'final_payment'] as const) {
-    const m = composeUpdateMail('payment_received', { ...base, paymentKind: kind });
+  // Paid early, the logos and roster may still be coming: the upload page too.
+  const early = composeUpdateMail('payment_received', { ...base, status: 'design_talk', paymentKind: 'final_payment' });
+  assert.ok(early.text.includes(base.rosterUrl), 'early payment keeps the upload page');
+  for (const [kind, status] of [['production_deposit', 'in_production'], ['final_payment', 'waiting_for_payment'], ['initial_deposit', 'in_production']] as const) {
+    const m = composeUpdateMail('payment_received', { ...base, status, paymentKind: kind });
     assert.ok(m.text.includes(base.shareUrl), `${kind} order sheet`);
-    assert.ok(!m.text.includes(base.rosterUrl) && !m.html.includes(base.rosterUrl), `${kind} has no upload link`);
+    assert.ok(!m.text.includes(base.rosterUrl) && !m.html.includes(base.rosterUrl), `${kind} in ${status} has no upload link`);
   }
 });
 

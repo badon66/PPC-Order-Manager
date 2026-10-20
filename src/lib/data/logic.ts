@@ -2,7 +2,8 @@ import type { CalendarDate } from '@/lib/dates';
 import type {
   ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, RosterVersion, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
-import { DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
+import { COMMENT_AUDIENCES, COMMENT_SECTIONS, DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
+import type { CommentAudience, CommentSection, SectionComment, SheetComment } from '@/lib/types';
 import { STATUS_META, awaitingFinish, captaincyLabel } from '@/lib/constants';
 import { nextHomeAwayClaims } from '@/lib/roster-edit';
 import { planNewRoster, rosterLabel } from '@/lib/roster-versions';
@@ -76,6 +77,9 @@ export function healOrder(o: Order): Order {
   o.rosterReads ??= [];
   o.factoryNotes ??= '';
   o.brandingNotes ??= '';
+  o.customBranding ??= false;
+  o.customBrandingNotes ??= '';
+  o.sectionComments ??= {};
   // Not minted here: a heal runs on every read and isn't persisted, so a token
   // made here would change on every page load. createFactoryLink mints it.
   o.factoryToken ??= '';
@@ -751,6 +755,11 @@ export function buildSheetOf(o: Order, roster: RosterEntry[]): BuildSheet {
     approvedBy: o.approvedBy,
     approvedDate: o.approvedDate,
     brandingNotes: o.brandingNotes ?? '',
+    customBranding: Boolean(o.customBranding),
+    customBrandingNotes: o.customBranding ? o.customBrandingNotes ?? '' : '',
+    // Deliberately empty here: who may read a comment depends on the sheet,
+    // so publicViewOf and factoryViewOf each fill in their own.
+    sectionComments: [],
     specialNotes: o.specialNotes,
     captainPatchNotes: o.captainPatchNotes,
     designReferenceNotes: o.designReferenceNotes,
@@ -780,8 +789,11 @@ export function publicViewOf(
   assets: OrderAsset[],
   history: ChangeLogEntry[] = [],
 ): PublicOrderView {
+  const reminder = clientFormReminder(o);
   return {
     ...buildSheetOf(o, roster),
+    // The customer reads only what Keenan marked for everyone.
+    sectionComments: sheetComments(o, ['everyone']),
     orderId: o.id,
     datePaid: o.datePaid,
     googleDriveLink: o.googleDriveLink,
@@ -793,9 +805,10 @@ export function publicViewOf(
     // page URL is built from the roster token — the write credential. See
     // rosterLinkView, which is the one place that link belongs.
     timeline: timelineOf(o, history),
-    // Open = switched on by Keenan and the order hasn't reached production.
-    clientFormOpen: o.requestClientDetails && !clientEditingLocked(o.status),
-    clientFormSections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
+    // What the team's form still takes, and whether to remind them of it.
+    // See clientFormReminder: after production only a missing address nags.
+    clientFormOpen: reminder.open,
+    clientFormSections: reminder.sections,
   };
 }
 
@@ -812,6 +825,8 @@ export function publicViewOf(
 export function factoryViewOf(o: Order, roster: RosterEntry[], assets: OrderAsset[]): FactoryOrderView {
   return {
     ...buildSheetOf(o, roster),
+    // The factory reads "everyone" and "factory only"; "just me" stays Keenan's.
+    sectionComments: sheetComments(o, ['everyone', 'factory']),
     assets,
     factoryNotes: o.factoryNotes ?? '',
     keeperJerseys: o.keeperJerseys ?? [],
@@ -820,13 +835,57 @@ export function factoryViewOf(o: Order, roster: RosterEntry[], assets: OrderAsse
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * Section comments
+ * ------------------------------------------------------------------ */
+
+const SECTION_ORDER = Object.keys(COMMENT_SECTIONS) as CommentSection[];
+
 /**
- * Can the customer still change what they sent us?
+ * The comments a sheet carries, for the audiences it may show — in the
+ * order of the form, empty ones left out.
+ */
+export function sheetComments(o: Pick<Order, 'sectionComments'>, audiences: CommentAudience[]): SheetComment[] {
+  const all = o.sectionComments ?? {};
+  return SECTION_ORDER.flatMap((section) => {
+    const c = all[section];
+    return c && c.text.trim() && audiences.includes(c.audience) ? [{ section, text: c.text.trim() }] : [];
+  });
+}
+
+/**
+ * What saveOrder keeps of the form's comments: known sections only, a known
+ * audience (anything else becomes "just me" — never published by accident),
+ * text capped. An empty comment is kept while it's being typed; the sheets
+ * skip it.
+ */
+export function cleanSectionComments(v: unknown): Partial<Record<CommentSection, SectionComment>> {
+  const out: Partial<Record<CommentSection, SectionComment>> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, c] of Object.entries(v as Record<string, unknown>)) {
+    if (!(k in COMMENT_SECTIONS) || !c || typeof c !== 'object') continue;
+    const { text, audience } = c as { text?: unknown; audience?: unknown };
+    out[k as CommentSection] = {
+      text: typeof text === 'string' ? text.slice(0, 4000) : '',
+      audience: COMMENT_AUDIENCES.includes(audience as CommentAudience) ? (audience as CommentAudience) : 'internal',
+    };
+  }
+  return out;
+}
+
+/**
+ * Can the customer still change what's being MADE — the roster, the logos,
+ * the inspiration?
  *
  * Yes right up until the jerseys are being made, and never after. Once a
  * roster is at the manufacturer, a size changed on a form is not a correction
  * — it's a discrepancy between what the customer believes they ordered and
  * what is being sewn, and nobody finds out until the box arrives.
+ *
+ * The contact and shipping details are NOT part of this lock: they're how
+ * the jerseys reach the team, not what's sewn, and they stay open until the
+ * box ships. See openClientSections — that, not this, is what decides what
+ * the customer's form takes.
  *
  * Derived from the workflow position in STATUS_META rather than a hardcoded
  * list of locked statuses, so it stays correct on its own: a status inserted
@@ -839,14 +898,151 @@ export function clientEditingLocked(status: OrderStatus): boolean {
   return STATUS_META[status].order >= STATUS_META.in_production.order;
 }
 
+/**
+ * Has the box gone? From Shipped on, the delivery address is history: a new
+ * one typed into the form would change nothing, while telling the customer
+ * it had. Same STATUS_META reading as clientEditingLocked.
+ */
+export function clientDetailsLocked(status: OrderStatus): boolean {
+  return STATUS_META[status].order >= STATUS_META.shipped.order;
+}
+
+const CLIENT_SECTION_KEYS: ReadonlyArray<keyof ClientLinkSections> = ['logos', 'inspiration', 'roster', 'personalDetails'];
+
+export const NO_CLIENT_SECTIONS: Readonly<ClientLinkSections> = Object.freeze({
+  logos: false, inspiration: false, roster: false, personalDetails: false,
+});
+
+export function anyClientSection(s: ClientLinkSections): boolean {
+  return CLIENT_SECTION_KEYS.some((k) => s[k]);
+}
+
+/**
+ * Which of the asked-for sections the customer can still send, given where
+ * the order is. The one rule every customer page, the submit action and both
+ * stores go by.
+ *
+ *  before production      everything asked for
+ *  in production → paid   the personal details only: the roster, logos and
+ *                         inspiration are being made (clientEditingLocked),
+ *                         but a team that never filled in where the box goes
+ *                         has to be able to now — production finishing
+ *                         before the address is in is normal (Keenan,
+ *                         2026-10-16)
+ *  shipped, completed     nothing
+ *
+ * `asked` is what the page asks for: the link's ticked sections, or a stage
+ * page's own fixed set.
+ */
+export function openClientSections(asked: ClientLinkSections, status: OrderStatus): ClientLinkSections {
+  if (!clientEditingLocked(status)) {
+    return {
+      logos: Boolean(asked.logos),
+      inspiration: Boolean(asked.inspiration),
+      roster: Boolean(asked.roster),
+      personalDetails: Boolean(asked.personalDetails),
+    };
+  }
+  return { ...NO_CLIENT_SECTIONS, personalDetails: Boolean(asked.personalDetails) && !clientDetailsLocked(status) };
+}
+
+/** The order's contact and shipping fields, in the shape the customer's form uses. */
+export function contactOfOrder(
+  o: Pick<Order, 'contactFirstName' | 'contactLastName' | 'contactEmail' | 'contactPhone' | 'shippingStreet' | 'shippingSecondary' | 'shippingCity' | 'shippingProvince' | 'shippingPostal'>,
+): SubmittedContact {
+  return {
+    firstName: o.contactFirstName ?? '',
+    lastName: o.contactLastName ?? '',
+    email: o.contactEmail ?? '',
+    phone: o.contactPhone ?? '',
+    street: o.shippingStreet ?? '',
+    secondary: o.shippingSecondary ?? '',
+    city: o.shippingCity ?? '',
+    province: o.shippingProvince ?? '',
+    postal: o.shippingPostal ?? '',
+  };
+}
+
+/**
+ * Is there everything the box needs to ship? A name, a phone and the full
+ * street address — what goes on the label (formattedAddress in order-utils).
+ * The unit line is optional; the email isn't a shipping detail.
+ */
+export function contactComplete(c: SubmittedContact | null | undefined): boolean {
+  if (!c) return false;
+  const has = (v: string | null | undefined) => Boolean((v ?? '').trim());
+  return (
+    (has(c.firstName) || has(c.lastName)) &&
+    has(c.phone) && has(c.street) && has(c.city) && has(c.province) && has(c.postal)
+  );
+}
+
+/** Is anything the box needs to ship missing from the order itself? */
+export function shippingDetailsMissing(o: Parameters<typeof contactOfOrder>[0]): boolean {
+  return !contactComplete(contactOfOrder(o));
+}
+
+/**
+ * What a customer page asks for.
+ *
+ * The hub: what Keenan ticked. A stage page (`/design`, `/details`): its own
+ * fixed sections before production, whatever the link is set to — that's the
+ * page's job. From production on a stage page asks only for what the link
+ * itself still asks for, so an old email's `/details` link doesn't ask for an
+ * address Keenan has unticked because he already has it.
+ */
+export function pageAsks(
+  linkSections: ClientLinkSections,
+  status: OrderStatus,
+  stageSections?: ClientLinkSections,
+): ClientLinkSections {
+  if (!stageSections) return { ...linkSections };
+  if (!clientEditingLocked(status)) return { ...stageSections };
+  return {
+    logos: stageSections.logos && linkSections.logos,
+    inspiration: stageSections.inspiration && linkSections.inspiration,
+    roster: stageSections.roster && linkSections.roster,
+    personalDetails: stageSections.personalDetails && linkSections.personalDetails,
+  };
+}
+
+/**
+ * The share sheet's "we still need a few things from you" box.
+ *
+ * Before production: whatever the team's form is open for, as it always was.
+ * From production on only the contact and shipping details can still be open,
+ * and the box shows only while the order is actually missing them — the
+ * finalizing email ticks Personal Details on nearly every order, so without
+ * that every finished order would ask for an address it already has.
+ */
+export function clientFormReminder(o: Order): { open: boolean; sections: ClientLinkSections } {
+  const sections = o.requestClientDetails
+    ? openClientSections(o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS }, o.status)
+    : { ...NO_CLIENT_SECTIONS };
+  const open = anyClientSection(sections) && (!clientEditingLocked(o.status) || shippingDetailsMissing(o));
+  return { open, sections };
+}
+
 export function rosterLinkView(o: Order, existingRosterCount: number, history: ChangeLogEntry[] = []): {
   orderId: string;
   teamName: string;
   enabled: boolean;
   status: OrderStatus;
-  /** True once the order is in production or beyond — the form goes read-only. */
+  /**
+   * True once the order is in production or beyond: the roster, logos and
+   * inspiration can't change, and the roster/artwork upload routes refuse.
+   * Not "the form is closed" — the contact and shipping details can still be
+   * open. That's `open`.
+   */
   locked: boolean;
+  /** What Keenan ticked. */
   sections: ClientLinkSections;
+  /**
+   * What the form still takes: the ticked sections minus whatever the order
+   * has moved past (openClientSections). All off when the link is switched
+   * off. From production on, at most the personal details.
+   */
+  open: ClientLinkSections;
   /** Which website route made this order, for the customer page's wording. null = made by hand. */
   variant: RouteVariant | null;
   orderMode: Order['orderMode'];
@@ -873,6 +1069,7 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
   existingRosterCount: number;
   timeline: TimelineStep[];
 } {
+  const sections = o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS };
   return {
     orderId: o.id,
     teamName: o.teamName,
@@ -882,7 +1079,8 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
     enabled: o.requestClientDetails,
     status: o.status,
     locked: clientEditingLocked(o.status),
-    sections: o.clientLinkSections ?? { ...DEFAULT_CLIENT_LINK_SECTIONS },
+    sections,
+    open: o.requestClientDetails ? openClientSections(sections, o.status) : { ...NO_CLIENT_SECTIONS },
     variant: variantOf(o.enquiry?.startingPoint),
     orderMode: o.orderMode,
     includesSocks: orderIncludesSocks(o),
@@ -913,16 +1111,103 @@ export function rosterLinkView(o: Order, existingRosterCount: number, history: C
 }
 
 /**
- * Thrown by both stores when a submission arrives for a locked order.
+ * What the customer is told when nothing they could send is open any more.
  *
  * Hiding the form is not enough on its own: the page is public, the token is
  * the only credential, and a tab left open before production started will
  * happily POST afterwards. The check has to be at the write, and it has to be
- * in both backends — hence here, next to the rule it enforces.
+ * in both backends — hence assertSectionsOpen, here next to the rule.
  */
 export const CLIENT_LOCKED_MESSAGE =
   'This order is already in production, so it can no longer be changed here. ' +
   'Get in touch with Powerplay Customs if something is wrong.';
+
+export const CLIENT_SHIPPED_MESSAGE =
+  'This order has already shipped, so it can no longer be changed here. ' +
+  'Get in touch with Powerplay Customs if something is wrong.';
+
+/**
+ * A form opened before production, sent after it, that still has something
+ * open: refused rather than trimmed, and told how to send what's left.
+ */
+export const CLIENT_STALE_FORM_MESSAGE =
+  "Your order has gone into production since this page was opened, so the roster and design can't change now. " +
+  'Reload the page to send your contact and shipping details.';
+
+export const CLIENT_NOT_COLLECTING_MESSAGE =
+  "This link isn't collecting anything right now. Get in touch with Powerplay Customs if you were expecting to send something.";
+
+export function clientLockedMessage(status: OrderStatus): string {
+  return clientDetailsLocked(status) ? CLIENT_SHIPPED_MESSAGE : CLIENT_LOCKED_MESSAGE;
+}
+
+/** Thrown by both stores at the write; its message is written for the customer. */
+export class ClientLockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClientLockedError';
+  }
+}
+
+/** By name, not instanceof, so a second copy of this module can't hide one. */
+export function isClientLockedError(e: unknown): e is ClientLockedError {
+  return e instanceof Error && e.name === 'ClientLockedError';
+}
+
+/**
+ * What a customer's submit may keep, decided before anything is cleaned.
+ *
+ *  asked  what the page asks for: the link's ticked sections, or a stage
+ *         page's own fixed set
+ *  shown  what the form on their screen showed, sent with the submit. A form
+ *         from before this rule doesn't send it; it showed everything asked.
+ *
+ * Nothing open → refused with the reason. A section on their screen that no
+ * order at this stage takes (the roster, logos or inspiration after
+ * production) means the page was opened before production → refused, not
+ * trimmed: keeping the address and quietly dropping a size change would tell
+ * them both went through, and the size is what gets sewn. Otherwise → the
+ * open sections their form showed. A section Keenan has unticked since they
+ * opened the page is dropped, as it always was.
+ */
+export function submittableSections(
+  asked: ClientLinkSections,
+  status: OrderStatus,
+  shown: unknown,
+): { ok: true; sections: ClientLinkSections } | { ok: false; error: string } {
+  const open = openClientSections(asked, status);
+  if (!anyClientSection(open)) {
+    return { ok: false, error: anyClientSection(asked) ? clientLockedMessage(status) : CLIENT_NOT_COLLECTING_MESSAGE };
+  }
+  const s = shown && typeof shown === 'object' ? (shown as Record<string, unknown>) : null;
+  const onScreen: ClientLinkSections = s
+    ? { logos: s.logos === true, inspiration: s.inspiration === true, roster: s.roster === true, personalDetails: s.personalDetails === true }
+    : { ...asked };
+  const possible = openClientSections({ logos: true, inspiration: true, roster: true, personalDetails: true }, status);
+  if (CLIENT_SECTION_KEYS.some((k) => onScreen[k] && !possible[k])) {
+    return { ok: false, error: CLIENT_STALE_FORM_MESSAGE };
+  }
+  return {
+    ok: true,
+    sections: {
+      logos: open.logos && onScreen.logos,
+      inspiration: open.inspiration && onScreen.inspiration,
+      roster: open.roster && onScreen.roster,
+      personalDetails: open.personalDetails && onScreen.personalDetails,
+    },
+  };
+}
+
+/**
+ * The check at the write, in both stores: every section a submission carries
+ * must still be open now. The submit action checked a moment ago; the status
+ * can change in between.
+ */
+export function assertSectionsOpen(status: OrderStatus, sections: ClientLinkSections): void {
+  const open = openClientSections(sections, status);
+  if (CLIENT_SECTION_KEYS.every((k) => !sections[k] || open[k])) return;
+  throw new ClientLockedError(anyClientSection(open) ? CLIENT_STALE_FORM_MESSAGE : clientLockedMessage(status));
+}
 
 /* ------------------------------------------------------------------ *
  * Listing

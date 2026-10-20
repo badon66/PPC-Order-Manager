@@ -1,5 +1,6 @@
-import type { MockupVersion, PaymentKind, UpdateStage } from '@/lib/types';
+import type { MockupVersion, OrderStatus, PaymentKind, UpdateStage } from '@/lib/types';
 import { PAYMENT_KIND_LABEL } from '@/lib/types';
+import { STATUS_META } from '@/lib/constants';
 import { formatLong } from '@/lib/dates';
 import type { MailContent } from './intake-mail';
 import { PRODUCTION_NOTE } from './timeline';
@@ -15,6 +16,12 @@ import { MAIL_FF, SPECIALIST, esc, mBox, mButton, mMuted, mailShell, mp, textFoo
  */
 
 export interface UpdateMailInput {
+  /**
+   * Where the order is as the email goes. Only `payment_received` reads it: a
+   * payment can be confirmed at any stage, and one that arrives early says
+   * what it covers instead of a "what's next" that isn't next yet.
+   */
+  status: OrderStatus;
   teamName: string;
   firstName: string;
   rosterUrl: string;
@@ -78,11 +85,35 @@ function photoGridHtml(photos: Array<{ cid: string; name: string }>): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;"><tbody>${rows.join('')}</tbody></table>`;
 }
 
-const PAYMENT_RECEIVED_NEXT: Record<PaymentKind, string> = {
-  initial_deposit: `Design work carries on, and you'll hear from ${SPECIALIST} with the next mockup.`,
-  production_deposit: "Production is next. You'll get a note when it starts.",
-  final_payment: 'Your UPS tracking number follows shortly, as soon as it ships.',
-};
+const pos = (s: OrderStatus) => STATUS_META[s].order;
+
+/**
+ * The line after "We've received your …": what happens next, from where the
+ * order actually is. Payments arrive early (a full payment during Design Talk
+ * happens), so an early one says what it covers — "Production is next" or
+ * "your tracking number follows" would be wrong while the design is still
+ * being drawn — and a late one says it's counted.
+ */
+export function paymentReceivedNext(kind: PaymentKind, status: OrderStatus): string {
+  const p = pos(status);
+  if (kind === 'initial_deposit') {
+    if (p < pos('design_talk')) return `${SPECIALIST} will be in touch to get your design started.`;
+    if (p <= pos('waiting_for_deposit')) return `Design work carries on, and you'll hear from ${SPECIALIST} with the next mockup.`;
+    return 'It comes straight off your total.';
+  }
+  if (kind === 'production_deposit') {
+    if (p < pos('waiting_for_production_deposit')) {
+      return 'That means once the design is signed off, your order goes straight into production.';
+    }
+    if (p === pos('waiting_for_production_deposit')) return "Production is next. You'll get a note when it starts.";
+    return 'It comes straight off your total.';
+  }
+  if (p < pos('waiting_for_final_approval')) {
+    return "That's your order paid in full, so once the jerseys are made they ship straight to you.";
+  }
+  if (p <= pos('waiting_for_payment')) return 'Your UPS tracking number follows shortly, as soon as it ships.';
+  return "That's your order paid in full.";
+}
 
 /** UPS's own tracking page for a tracking number. The shipment is in the customer's name, so UPS is where the answers are. */
 export function upsTrackingUrl(code: string): string {
@@ -317,13 +348,14 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
         subject: `Payment received — ${team}`,
         preheader: "Got it, thanks. Here's what happens next.",
         headline: `Got it, thanks ${first}.`,
-        lines: [`We received your ${PAYMENT_KIND_LABEL[kind]} for ${team}.`, PAYMENT_RECEIVED_NEXT[kind]],
+        lines: [`We've received your ${PAYMENT_KIND_LABEL[kind]} for ${team}.`, paymentReceivedNext(kind, i.status)],
         // The order sheet first: after paying, "what did I pay for" is the
         // question. The upload link only while there's still something to
-        // send — after the initial deposit the design is still in progress;
-        // after the later payments the details are locked in.
+        // send — before production, whichever payment this is (an early one
+        // arrives while the logos and roster are still coming); from
+        // production on every email points at the sheet, never the form.
         button: { href: i.shareUrl, label: 'See your order', dark: true },
-        ...(kind === 'initial_deposit' ? { button2: { href: i.rosterUrl, label: 'Upload your info and files' } } : {}),
+        ...(pos(i.status) < pos('in_production') ? { button2: { href: i.rosterUrl, label: 'Upload your info and files' } } : {}),
         hero: false,
       };
     }

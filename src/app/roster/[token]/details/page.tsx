@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { ClientForm } from '../client-form';
 import { loadClientPage } from '../load';
 import { STAGE_SECTIONS, stagePageCopy } from '@/lib/data/stage-pages';
-import { stageMessage } from '@/lib/data/timeline';
+import { NO_CLIENT_SECTIONS, anyClientSection, contactComplete, openClientSections, pageAsks } from '@/lib/data/logic';
+import { detailsStillOpenMessage, stageMessage } from '@/lib/data/timeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,18 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
   const { token } = await params;
   const data = await loadClientPage(token);
   if (!data) notFound();
-  const { link, previous, previousPreviews, currentRoster } = data;
-  const copy = stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
+  const { link, previous, previousPreviews, currentRoster, contactOnFile } = data;
+  // This page's own sections, minus what the order has moved past: from
+  // production on only the contact and shipping details are still open (if
+  // the link still asks for them), and the page says so instead of asking for
+  // a roster it can no longer take.
+  const open = link.enabled
+    ? openClientSections(pageAsks(link.sections, link.status, STAGE_SECTIONS[STAGE]), link.status)
+    : { ...NO_CLIENT_SECTIONS };
+  const stillOpen = link.locked && anyClientSection(open) ? detailsStillOpenMessage(link.status, contactComplete(contactOnFile)) : null;
+  const copy = stillOpen
+    ? { title: stillOpen.title, intro: stillOpen.text }
+    : stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -35,8 +46,11 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
         </Link>
       </div>
 
-      {/* Same three states as the hub — locked / not collecting / the form. */}
-      {link.locked ? (
+      {/*
+        * Same three states as the hub. Anything still open means the form,
+        * even after production (the address); "locked in" only when nothing is.
+        */}
+      {!anyClientSection(open) && link.locked ? (
         <div className="rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-6 text-center">
           <p className="font-semibold text-ppc-gold">{stageMessage(link.status)?.title ?? 'Your order is being made.'}</p>
           <p className="mt-2 text-sm text-muted">
@@ -44,7 +58,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
             emails and we&apos;ll tell you straight away what&apos;s still possible.
           </p>
         </div>
-      ) : !link.enabled ? (
+      ) : !anyClientSection(open) ? (
         <div className="rounded-xl border border-line bg-surface p-6 text-center">
           <p className="font-semibold">This link isn&apos;t collecting anything right now.</p>
           <p className="mt-1 text-sm text-muted">
@@ -56,7 +70,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
         <ClientForm
           token={token}
           teamName={link.teamName}
-          sections={STAGE_SECTIONS[STAGE]}
+          sections={open}
           stage={STAGE}
           variant={link.variant}
           existingRosterCount={link.existingRosterCount}
@@ -67,6 +81,7 @@ export default async function DetailsStagePage({ params }: { params: Promise<{ t
           extraJerseyDetails={link.extraJerseyDetails}
           previousPreviews={previousPreviews}
           currentRoster={currentRoster}
+          contactOnFile={contactOnFile}
           previous={
             previous
               ? {

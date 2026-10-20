@@ -1,7 +1,8 @@
 import { repo } from '@/lib/data';
 import { resolveAll } from '@/lib/storage';
-import type { ClientLinkSections, ClientRosterSubmission, SubmittedPlayer } from '@/lib/types';
+import type { ClientLinkSections, ClientRosterSubmission, SubmittedContact, SubmittedPlayer } from '@/lib/types';
 import { isNoName } from '@/lib/roster-edit';
+import { contactOfOrder } from '@/lib/data/logic';
 
 /**
  * Shared loader for the customer-facing pages under `/roster/[token]` — the
@@ -71,6 +72,21 @@ export async function loadClientPage(token: string) {
         notes: r.notes,
       }));
 
+  /*
+   * What the details step starts from — same rule as the roster above. Their
+   * own contact details while Keenan hasn't accepted them yet (still being
+   * revised); otherwise what's on the order, which is the truth now (Keenan
+   * may have typed it from an email, or corrected it). A team that has never
+   * used the form still sees the address we have, so "check your shipping
+   * details" has something to check.
+   */
+  const pendingContact = contactSrc && !contactSrc.acceptedAt ? contactSrc.contact : undefined;
+  const orderContact = bundle ? contactOfOrder(bundle.order) : undefined;
+  const contactOnFile: SubmittedContact | undefined =
+    pendingContact ??
+    (orderContact && Object.values(orderContact).some((v) => v.trim()) ? orderContact : undefined) ??
+    contactSrc?.contact;
+
   const previous = newest
     ? {
         revision: newest.revision,
@@ -103,5 +119,5 @@ export async function loadClientPage(token: string) {
     ).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
 
-  return { link, previous, previousPreviews, currentRoster };
+  return { link, previous, previousPreviews, currentRoster, contactOnFile };
 }

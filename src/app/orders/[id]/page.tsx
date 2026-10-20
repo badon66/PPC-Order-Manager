@@ -16,7 +16,7 @@ import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge,
 import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { FactoryLink } from '@/components/factory-link';
-import { KeeperBadge } from '@/components/build-sheet';
+import { CUSTOM_BRANDING_ROLES, CustomBrandingPictures, KeeperBadge, OwnerSectionComments } from '@/components/build-sheet';
 import { keepersOfSet } from '@/lib/keepers';
 import { SubmissionReview } from '@/components/submission-review';
 import { SignatureProof } from '@/components/signature-proof';
@@ -300,6 +300,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Order Information">
+        <OwnerSectionComments comments={order.sectionComments} sections={['team']} />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Team Name">{order.teamName}</Field>
           <Field label="Invoice Number">{order.invoiceNumber}</Field>
@@ -355,6 +356,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Contact & Shipping">
+        <OwnerSectionComments comments={order.sectionComments} sections={['contact']} />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Contact">{contactFullName(order)}</Field>
           <Field label="Email">{order.contactEmail}</Field>
@@ -371,6 +373,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Order Totals">
+        <OwnerSectionComments comments={order.sectionComments} sections={['mode', 'totals']} />
         {/* Zeros are dropped, not printed — see Stat. */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Total Jerseys" value={totals.totalJerseys} accent hideWhenZero />
@@ -424,6 +427,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Build Type">
+        <OwnerSectionComments comments={order.sectionComments} sections={['build', 'numbers', 'pants']} />
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Jersey Type">
             {order.jerseyType ? JERSEY_TYPE_LABELS[order.jerseyType] : ''}
@@ -452,6 +456,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Add-Ons & Customization">
+        <OwnerSectionComments comments={order.sectionComments} sections={['addons']} />
         {(() => {
           const tier = tierById(order.jerseyTier);
           if (!tier) return null;
@@ -513,6 +518,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
         <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3">
           <div className="text-sm font-bold text-ppc-gold">Powerplay Branding</div>
+          <div className="mt-2"><OwnerSectionComments comments={order.sectionComments} sections={['branding']} /></div>
           <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-3">
             {BRANDING_ADDONS.map((a) => (
               <div key={a.key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm">
@@ -523,6 +529,15 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           </div>
           {order.brandingNotes && (
             <p className="mt-2 whitespace-pre-wrap text-sm"><span className="text-xs font-medium text-muted">Changes: </span>{order.brandingNotes}</p>
+          )}
+          {order.customBranding && (
+            <div className="mt-3 border-t border-line/60 pt-3">
+              <p className="text-sm font-semibold">Custom branding</p>
+              {order.customBrandingNotes && <p className="mt-1 whitespace-pre-wrap text-sm">{order.customBrandingNotes}</p>}
+              {assets.some((a) => CUSTOM_BRANDING_ROLES.includes(a.role)) && (
+                <CustomBrandingPictures assets={assets.filter((a) => CUSTOM_BRANDING_ROLES.includes(a.role))} teamName={order.teamName} />
+              )}
+            </div>
           )}
         </div>
 
@@ -567,6 +582,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           keepers.length ? ` + ${keepers.length} kept by Powerplay` : ''
         })`}
       >
+        <OwnerSectionComments comments={order.sectionComments} sections={['roster']} />
         {rosterChangedNote && (
           <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
             {rosterChangedNote}
@@ -673,7 +689,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Logos & Artwork">
-        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo', ...NUMBER_ROLES]} teamName={order.teamName} />
+        <OwnerSectionComments comments={order.sectionComments} sections={['artwork']} />
+        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo', ...NUMBER_ROLES, ...CUSTOM_BRANDING_ROLES]} teamName={order.teamName} />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>
@@ -684,6 +701,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Notes & Approval">
+        <OwnerSectionComments comments={order.sectionComments} sections={['notes']} />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Approved By">{order.approvedBy}</Field>
           <Field label="Approval Date">{formatLong(order.approvedDate)}</Field>

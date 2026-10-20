@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ClientForm } from '../client-form';
 import { loadClientPage } from '../load';
 import { STAGE_SECTIONS, stagePageCopy } from '@/lib/data/stage-pages';
+import { NO_CLIENT_SECTIONS, anyClientSection, openClientSections, pageAsks } from '@/lib/data/logic';
 import { stageMessage } from '@/lib/data/timeline';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,11 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
   if (!data) notFound();
   const { link, previous, previousPreviews } = data;
   const copy = stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
+  // Logos and inspiration are what's being made: nothing here is open from
+  // production on, so this is simply the stage's sections or none.
+  const open = link.enabled
+    ? openClientSections(pageAsks(link.sections, link.status, STAGE_SECTIONS[STAGE]), link.status)
+    : { ...NO_CLIENT_SECTIONS };
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -35,8 +41,11 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
         </Link>
       </div>
 
-      {/* Same three states as the hub — locked / not collecting / the form. */}
-      {link.locked ? (
+      {/*
+        * Same three states as the hub. Anything still open means the form,
+        * even after production (the address); "locked in" only when nothing is.
+        */}
+      {!anyClientSection(open) && link.locked ? (
         <div className="rounded-xl border border-ppc-gold/40 bg-ppc-gold/5 p-6 text-center">
           <p className="font-semibold text-ppc-gold">{stageMessage(link.status)?.title ?? 'Your order is being made.'}</p>
           <p className="mt-2 text-sm text-muted">
@@ -44,7 +53,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
             emails and we&apos;ll tell you straight away what&apos;s still possible.
           </p>
         </div>
-      ) : !link.enabled ? (
+      ) : !anyClientSection(open) ? (
         <div className="rounded-xl border border-line bg-surface p-6 text-center">
           <p className="font-semibold">This link isn&apos;t collecting anything right now.</p>
           <p className="mt-1 text-sm text-muted">
@@ -56,7 +65,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
         <ClientForm
           token={token}
           teamName={link.teamName}
-          sections={STAGE_SECTIONS[STAGE]}
+          sections={open}
           stage={STAGE}
           variant={link.variant}
           existingRosterCount={link.existingRosterCount}

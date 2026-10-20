@@ -7,6 +7,7 @@ import { blankOrder } from '@/lib/order-utils';
 import type { CustomerEmailRecord, Order } from '@/lib/types';
 
 const base: UpdateMailInput = {
+  status: 'design_talk',
   teamName: 'Ice Cats', firstName: 'Sam',
   rosterUrl: 'https://x/roster/t', shareUrl: 'https://x/share/s',
   designUrl: 'https://x/roster/t/design', detailsUrl: 'https://x/roster/t/details',

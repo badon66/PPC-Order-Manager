@@ -10,6 +10,7 @@ import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderInclude
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
+import { COMMENT_SECTIONS, type CommentSection } from '@/lib/types';
 import type {
   CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, KeeperJersey, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
@@ -27,7 +28,7 @@ import { TierPresets } from './tier-presets';
 import { LacesPicker } from './laces-picker';
 import {
   ModeSwitch, SectionCard, SectionNav, StartChooser, WizardFrame,
-  useScrollSpy, type SectionDef, type ViewMode,
+  useScrollSpy, type CommentControl, type SectionDef, type ViewMode,
 } from './shell';
 
 /**
@@ -316,7 +317,7 @@ export function OrderForm({
     { id: 'build', title: 'Build Type', icon: '👕', blurb: 'Sublimated, reversible, or embroidered — per item.', complete: draft.jerseyType !== null },
     { id: 'numbers', title: 'Numbers & Names', icon: '🔟', wide: true, blurb: 'Name style, number styling, and reference images.', complete: Boolean(draft.numberDetails) || assets.some((a) => a.role.startsWith('number_reference')) },
     { id: 'addons', title: 'Add-Ons & Customization', icon: '✨', blurb: 'Construction features, laces, patches, name style.', complete: buildAddonsForJerseyType(draft.jerseyType).some(({ key }) => Boolean(draft[key as keyof Order])) || draft.lacesStyle !== 'none' || draft.hasCaptainPatches },
-    { id: 'branding', title: 'Powerplay Branding', icon: '🏷️', blurb: 'Back label, rubberized crest, size tag — and any changes to them.', complete: BRANDING_ADDONS.some(({ key }) => Boolean(draft[key as keyof Order])) || Boolean(draft.brandingNotes) },
+    { id: 'branding', title: 'Powerplay Branding', icon: '🏷️', blurb: 'Back label, rubberized crest, size tag, any changes to them — and custom branding like a sponsor logo.', complete: BRANDING_ADDONS.some(({ key }) => Boolean(draft[key as keyof Order])) || Boolean(draft.brandingNotes) || draft.customBranding },
     { id: 'artwork', title: 'Logos & Artwork', icon: '🎨', wide: true, blurb: 'Design references, crest, shoulder logos, sponsor logos, fonts.', complete: hasArtwork },
     ...(hasPantShells
       ? [{
@@ -333,6 +334,21 @@ export function OrderForm({
   ];
 
   const [activeId, jump] = useScrollSpy(sections.map((s) => s.id));
+
+  /** "Add comment" on a section: one comment each, saved with the order. */
+  const commentControl = (id: string): CommentControl | undefined => {
+    if (!(id in COMMENT_SECTIONS)) return undefined;
+    const key = id as CommentSection;
+    return {
+      value: draft.sectionComments?.[key],
+      onChange: (c) => {
+        const next = { ...(draft.sectionComments ?? {}) };
+        if (c) next[key] = c;
+        else delete next[key];
+        set('sectionComments', next);
+      },
+    };
+  };
 
   /* ---------------- section content ---------------- */
 
@@ -828,6 +844,41 @@ export function OrderForm({
         <p className="-mt-1 text-xs text-muted">
           Shown with the branding on the customer&apos;s sheet and the factory sheet.
         </p>
+
+        {/*
+          * Branding that isn't Powerplay's — a sponsor's logo, say. Two
+          * pictures as standard: the logo, and where it goes on the jersey.
+          */}
+        <Toggle
+          label="Custom branding — an extra logo (sponsor or similar)"
+          checked={draft.customBranding}
+          onChange={(v) => set('customBranding', v)}
+        />
+        {draft.customBranding && (
+          <div className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+            <TextArea
+              label="What it is and where it goes"
+              value={draft.customBrandingNotes}
+              onChange={(v) => set('customBrandingNotes', v)}
+              placeholder="e.g. Smith Plumbing logo, 3 inches wide, centred above the back label, white on all jerseys"
+            />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <AssetGroup
+                orderId={draft.id} role="custom_branding_logo" title="The Logo" max={1}
+                hint="The logo file itself — vector if you have it."
+                assets={assets} onAdd={addAsset} onRemove={removeAsset}
+              />
+              <AssetGroup
+                orderId={draft.id} role="custom_branding_placement" title="Location on the Jersey" max={1}
+                hint="A mockup or marked-up picture showing where it goes."
+                assets={assets} onAdd={addAsset} onRemove={removeAsset}
+              />
+            </div>
+            <p className="text-xs text-muted">
+              Shown with the branding on the customer&apos;s sheet and the factory sheet.
+            </p>
+          </div>
+        )}
       </>
     ),
 
@@ -1151,6 +1202,7 @@ export function OrderForm({
           stepIndex={Math.min(step, sections.length - 1)}
           onStep={setStep}
           onFinish={finish}
+          comment={commentControl(sections[Math.min(step, sections.length - 1)].id)}
         >
           {content[sections[Math.min(step, sections.length - 1)].id]}
         </WizardFrame>
@@ -1173,7 +1225,7 @@ export function OrderForm({
           />
           <div className="min-w-0 flex-1 space-y-4">
             {sections.map((def) => (
-              <SectionCard key={def.id} def={def} anchored>
+              <SectionCard key={def.id} def={def} anchored comment={commentControl(def.id)}>
                 {content[def.id]}
               </SectionCard>
             ))}
