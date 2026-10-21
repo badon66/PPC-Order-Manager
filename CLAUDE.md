@@ -305,8 +305,13 @@ Decided by Keenan 2026-10-15. Design notes live in the file headers named here.
   questions, never guesses. Suggestions are shown, never applied.
 - **The AI.** `ai.ts` is the only file that calls the API: plain `fetch`,
   forced tool use, temperature 0, file content treated as data (the system
-  prompt says so). `ANTHROPIC_API_KEY` is server-only — never `NEXT_PUBLIC_`.
+  prompt says so). A model that refuses a forced `tool_choice` or a
+  `temperature` (a 400 naming it) gets the call again without it — tool
+  choice `auto` plus "answer only by calling the tool"; no tool call is still
+  an empty reading. What a model refused is remembered per process. `ANTHROPIC_API_KEY` is server-only — never `NEXT_PUBLIC_`.
   `ROSTER_AI_MODEL` overrides the model (default `claude-opus-5-5`);
+  `ANTHROPIC_WORKSPACE_ID` (optional) sends the `anthropic-workspace-id`
+  header that a key tied to a person, not a workspace, needs;
   `ANTHROPIC_BASE_URL` is the standard endpoint override. Without a key,
   spreadsheets still import on the heading rules alone (more questions), and a
   PDF or photo says it needs the AI. The order context sent with a file is

@@ -70,40 +70,88 @@ export interface AiRequest {
   timeoutMs: number;
 }
 
-/** One forced tool call. Injectable so the reading logic is testable without the network. */
+/** One tool call (forced where the model allows it). Injectable so the reading logic is testable without the network. */
 export type AiCall = (req: AiRequest) => Promise<unknown>;
 
 export class AiError extends Error {}
+
+/*
+ * Not every model takes every setting: some refuse a forced tool_choice
+ * ("type tool and any are not supported for this model"), some a temperature.
+ * When the API says so, the call is sent again without it — the tool is then
+ * offered with tool_choice auto and the instructions say to answer only
+ * through it; a reply with no tool call is still "came back empty", never
+ * guessed at. What a model refused is remembered for the rest of the process,
+ * so later readings don't pay for the refusal again.
+ */
+interface CallShape {
+  forcedTool: boolean;
+  temperature: boolean;
+}
+const refusedByModel = new Map<string, CallShape>();
+
+/** Test hook: forget what each model refused. */
+export function resetModelQuirks(): void {
+  refusedByModel.clear();
+}
 
 export const callClaude: AiCall = async ({ system, content, tool, maxTokens, timeoutMs }) => {
   const key = process.env.ANTHROPIC_API_KEY?.trim();
   if (!key) throw new AiError('AI reading is not set up (no ANTHROPIC_API_KEY).');
 
+  const m = model();
+  const shape: CallShape = { ...(refusedByModel.get(m) ?? { forcedTool: true, temperature: true }) };
+  const deadline = Date.now() + Math.max(1_000, timeoutMs);
+
   let res: Response;
-  try {
-    res = await fetch(apiUrl(), {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': API_VERSION, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: model(),
-        max_tokens: maxTokens,
-        temperature: 0,
-        system,
-        messages: [{ role: 'user', content }],
-        tools: [tool],
-        tool_choice: { type: 'tool', name: tool.name },
-      }),
-      signal: AbortSignal.timeout(Math.max(1_000, timeoutMs)),
-    });
-  } catch (e) {
-    const timedOut = (e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError';
-    throw new AiError(timedOut ? 'The AI reading took too long. Try again.' : `Couldn't reach the AI service: ${(e as Error).message}`);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(apiUrl(), {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': API_VERSION,
+          'content-type': 'application/json',
+          // A key tied to a person rather than one workspace has to say which
+          // workspace it's working in (ANTHROPIC_WORKSPACE_ID, the wrkspc_… ID
+          // from the Console). A workspace's own key doesn't need it.
+          ...(process.env.ANTHROPIC_WORKSPACE_ID?.trim() ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID.trim() } : {}),
+        },
+        body: JSON.stringify({
+          model: m,
+          max_tokens: maxTokens,
+          ...(shape.temperature ? { temperature: 0 } : {}),
+          system: shape.forcedTool
+            ? system
+            : `${system}\n\nAnswer only by calling the ${tool.name} tool, exactly once. Do not reply with text.`,
+          messages: [{ role: 'user', content }],
+          tools: [tool],
+          tool_choice: shape.forcedTool ? { type: 'tool', name: tool.name } : { type: 'auto' },
+        }),
+        signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
+      });
+    } catch (e) {
+      const timedOut = (e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError';
+      throw new AiError(timedOut ? 'The AI reading took too long. Try again.' : `Couldn't reach the AI service: ${(e as Error).message}`);
+    }
+    if (res.status !== 400 || attempt >= 2) break;
+    // A setting this model doesn't take: drop it and send once more.
+    const body = await res.clone().text().catch(() => '');
+    if (shape.forcedTool && /tool_choice/i.test(body)) shape.forcedTool = false;
+    else if (shape.temperature && /temperature/i.test(body)) shape.temperature = false;
+    else break;
+    refusedByModel.set(m, { ...shape });
   }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     if (res.status === 429 || res.status === 529) throw new AiError('The AI service is busy. Try again in a minute.');
     if (res.status === 401 || res.status === 403) throw new AiError('The AI key was refused. Check ANTHROPIC_API_KEY.');
+    if (res.status === 400 && /workspace/i.test(body)) {
+      throw new AiError(
+        "The AI key isn't tied to a workspace. Set ANTHROPIC_WORKSPACE_ID to the workspace's ID (wrkspc_…, from the Claude Console's Workspaces page), or use a key created inside a workspace.",
+      );
+    }
     throw new AiError(`AI reading failed (${res.status}): ${body.slice(0, 200)}`);
   }
 
