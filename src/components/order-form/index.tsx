@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
+import { buildsDiffer, jerseyTypesInUse, perSetShellTypes, perSetSockTypes } from '@/lib/order-utils';
 import { tierById, tierPatch, tiersForJerseyType } from '@/lib/constants';
 import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
@@ -725,8 +725,8 @@ export function OrderForm({
               set('sets', draft.sets.map((s, i) => {
                 if (i === 0) return s;
                 if (on) return { ...s, jerseyType: s.jerseyType ?? draft.jerseyType ?? 'sublimated', jerseyTier: s.jerseyTier ?? null };
-                const { jerseyType: _t, jerseyTier: _r, ...rest } = s;
-                void _t; void _r;
+                const { jerseyType: _t, jerseyTier: _r, sockType: _s, pantShellType: _p, ...rest } = s;
+                void _t; void _r; void _s; void _p;
                 return rest;
               }));
             }}
@@ -779,6 +779,31 @@ export function OrderForm({
                       choices={tiers.map((t) => ({ value: t.id, label: t.label, blurb: t.blurb }))}
                     />
                   )}
+                  {/* Socks on more than one set: each set's own sock type. On one set, it's one type, below. */}
+                  {perSetSockTypes(draft) && (s.sockPairs || 0) + (s.extraSockPairs || 0) > 0 && (
+                    <ChoiceGroup<SockType>
+                      label="Sock Type" columns={1}
+                      value={first ? draft.sockType : s.sockType ?? draft.sockType}
+                      onChange={(v) => {
+                        if (!v) return;
+                        if (first) set('sockType', v);
+                        else patchSet({ sockType: v });
+                      }}
+                      choices={(Object.keys(SOCK_TYPE_LABELS) as SockType[]).map((v) => ({ value: v, label: SOCK_TYPE_LABELS[v] }))}
+                    />
+                  )}
+                  {hasPantShells && perSetShellTypes(draft) && (s.pantShells || 0) + (s.extraPantShells || 0) > 0 && (
+                    <ChoiceGroup<PantShellType>
+                      label="Pant Shell Type" columns={1}
+                      value={first ? draft.pantShellType : s.pantShellType ?? draft.pantShellType}
+                      onChange={(v) => {
+                        if (!v) return;
+                        if (first) set('pantShellType', v);
+                        else patchSet({ pantShellType: v });
+                      }}
+                      choices={(Object.keys(PANT_SHELL_TYPE_LABELS) as PantShellType[]).map((v) => ({ value: v, label: PANT_SHELL_TYPE_LABELS[v] }))}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -797,11 +822,13 @@ export function OrderForm({
             every set they fit.
           </p>
         )}
-        <ChoiceGroup<SockType>
-          label="Sock Type" value={draft.sockType} allowClear
-          onChange={(v) => set('sockType', v)}
-          choices={(Object.keys(SOCK_TYPE_LABELS) as SockType[]).map((v) => ({ value: v, label: SOCK_TYPE_LABELS[v] }))}
-        />
+        {!perSetSockTypes(draft) && (
+          <ChoiceGroup<SockType>
+            label="Sock Type" value={draft.sockType} allowClear
+            onChange={(v) => set('sockType', v)}
+            choices={(Object.keys(SOCK_TYPE_LABELS) as SockType[]).map((v) => ({ value: v, label: SOCK_TYPE_LABELS[v] }))}
+          />
+        )}
         {orderIncludesSocks(draft) && (
           <p className="text-xs text-muted">
             Pro cut multi-panel socks are ticked beside the build tier in{' '}
@@ -809,7 +836,7 @@ export function OrderForm({
           </p>
         )}
         {/* Right here with the jersey and sock builds, whenever shells are on the order. */}
-        {hasPantShells && (
+        {hasPantShells && !perSetShellTypes(draft) && (
           <ChoiceGroup<PantShellType>
             label="Pant Shell Type" value={draft.pantShellType} allowClear columns={2}
             onChange={(v) => set('pantShellType', v)}
@@ -1099,11 +1126,18 @@ export function OrderForm({
 
     pants: (
       <>
-        <ChoiceGroup<PantShellType>
-          label="Pant Shell Type" value={draft.pantShellType} allowClear columns={2}
-          onChange={(v) => set('pantShellType', v)}
-          choices={(Object.keys(PANT_SHELL_TYPE_LABELS) as PantShellType[]).map((v) => ({ value: v, label: PANT_SHELL_TYPE_LABELS[v] }))}
-        />
+        {perSetShellTypes(draft) ? (
+          <p className="text-xs text-muted">
+            Each set&apos;s pant shell type is picked in its column in{' '}
+            <span className="font-semibold text-ppc-gold">Build Type</span>.
+          </p>
+        ) : (
+          <ChoiceGroup<PantShellType>
+            label="Pant Shell Type" value={draft.pantShellType} allowClear columns={2}
+            onChange={(v) => set('pantShellType', v)}
+            choices={(Object.keys(PANT_SHELL_TYPE_LABELS) as PantShellType[]).map((v) => ({ value: v, label: PANT_SHELL_TYPE_LABELS[v] }))}
+          />
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           {PANT_TOGGLES.map(({ key, label }) => (
             <Toggle key={key} label={label} checked={Boolean(draft[key as keyof Order])} onChange={(v) => set(key as keyof Order, v as never)} />

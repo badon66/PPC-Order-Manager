@@ -4,7 +4,7 @@ import {
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
   addonHint, buildAddonsForJerseyType, tierById,
 } from '@/lib/constants';
-import { buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, setBuilds } from '@/lib/order-utils';
+import { buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, perSetShellTypes, perSetSockTypes, setBuilds } from '@/lib/order-utils';
 import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludesPantShells, orderIncludesSocks, type OrderTotals } from '@/lib/order-utils';
 import { isNoName } from '@/lib/roster-edit';
 import { keepersOfSet } from '@/lib/keepers';
@@ -159,8 +159,10 @@ export function CustomBrandingList({
  * How each set is built, when they aren't all the same (home embroidered,
  * away sublimated). Nothing when they are: the one type and tier say it.
  */
-export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier'> }) {
+export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier' | 'sockType' | 'pantShellType'> }) {
   if (!buildsDiffer(order)) return null;
+  const socksEach = perSetSockTypes(order);
+  const shellsEach = perSetShellTypes(order);
   return (
     <div className="mb-4 grid gap-2 sm:grid-cols-2">
       {setBuilds(order).map((b, i) => (
@@ -169,10 +171,31 @@ export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jer
           <div className="text-sm font-bold text-ppc-gold">
             {[tierById(b.jerseyTier)?.label, b.jerseyType ? JERSEY_TYPE_LABELS[b.jerseyType] : null].filter(Boolean).join(' · ') || 'Not set yet'}
           </div>
+          {socksEach && b.socks > 0 && (
+            <div className="text-xs">Socks: <span className="font-semibold">{b.sockType ? SOCK_TYPE_LABELS[b.sockType] : 'not set'}</span></div>
+          )}
+          {shellsEach && b.shells > 0 && (
+            <div className="text-xs">Pant shells: <span className="font-semibold">{b.pantShellType ? PANT_SHELL_TYPE_LABELS[b.pantShellType] : 'not set'}</span></div>
+          )}
         </div>
       ))}
     </div>
   );
+}
+
+/** "Embroidered", or "Home: Embroidered · Away: Sublimated" when each set has its own. */
+export function typesBySet(order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier' | 'sockType' | 'pantShellType'>, what: 'socks' | 'shells'): string {
+  const each = what === 'socks' ? perSetSockTypes(order) : perSetShellTypes(order);
+  const label = (t: string | null) =>
+    t ? (what === 'socks' ? SOCK_TYPE_LABELS[t as keyof typeof SOCK_TYPE_LABELS] : PANT_SHELL_TYPE_LABELS[t as keyof typeof PANT_SHELL_TYPE_LABELS]) : 'not set';
+  if (!each) {
+    const t = what === 'socks' ? order.sockType : order.pantShellType;
+    return t ? label(t) : '';
+  }
+  return setBuilds(order)
+    .filter((b) => (what === 'socks' ? b.socks : b.shells) > 0)
+    .map((b) => `${b.label.replace(/ Set$/, '')}: ${label(what === 'socks' ? b.sockType : b.pantShellType)}`)
+    .join(' · ');
 }
 
 /** C's and A's — one count, or home and away separately (different designs). */
@@ -288,13 +311,13 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
           <Field label="Jersey Type">{sheet.jerseyType ? JERSEY_TYPE_LABELS[sheet.jerseyType] : ''}</Field>
         )}
         <Field label="Sock Type">
-          {sheet.sockType ? SOCK_TYPE_LABELS[sheet.sockType] : ''}
+          {typesBySet(sheet, 'socks')}
           {sheet.sockType && sheet.multiPanelSocks && (
             <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Pro cut multi-panel</span>
           )}
         </Field>
         <Field label="Pant Shell Type">
-          {sheet.pantShellType ? PANT_SHELL_TYPE_LABELS[sheet.pantShellType] : ''}
+          {typesBySet(sheet, 'shells')}
         </Field>
       </div>
       {sheet.numberDetails && (

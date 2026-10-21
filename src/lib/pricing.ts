@@ -1,5 +1,5 @@
 import type { JerseyTier, Order, PantShellType, SockType } from './types';
-import { buildsDiffer, captainCounts, computeTotals, setBuilds } from './order-utils';
+import { buildsDiffer, captainCounts, computeTotals, perSetShellTypes, perSetSockTypes, setBuilds } from './order-utils';
 
 /**
  * Pricing. KEENAN ONLY — see the money rule in CLAUDE.md.
@@ -136,15 +136,33 @@ export function listPrice(order: Priceable): Pricing | null {
     if (sets > 0) lines.push({ label: "C's and A's, stitched (1 C + 3 A per set)", qty: sets, unit: CAPTAIN_SET_PRICE, amount: sets * CAPTAIN_SET_PRICE });
   }
 
+  /*
+   * Socks and shells: one line at the order's type, or — when the sets are
+   * different builds with socks (shells) on more than one — a line per type,
+   * each set's pairs at its own type.
+   */
   const socks = t.totalSockPairs;
-  if (socks > 0 && order.sockType) {
-    const unit = SOCK_LIST_PRICE[order.sockType] + (order.multiPanelSocks ? MULTI_PANEL_SOCK_EXTRA : 0);
-    lines.push({ label: order.multiPanelSocks ? 'Socks, pro cut multi-panel' : 'Socks', qty: socks, unit, amount: socks * unit });
+  const sockGroups: Array<{ type: SockType | null; qty: number }> = perSetSockTypes(order)
+    ? builds.filter((b) => b.socks > 0).map((b) => ({ type: b.sockType, qty: b.socks }))
+    : [{ type: order.sockType, qty: socks }];
+  const sockTypesUsed = new Set(sockGroups.map((g) => g.type));
+  for (const type of sockTypesUsed) {
+    const qty = sockGroups.filter((g) => g.type === type).reduce((n, g) => n + g.qty, 0);
+    if (qty <= 0 || !type) continue;
+    const unit = SOCK_LIST_PRICE[type] + (order.multiPanelSocks ? MULTI_PANEL_SOCK_EXTRA : 0);
+    const base = order.multiPanelSocks ? 'Socks, pro cut multi-panel' : 'Socks';
+    lines.push({ label: sockTypesUsed.size > 1 ? `${base} (${type})` : base, qty, unit, amount: qty * unit });
   }
   const shells = t.totalPantShells;
-  if (shells > 0 && order.pantShellType) {
-    const unit = SHELL_LIST_PRICE[order.pantShellType];
-    lines.push({ label: 'Pant shells', qty: shells, unit, amount: shells * unit });
+  const shellGroups: Array<{ type: PantShellType | null; qty: number }> = perSetShellTypes(order)
+    ? builds.filter((b) => b.shells > 0).map((b) => ({ type: b.pantShellType, qty: b.shells }))
+    : [{ type: order.pantShellType, qty: shells }];
+  const shellTypesUsed = new Set(shellGroups.map((g) => g.type));
+  for (const type of shellTypesUsed) {
+    const qty = shellGroups.filter((g) => g.type === type).reduce((n, g) => n + g.qty, 0);
+    if (qty <= 0 || !type) continue;
+    const unit = SHELL_LIST_PRICE[type];
+    lines.push({ label: shellTypesUsed.size > 1 ? `Pant shells (${type})` : 'Pant shells', qty, unit, amount: qty * unit });
   }
 
   if (jerseys > 0 && socks > 0 && shells > 0 && players >= BUNDLE_MIN_PLAYERS) {

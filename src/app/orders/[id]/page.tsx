@@ -4,7 +4,7 @@ import { repo } from '@/lib/data';
 import { formatLong, formatShort } from '@/lib/dates';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
-  PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META,
+  PANT_TOGGLES, SHOULDER_CUT_LABELS, STATUS_META,
   addonHint, buildAddonsForJerseyType, matchesTier, tierById,
 } from '@/lib/constants';
 import { approvalOpen, computeTotals, contactFullName, describeOrderTotals, describeSet, formattedAddress, offersGoaliePantOption } from '@/lib/order-utils';
@@ -16,7 +16,7 @@ import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge,
 import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { FactoryLink } from '@/components/factory-link';
-import { CUSTOM_BRANDING_ROLES, CaptainCountFields, CustomBrandingList, KeeperBadge, OwnerSectionComments, SetBuildsList } from '@/components/build-sheet';
+import { CUSTOM_BRANDING_ROLES, CaptainCountFields, CustomBrandingList, KeeperBadge, OwnerSectionComments, SetBuildsList, typesBySet } from '@/components/build-sheet';
 import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
 import { keepersOfSet } from '@/lib/keepers';
 import { SubmissionReview } from '@/components/submission-review';
@@ -437,13 +437,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             </Field>
           )}
           <Field label="Sock Type">
-            {order.sockType ? SOCK_TYPE_LABELS[order.sockType] : ''}
+            {typesBySet(order, 'socks')}
             {order.sockType && order.multiPanelSocks && (
               <span className="ml-2 rounded border border-ppc-gold/60 bg-ppc-gold/10 px-1.5 py-0.5 text-xs font-semibold text-ppc-gold">Pro cut multi-panel</span>
             )}
           </Field>
           <Field label="Pant Shell Type">
-            {order.pantShellType ? PANT_SHELL_TYPE_LABELS[order.pantShellType] : ''}
+            {typesBySet(order, 'shells')}
           </Field>
         </div>
         {order.numberDetails && (

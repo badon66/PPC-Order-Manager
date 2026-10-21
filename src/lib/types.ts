@@ -383,6 +383,13 @@ export interface SetQuantities {
    */
   jerseyType?: JerseyType | null;
   jerseyTier?: JerseyTier | null;
+  /**
+   * The same for socks and pant shells — only when the sets are different
+   * builds AND two or more of them have socks (shells). One set with socks
+   * means one sock type: the order's own (see perSetSockTypes).
+   */
+  sockType?: SockType | null;
+  pantShellType?: PantShellType | null;
   /** Who or what the extras are for, and what sizes. */
   extrasNotes: string;
 

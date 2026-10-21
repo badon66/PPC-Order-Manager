@@ -84,6 +84,11 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   `setBuilds` / `buildsDiffer` / `jerseyTypesInUse` (order-utils), never
   `order.jerseyType` alone: pricing goes set by set, add-ons are offered for
   every type in use, the sheets list each set's build (`SetBuildsList`).
+  Socks and pant shells follow (2026-10-21): when the builds differ AND two
+  or more sets have socks (shells), each set picks its own `sockType`
+  (`pantShellType`) in its column (`perSetSockTypes`/`perSetShellTypes`);
+  socks on one set is one pair a player, one type — the order's own. Priced
+  per type; sheets show "Home: … · Away: …" (`typesBySet`).
 - **Hybrid** is a sublimated tier: Premier's add-ons plus stitched-on logos
   (`alsoOn` in TIER_DEFS — turned on by the preset, never turned off by the
   others). Priced as Premier + the $20 stitched-logo line.

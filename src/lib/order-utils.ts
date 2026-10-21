@@ -1,4 +1,4 @@
-import type { ExtraJersey, JerseyTier, JerseyType, Order, OrderMode, RosterEntry, SetQuantities } from './types';
+import type { ExtraJersey, JerseyTier, JerseyType, Order, OrderMode, PantShellType, RosterEntry, SetQuantities, SockType } from './types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from './types';
 import { LEAD_TIME_DAYS } from './constants';
 import { addDays, type CalendarDate } from './dates';
@@ -33,6 +33,8 @@ export function setsForMode(mode: OrderMode, numberOfSets = 1, existing: SetQuan
     notes: existing[i]?.notes ?? '',
     // A set's own build is kept when the mode is re-applied; the first set never has one.
     ...(i > 0 && existing[i]?.jerseyType ? { jerseyType: existing[i].jerseyType, jerseyTier: existing[i].jerseyTier ?? null } : {}),
+    ...(i > 0 && existing[i]?.sockType ? { sockType: existing[i].sockType } : {}),
+    ...(i > 0 && existing[i]?.pantShellType ? { pantShellType: existing[i].pantShellType } : {}),
   });
 
   if (mode === 'single_set') return [blank('Single Set', 0)];
@@ -102,13 +104,43 @@ export interface SetBuild {
   label: string;
   jerseyType: JerseyType | null;
   jerseyTier: JerseyTier | null;
+  sockType: SockType | null;
+  pantShellType: PantShellType | null;
+  /** Pairs of socks / pant shells in this set, extras included. */
+  socks: number;
+  shells: number;
 }
 
-export function setBuilds(o: Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'>): SetBuild[] {
+type BuildInput = Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'> & Partial<Pick<Order, 'sockType' | 'pantShellType'>>;
+
+const setSocks = (s: Order['sets'][number]) => (s.sockPairs || 0) + (s.extraSockPairs || 0);
+const setShells = (s: Order['sets'][number]) => (s.pantShells || 0) + (s.extraPantShells || 0);
+
+/**
+ * Does each set pick its own sock type? Only when the sets are different
+ * builds and two or more of them have socks (Keenan, 2026-10-21: socks on
+ * one set is one pair a player, one type).
+ */
+export function perSetSockTypes(o: BuildInput): boolean {
+  return buildsDiffer(o) && o.sets.filter((s) => setSocks(s) > 0).length >= 2;
+}
+
+/** The same for pant shells. */
+export function perSetShellTypes(o: BuildInput): boolean {
+  return buildsDiffer(o) && o.sets.filter((s) => setShells(s) > 0).length >= 2;
+}
+
+export function setBuilds(o: BuildInput): SetBuild[] {
+  const socksEach = perSetSockTypes(o);
+  const shellsEach = perSetShellTypes(o);
   return o.sets.map((s, i) => ({
     label: s.label,
     jerseyType: i > 0 && s.jerseyType ? s.jerseyType : o.jerseyType,
     jerseyTier: i > 0 && s.jerseyType ? s.jerseyTier ?? null : o.jerseyTier,
+    sockType: socksEach && i > 0 && s.sockType ? s.sockType : o.sockType ?? null,
+    pantShellType: shellsEach && i > 0 && s.pantShellType ? s.pantShellType : o.pantShellType ?? null,
+    socks: setSocks(s),
+    shells: setShells(s),
   }));
 }
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIER_DEFS, matchesTier, tierById, tierPatch } from '@/lib/constants';
-import { blankOrder, buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, setBuilds, setsForMode } from '@/lib/order-utils';
+import { blankOrder, buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, perSetShellTypes, perSetSockTypes, setBuilds, setsForMode } from '@/lib/order-utils';
 import { listPrice } from '@/lib/pricing';
 import type { Order } from '@/lib/types';
 
@@ -84,4 +84,21 @@ test('changing the Powerplay branding never changes which tier the build is', ()
   // A real build change still counts.
   const premier = { ...blankOrder(), ...tierPatch(tierById('premier')!), underarmVents: false };
   assert.equal(matchesTier(premier, tierById('premier')!), false);
+});
+
+test('socks and shells: each set its own type only when the builds differ and more than one set has them', () => {
+  const o = homeAway({ sockType: 'embroidered', pantShellType: 'embroidered' });
+  o.sets = o.sets.map((s, i) => ({ ...s, sockPairs: 16, ...(i === 1 ? { jerseyType: 'sublimated' as const, jerseyTier: 'hybrid' as const, sockType: 'sublimated' as const } : {}) }));
+  assert.equal(perSetSockTypes(o), true);
+  assert.deepEqual(setBuilds(o).map((b) => b.sockType), ['embroidered', 'sublimated']);
+  const lines = listPrice(o)!.lines.filter((l) => /^Socks/.test(l.label));
+  assert.deepEqual(lines.map((l) => [l.label, l.qty]), [['Socks (embroidered)', 16], ['Socks (sublimated)', 16]]);
+
+  // Socks on one set only: one pair a player, one type — the order's.
+  const one = { ...o, sets: o.sets.map((s, i) => (i === 0 ? { ...s, sockPairs: 0 } : s)) };
+  assert.equal(perSetSockTypes(one), false);
+  assert.deepEqual(setBuilds(one).map((b) => b.sockType), ['embroidered', 'embroidered']);
+  // Same builds: never per set, whatever a set still carries.
+  assert.equal(perSetSockTypes({ ...o, sets: o.sets.map((s) => ({ ...s, jerseyType: undefined })) }), false);
+  assert.equal(perSetShellTypes(o), false, 'no shells on the order');
 });
