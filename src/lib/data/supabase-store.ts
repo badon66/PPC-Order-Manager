@@ -438,8 +438,8 @@ export const supabaseStore: Repository = {
   async getByShareToken(token): Promise<PublicOrderView | null> {
     const o = await orderByToken('share_token', token);
     if (!o) return null;
-    const [all, assets, history] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id)]);
-    return publicViewOf(o, activeRows(o, all), assets, history);
+    const [all, assets, history, subs] = await Promise.all([rosterOf(o.id), assetsOf(o.id), this.getHistory(o.id), submissionsOf(o.id)]);
+    return publicViewOf(o, activeRows(o, all), assets, history, subs);
   },
 
   async getByFactoryToken(token) {
@@ -539,6 +539,13 @@ export const supabaseStore: Repository = {
         actorEmail: actor.email, actorName: actor.name,
       }),
     ]);
+  },
+
+  async submitClientDetailsByShareToken(token, submission) {
+    const o = await orderByToken('share_token', token);
+    if (!o || !o.rosterToken) throw new Error('Invalid link');
+    // Same write as the form's, so the same checks and the same history lines.
+    await this.submitClientRoster(o.rosterToken, submission);
   },
 
   async getLatestSubmissionByRosterToken(token) {

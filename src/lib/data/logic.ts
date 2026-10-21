@@ -796,6 +796,7 @@ export function publicViewOf(
   roster: RosterEntry[],
   assets: OrderAsset[],
   history: ChangeLogEntry[] = [],
+  submissions: ClientRosterSubmission[] = [],
 ): PublicOrderView {
   const reminder = clientFormReminder(o);
   return {
@@ -817,7 +818,35 @@ export function publicViewOf(
     // See clientFormReminder: after production only a missing address nags.
     clientFormOpen: reminder.open,
     clientFormSections: reminder.sections,
+    pendingContact: pendingContactOf(submissions),
   };
+}
+
+/**
+ * The newest contact details the customer sent that aren't on the order yet:
+ * from the newest submission that carried any, if Keenan hasn't accepted it.
+ */
+export function pendingContactOf(submissions: ClientRosterSubmission[]): SubmittedContact | null {
+  const newest = [...submissions]
+    .filter((s) => s.sections?.personalDetails && s.contact)
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+  return newest && !newest.acceptedAt ? newest.contact ?? null : null;
+}
+
+/**
+ * Can the shipping details still be sent from the share sheet? Until the order
+ * ships, whether or not the team's form link is switched on — but only while
+ * the order is missing something the box needs (or they've sent details that
+ * are waiting, and may want to fix them). A complete address is changed by
+ * telling Keenan, as it always was.
+ */
+export function shareDetailsOpen(
+  status: OrderStatus,
+  /** The order's contact as the sheet shows it. */
+  onOrder: SubmittedContact,
+  pending: SubmittedContact | null,
+): boolean {
+  return !clientDetailsLocked(status) && (!contactComplete(onOrder) || Boolean(pending));
 }
 
 /**

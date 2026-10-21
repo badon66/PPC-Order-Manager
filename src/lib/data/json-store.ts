@@ -373,6 +373,7 @@ export const jsonStore: Repository = {
       activeRows(o, db.roster.filter((r) => r.orderId === o.id)),
       db.assets.filter((a) => a.orderId === o.id),
       db.history.filter((h) => h.orderId === o.id),
+      db.submissions.filter((s) => s.orderId === o.id),
     );
   },
 
@@ -442,6 +443,14 @@ export const jsonStore: Repository = {
         }),
       );
     });
+  },
+
+  async submitClientDetailsByShareToken(token, submission) {
+    const db = await load();
+    const o = db.orders.find((x) => x.shareToken === token && !x.deletedAt);
+    if (!o || !o.rosterToken) throw new Error('Invalid link');
+    // Same write as the form's, so the same checks and the same history lines.
+    await this.submitClientRoster(o.rosterToken, submission);
   },
 
   async getLatestSubmissionByRosterToken(token) {

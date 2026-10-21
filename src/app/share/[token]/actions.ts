@@ -9,6 +9,40 @@ import type { ApprovalRecord } from '@/lib/types';
 import { statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { sendCustomerUpdate } from '@/lib/customer-updates';
 import { rosterVerificationOf } from '@/lib/roster-versions';
+import { cleanSubmission } from '@/lib/data/submission-logic';
+import { CLIENT_SHIPPED_MESSAGE, clientDetailsLocked, isClientLockedError } from '@/lib/data/logic';
+import type { SubmittedContact } from '@/lib/types';
+
+/**
+ * Contact and shipping details, sent from the share sheet when the order is
+ * missing them. No session — the share token is the credential, as for the
+ * sign-off. It writes nothing onto the order: it's a client submission
+ * (personal details only), staged for Keenan to accept like the form's.
+ */
+export async function sendShippingDetails(
+  token: string,
+  contact: SubmittedContact,
+): Promise<{ ok: boolean; error?: string }> {
+  const view = await repo.getByShareToken(token);
+  if (!view) return { ok: false, error: 'This link is no longer active.' };
+  if (clientDetailsLocked(view.status)) return { ok: false, error: CLIENT_SHIPPED_MESSAGE };
+
+  const details = { logos: false, inspiration: false, roster: false, personalDetails: true };
+  const cleaned = cleanSubmission(
+    { sections: details, includesSocks: false, includesPantShells: false, extraJerseys: 0 },
+    { players: [], logos: [], inspiration: [], contact, confirmed: true },
+  );
+  if (!cleaned.ok) return { ok: false, error: 'Fill in your details before sending.' };
+
+  try {
+    await repo.submitClientDetailsByShareToken(token, cleaned.value);
+  } catch (e) {
+    if (isClientLockedError(e)) return { ok: false, error: e.message };
+    throw e;
+  }
+  revalidatePath(`/share/${token}`);
+  return { ok: true };
+}
 
 /**
  * Record a customer's sign-off.

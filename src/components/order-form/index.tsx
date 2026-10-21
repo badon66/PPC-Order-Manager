@@ -7,7 +7,7 @@ import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
 import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
-import { tiersForJerseyType } from '@/lib/constants';
+import { tierById, tierPatch, tiersForJerseyType } from '@/lib/constants';
 import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
@@ -708,68 +708,94 @@ export function OrderForm({
 
     build: (
       <>
-        <ChoiceGroup<JerseyType>
-          label={buildsDiffer(draft) ? `Jersey Type — ${draft.sets[0]?.label ?? 'first set'}` : 'Jersey Type'}
-          value={draft.jerseyType} allowClear
-          onChange={(v) => set('jerseyType', v)}
-          choices={(Object.keys(JERSEY_TYPE_LABELS) as JerseyType[]).map((v) => ({ value: v, label: JERSEY_TYPE_LABELS[v] }))}
-        />
         {/*
           * Home and away aren't always the same build — home embroidered,
-          * away sublimated, or the other way round. The first set is the
-          * order's own type and tier (above, and the tier in Add-Ons); each
-          * later set can have its own. Priced set by set.
+          * away sublimated, or the other way round. Asked first; answer No and
+          * the build splits into a column per set, side by side, each with its
+          * own jersey type and tier. The first set's is the order's own
+          * jerseyType/jerseyTier (its tier applies the add-on preset, as in
+          * Add-Ons); a later set carries its own. Priced set by set.
           */}
         {draft.sets.length > 1 && (
-          <div className="space-y-3 rounded-lg border border-line bg-surface-2 p-3">
-            <Toggle
-              label={draft.orderMode === 'home_away_set'
-                ? 'Home and away are different builds (e.g. one embroidered, one sublimated)'
-                : 'The sets are different builds'}
-              checked={buildsDiffer(draft)}
-              onChange={(on) => set('sets', draft.sets.map((s, i) => {
+          <ChoiceGroup<'same' | 'different'>
+            label={draft.orderMode === 'home_away_set' ? 'Are home and away the same build?' : 'Are all the sets the same build?'}
+            value={buildsDiffer(draft) ? 'different' : 'same'} columns={2}
+            onChange={(v) => {
+              const on = v === 'different';
+              set('sets', draft.sets.map((s, i) => {
                 if (i === 0) return s;
                 if (on) return { ...s, jerseyType: s.jerseyType ?? draft.jerseyType ?? 'sublimated', jerseyTier: s.jerseyTier ?? null };
                 const { jerseyType: _t, jerseyTier: _r, ...rest } = s;
                 void _t; void _r;
                 return rest;
-              }))}
-            />
-            {buildsDiffer(draft) && draft.sets.slice(1).map((s, k) => {
-              const i = k + 1;
-              const type = s.jerseyType ?? draft.jerseyType;
+              }));
+            }}
+            choices={[
+              { value: 'same', label: 'Yes — one build' },
+              { value: 'different', label: 'No — different builds', blurb: 'e.g. one embroidered, one sublimated' },
+            ]}
+          />
+        )}
+        {buildsDiffer(draft) ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {draft.sets.map((s, i) => {
+              const first = i === 0;
+              const type = first ? draft.jerseyType : s.jerseyType ?? draft.jerseyType;
+              const tierId = first ? draft.jerseyTier : s.jerseyTier ?? null;
               const tiers = tiersForJerseyType(type ?? null);
               const patchSet = (p: Partial<typeof s>) =>
                 set('sets', draft.sets.map((x, j) => (j === i ? { ...x, ...p } : x)));
               return (
-                <div key={i} className="space-y-2 border-t border-line/60 pt-3">
+                <div key={i} className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/[0.04] p-3">
+                  <div className="text-sm font-bold text-ppc-gold">{s.label}</div>
                   <ChoiceGroup<JerseyType>
-                    label={`Jersey Type — ${s.label}`} value={type ?? null}
-                    onChange={(v) => v && patchSet({
-                      jerseyType: v,
-                      // A tier from the other build can't stay.
-                      jerseyTier: tiersForJerseyType(v).some((t) => t.id === s.jerseyTier) ? s.jerseyTier : null,
-                    })}
+                    label="Jersey Type" value={type ?? null} columns={1}
+                    onChange={(v) => {
+                      if (!v) return;
+                      const keepTier = tiersForJerseyType(v).some((t) => t.id === tierId);
+                      if (first) {
+                        set('jerseyType', v);
+                        if (!keepTier && draft.jerseyTier) set('jerseyTier', null);
+                      } else {
+                        // A tier from the other build can't stay.
+                        patchSet({ jerseyType: v, jerseyTier: keepTier ? tierId : null });
+                      }
+                    }}
                     choices={(Object.keys(JERSEY_TYPE_LABELS) as JerseyType[]).map((v) => ({ value: v, label: JERSEY_TYPE_LABELS[v] }))}
                   />
                   {tiers.length > 0 && (
                     <ChoiceGroup<JerseyTier>
-                      label={`Build Tier — ${s.label}`} value={s.jerseyTier ?? null} columns={3}
-                      onChange={(v) => patchSet({ jerseyTier: v })}
-                      choices={tiers.map((t) => ({ value: t.id, label: t.label }))}
+                      label="Build Tier" value={tierId} columns={1}
+                      onChange={(v) => {
+                        if (!v) return;
+                        if (first) {
+                          // Same as picking it in Add-Ons: the preset's add-ons come with it.
+                          const tier = tierById(v);
+                          if (tier) applyTier(v, tierPatch(tier));
+                        } else {
+                          patchSet({ jerseyTier: v });
+                        }
+                      }}
+                      choices={tiers.map((t) => ({ value: t.id, label: t.label, blurb: t.blurb }))}
                     />
                   )}
                 </div>
               );
             })}
-            {buildsDiffer(draft) && (
-              <p className="text-xs text-muted">
-                The {draft.sets[0]?.label ?? 'first set'}&apos;s tier is picked in{' '}
-                <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span>, and the
-                add-ons there apply to every set they fit.
-              </p>
-            )}
           </div>
+        ) : (
+          <ChoiceGroup<JerseyType>
+            label="Jersey Type"
+            value={draft.jerseyType} allowClear
+            onChange={(v) => set('jerseyType', v)}
+            choices={(Object.keys(JERSEY_TYPE_LABELS) as JerseyType[]).map((v) => ({ value: v, label: JERSEY_TYPE_LABELS[v] }))}
+          />
+        )}
+        {buildsDiffer(draft) && (
+          <p className="text-xs text-muted">
+            The add-ons in <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span> apply to
+            every set they fit.
+          </p>
         )}
         <ChoiceGroup<SockType>
           label="Sock Type" value={draft.sockType} allowClear

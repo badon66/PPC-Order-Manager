@@ -176,14 +176,14 @@ export function ChoiceGroup<T extends string>({
   choices: ReadonlyArray<Choice<T>>;
   value: T | null;
   onChange: (v: T | null) => void;
-  columns?: 2 | 3;
+  columns?: 1 | 2 | 3;
   allowClear?: boolean;
 }) {
   return (
     <div>
       <span className="text-xs font-medium text-muted">{label}</span>
       <div
-        className={`mt-1.5 grid gap-2 ${columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}
+        className={`mt-1.5 grid gap-2 ${columns === 1 ? '' : columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}
       >
         {choices.map((c) => {
           const active = value === c.value;

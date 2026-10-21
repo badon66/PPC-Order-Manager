@@ -349,10 +349,21 @@ export function tierById(id: JerseyTier | null): TierDef | undefined {
   return id ? TIER_DEFS.find((t) => t.id === id) : undefined;
 }
 
-/** Does the order's current toggles exactly match this tier? */
+/**
+ * The tier-controlled add-ons that decide WHICH tier a build is: everything
+ * but Powerplay's own branding. A tier still ticks the crest, size tag and
+ * back label as its standard, but taking one off (or adding one) is a
+ * branding change, not a different build — it never makes a Premier
+ * "modified" (Keenan, 2026-10-20).
+ */
+export const TIER_DEFINING_ADDONS: AddonKey[] = TIER_CONTROLLED_ADDONS.filter(
+  (key) => !BRANDING_ADDONS.some((b) => b.key === key),
+);
+
+/** Does the order's current toggles match this tier? Branding doesn't count. */
 export function matchesTier(order: Pick<Order, AddonKey>, tier: TierDef): boolean {
   return (
-    TIER_CONTROLLED_ADDONS.every((key) => Boolean(order[key]) === tier.addons.includes(key)) &&
+    TIER_DEFINING_ADDONS.every((key) => Boolean(order[key]) === tier.addons.includes(key)) &&
     (tier.alsoOn ?? []).every((key) => Boolean(order[key]))
   );
 }

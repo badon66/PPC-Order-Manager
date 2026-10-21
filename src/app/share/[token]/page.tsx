@@ -13,7 +13,8 @@ import { CLIENT_LINK_SECTION_META } from '@/lib/types';
 import type { ClientLinkSections } from '@/lib/types';
 import { Timeline } from '@/components/timeline';
 import { stageMessage } from '@/lib/data/timeline';
-import { clientEditingLocked } from '@/lib/data/logic';
+import { clientEditingLocked, shareDetailsOpen } from '@/lib/data/logic';
+import { ShippingDetailsForm } from './details-form';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { resolveAll } from '@/lib/storage';
 
@@ -61,6 +62,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const totals = computeTotals(view, view.roster);
 
   const signOffOpen = view.requestApproval && !view.approvedBy && !view.approvedDate;
+  // Missing (or sent and waiting) shipping details: filled in right here.
+  const detailsOpen = shareDetailsOpen(view.status, view.contact, view.pendingContact);
   const stage = stageMessage(view.status);
 
   return (
@@ -95,18 +98,21 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       )}
 
       {/*
-        * From production on the only thing the form can still want is the
-        * contact and shipping details, and the box only shows while the order
-        * is missing them (clientFormReminder) — so it says exactly that.
+        * From production on, a missing address is the thing holding the box
+        * up, so it gets the top of the page — whatever the team's form link
+        * is set to, since the details are filled in right here now. Not once
+        * they've sent them (the section below says they're on their way).
         */}
-      {view.clientFormOpen && clientEditingLocked(view.status) && (
+      {clientEditingLocked(view.status) && detailsOpen && !view.pendingContact && (
         <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-4">
           <p className="font-bold text-ppc-gold">We still need your shipping details</p>
           <p className="mt-1 text-sm text-muted">
             The jerseys can&apos;t ship until we know who to contact and where they&apos;re going.
-            Use the form link we sent you to fill in your contact and shipping details. Can&apos;t
-            find the link? Just reply to our email and we&apos;ll resend it.
+            You can fill them in right here on this page.
           </p>
+          <a href="#shipping" className="mt-3 inline-block rounded-lg bg-ppc-gold px-5 py-2.5 text-sm font-bold text-black hover:opacity-90">
+            Fill in my details ↓
+          </a>
         </div>
       )}
 
@@ -192,6 +198,15 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </p>
       </Section>
 
+      {detailsOpen ? (
+        <Section title="Shipping & Contact — we need this" id="shipping">
+          <ShippingDetailsForm
+            token={token}
+            start={view.pendingContact ?? view.contact}
+            waiting={Boolean(view.pendingContact)}
+          />
+        </Section>
+      ) : (
       <ContactSection
         sheet={view}
         title="Shipping & Contact — please check this"
@@ -202,6 +217,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           </p>
         }
       />
+      )}
 
       {/*
         * The build itself — totals, build type, add-ons, roster, artwork,

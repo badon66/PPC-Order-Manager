@@ -130,6 +130,16 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   upload routes still close at In Production (`link.locked`). The share
   sheet's reminder after production shows only while the order is missing
   the shipping details (`clientFormReminder`, `shippingDetailsMissing`).
+- **The share sheet takes the shipping details itself** (Keenan, 2026-10-20).
+  While the order is missing what the box needs — or the customer has sent
+  details Keenan hasn't accepted (`pendingContact` on the view,
+  `pendingContactOf`) — and it hasn't shipped, the Shipping & Contact section
+  is a form (`ShippingDetailsForm`, `shareDetailsOpen`), whatever the team's
+  form link is set to. `sendShippingDetails` stages it as a personal-details
+  submission through `submitClientDetailsByShareToken`, which reuses the
+  form's write (`submitClientRoster`) — never straight onto the order. The
+  share token is the credential, as for sign-off; the roster token still
+  never appears on the share sheet.
 - **Dates never pass through a timezone.** `datePaid`, `approvedDate`,
   `estimatedFinishDate` are `YYYY-MM-DD` strings. Format with helpers in
   `src/lib/dates.ts`. Never `new Date(str)` a date-only string. The old app

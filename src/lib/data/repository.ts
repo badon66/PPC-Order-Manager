@@ -1,6 +1,6 @@
 import type {
   AppSettings, AppUser, CallList, CallLog, CallSession, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission,
-  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment, CustomBrandingItem,
+  Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment, CustomBrandingItem, SubmittedContact,
 } from '@/lib/types';
 import type { RosterVersionSummary } from '@/lib/roster-versions';
 import type { TimelineStep } from './timeline';
@@ -202,6 +202,13 @@ export interface PublicOrderView extends BuildSheet {
    */
   clientFormOpen: boolean;
   clientFormSections: ClientLinkSections;
+
+  /**
+   * Contact and shipping details the customer sent from this page (or their
+   * form) that Keenan hasn't added to the order yet — so the page shows what
+   * they sent, not a blank form asking again. Their own typing, back to them.
+   */
+  pendingContact: SubmittedContact | null;
 }
 
 /**
@@ -320,6 +327,17 @@ export interface Repository {
    * doesn't supply them.
    */
   submitClientRoster(
+    token: string,
+    submission: Omit<
+      ClientRosterSubmission,
+      'id' | 'orderId' | 'submittedAt' | 'acceptedAt' | 'revision' | 'changes'
+    >,
+  ): Promise<void>;
+  /**
+   * The same submission, sent from the share sheet: contact and shipping
+   * details only. Staged like any other — Keenan accepts it onto the order.
+   */
+  submitClientDetailsByShareToken(
     token: string,
     submission: Omit<
       ClientRosterSubmission,

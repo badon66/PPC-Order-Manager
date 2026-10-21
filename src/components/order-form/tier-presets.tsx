@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  ADDON_TOGGLES, TIER_CONTROLLED_ADDONS, matchesTier, tierById, tierPatch, tiersForJerseyType,
+  ADDON_TOGGLES, TIER_DEFINING_ADDONS, matchesTier, tierById, tierPatch, tiersForJerseyType,
   type AddonKey, type TierDef,
 } from '@/lib/constants';
 import type { JerseyTier, JerseyType, Order } from '@/lib/types';
@@ -159,10 +159,11 @@ function StatusLine({
   }
 
   if (appliedTier && !exact) {
-    const added = TIER_CONTROLLED_ADDONS.filter(
+    // Branding changes aren't tier changes, so they're never listed here.
+    const added = TIER_DEFINING_ADDONS.filter(
       (k) => order[k] && !appliedTier.addons.includes(k),
     );
-    const removed = appliedTier.addons.filter((k) => !order[k]);
+    const removed = appliedTier.addons.filter((k) => TIER_DEFINING_ADDONS.includes(k) && !order[k]);
     return (
       <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
         <strong>{appliedTier.label} (modified)</strong>

@@ -72,3 +72,16 @@ test('each custom branding logo has its own files; old ungrouped files belong to
   assert.deepEqual(customBrandingFiles(items, assets, 'a').map((x) => x.id), ['1', '2']);
   assert.deepEqual(customBrandingFiles(items, assets, 'b').map((x) => x.id), ['3']);
 });
+
+test('changing the Powerplay branding never changes which tier the build is', () => {
+  for (const tier of TIER_DEFS) {
+    const built = { ...blankOrder(), ...tierPatch(tier) };
+    const noBranding = { ...built, rubberizedPpcCrest: false, printedSizingTag: false, ppcBackBranding: false };
+    const allBranding = { ...built, rubberizedPpcCrest: true, printedSizingTag: true, ppcBackBranding: true };
+    assert.ok(matchesTier(noBranding, tier), `${tier.id} without branding`);
+    assert.ok(matchesTier(allBranding, tier), `${tier.id} with all branding`);
+  }
+  // A real build change still counts.
+  const premier = { ...blankOrder(), ...tierPatch(tierById('premier')!), underarmVents: false };
+  assert.equal(matchesTier(premier, tierById('premier')!), false);
+});
