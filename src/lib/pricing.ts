@@ -105,7 +105,7 @@ export function listPrice(order: Priceable): Pricing | null {
   const differ = buildsDiffer(order) && perSet.reduce((n, p) => n + p.jerseys, 0) === jerseys;
   const groups = differ
     ? perSet.filter((p) => p.jerseys > 0)
-    : [{ build: { label: '', jerseyType: order.jerseyType, jerseyTier: order.jerseyTier }, jerseys }];
+    : [{ build: { label: '', jerseyType: order.jerseyType, jerseyTier: order.jerseyTier, addons: { stitchedSublimatedLogos: Boolean(order.stitchedSublimatedLogos) } }, jerseys }];
 
   for (const g of groups) {
     if (g.jerseys <= 0) continue;
@@ -119,8 +119,11 @@ export function listPrice(order: Priceable): Pricing | null {
     lines.push({ label, qty: g.jerseys, unit, amount: g.jerseys * unit });
   }
 
-  const sublimatedJerseys = groups.filter((g) => g.build.jerseyType !== 'embroidered').reduce((n, g) => n + g.jerseys, 0);
-  if (sublimatedJerseys > 0 && order.stitchedSublimatedLogos) {
+  // Each set's own stitched-on logos when the sets are built differently.
+  const sublimatedJerseys = groups
+    .filter((g) => g.build.jerseyType !== 'embroidered' && g.build.addons.stitchedSublimatedLogos)
+    .reduce((n, g) => n + g.jerseys, 0);
+  if (sublimatedJerseys > 0) {
     lines.push({ label: 'Stitched twill logos (sublimated body)', qty: sublimatedJerseys, unit: STITCHED_ON_SUBLIMATED_PER_JERSEY, amount: sublimatedJerseys * STITCHED_ON_SUBLIMATED_PER_JERSEY });
   }
   const eliteJerseys = groups.filter((g) => g.build.jerseyTier === 'elite').reduce((n, g) => n + g.jerseys, 0);

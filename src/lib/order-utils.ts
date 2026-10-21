@@ -1,6 +1,6 @@
 import type { ExtraJersey, JerseyTier, JerseyType, Order, OrderMode, PantShellType, RosterEntry, SetQuantities, SockType } from './types';
 import { DEFAULT_CLIENT_LINK_SECTIONS } from './types';
-import { LEAD_TIME_DAYS } from './constants';
+import { BUILD_ADDON_KEYS, LEAD_TIME_DAYS } from './constants';
 import { addDays, type CalendarDate } from './dates';
 
 /**
@@ -35,6 +35,7 @@ export function setsForMode(mode: OrderMode, numberOfSets = 1, existing: SetQuan
     ...(i > 0 && existing[i]?.jerseyType ? { jerseyType: existing[i].jerseyType, jerseyTier: existing[i].jerseyTier ?? null } : {}),
     ...(i > 0 && existing[i]?.sockType ? { sockType: existing[i].sockType } : {}),
     ...(i > 0 && existing[i]?.pantShellType ? { pantShellType: existing[i].pantShellType } : {}),
+    ...(i > 0 && existing[i]?.addons ? { addons: existing[i].addons } : {}),
   });
 
   if (mode === 'single_set') return [blank('Single Set', 0)];
@@ -109,9 +110,24 @@ export interface SetBuild {
   /** Pairs of socks / pant shells in this set, extras included. */
   socks: number;
   shells: number;
+  /** This set's build add-ons (BUILD_ADDON_KEYS): its own when it has them, else the order's. */
+  addons: Record<string, boolean>;
 }
 
 type BuildInput = Pick<Order, 'sets' | 'jerseyType' | 'jerseyTier'> & Partial<Pick<Order, 'sockType' | 'pantShellType'>>;
+
+/** The order's own (first set's) build add-ons, as a map. */
+export function orderBuildAddons(o: object): Record<string, boolean> {
+  const r = o as Record<string, unknown>;
+  return Object.fromEntries(BUILD_ADDON_KEYS.map((k) => [k, Boolean(r[k])]));
+}
+
+/** A set's build add-ons: a later set's own when the builds differ, else the order's. */
+export function setAddons(o: BuildInput, i: number): Record<string, boolean> {
+  const base = orderBuildAddons(o);
+  const own = i > 0 && buildsDiffer(o) ? o.sets[i]?.addons : undefined;
+  return own ? { ...base, ...own } : base;
+}
 
 const setSocks = (s: Order['sets'][number]) => (s.sockPairs || 0) + (s.extraSockPairs || 0);
 const setShells = (s: Order['sets'][number]) => (s.pantShells || 0) + (s.extraPantShells || 0);
@@ -141,6 +157,7 @@ export function setBuilds(o: BuildInput): SetBuild[] {
     pantShellType: shellsEach && i > 0 && s.pantShellType ? s.pantShellType : o.pantShellType ?? null,
     socks: setSocks(s),
     shells: setShells(s),
+    addons: setAddons(o, i),
   }));
 }
 

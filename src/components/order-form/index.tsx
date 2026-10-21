@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
 } from '@/lib/constants';
-import { buildsDiffer, jerseyTypesInUse, perSetShellTypes, perSetSockTypes } from '@/lib/order-utils';
+import { buildsDiffer, jerseyTypesInUse, orderBuildAddons, perSetShellTypes, perSetSockTypes, setAddons } from '@/lib/order-utils';
+import { buildPartOf } from '@/lib/constants';
 import { tierById, tierPatch, tiersForJerseyType } from '@/lib/constants';
 import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
@@ -724,9 +725,17 @@ export function OrderForm({
               const on = v === 'different';
               set('sets', draft.sets.map((s, i) => {
                 if (i === 0) return s;
-                if (on) return { ...s, jerseyType: s.jerseyType ?? draft.jerseyType ?? 'sublimated', jerseyTier: s.jerseyTier ?? null };
-                const { jerseyType: _t, jerseyTier: _r, sockType: _s, pantShellType: _p, ...rest } = s;
-                void _t; void _r; void _s; void _p;
+                if (on) {
+                  return {
+                    ...s,
+                    jerseyType: s.jerseyType ?? draft.jerseyType ?? 'sublimated',
+                    jerseyTier: s.jerseyTier ?? null,
+                    // Starts as a copy of the first set's build, then goes its own way.
+                    addons: s.addons ?? orderBuildAddons(draft),
+                  };
+                }
+                const { jerseyType: _t, jerseyTier: _r, sockType: _s, pantShellType: _p, addons: _a, ...rest } = s;
+                void _t; void _r; void _s; void _p; void _a;
                 return rest;
               }));
             }}
@@ -773,7 +782,8 @@ export function OrderForm({
                           const tier = tierById(v);
                           if (tier) applyTier(v, tierPatch(tier));
                         } else {
-                          patchSet({ jerseyTier: v });
+                          const tier = tierById(v);
+                          patchSet({ jerseyTier: v, addons: { ...setAddons(draft, i), ...(tier ? buildPartOf(tierPatch(tier)) : {}) } });
                         }
                       }}
                       choices={tiers.map((t) => ({ value: t.id, label: t.label, blurb: t.blurb }))}
@@ -873,12 +883,56 @@ export function OrderForm({
 
     addons: (
       <>
+        {/*
+          * Sets built differently are built out separately: a column per set,
+          * each with its own tier and its own build add-ons (Keenan,
+          * 2026-10-21). The first set's are the order's own; a later set's are
+          * on the set. Branding, laces, shoulders, patches stay order-wide.
+          */}
+        {buildsDiffer(draft) ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {draft.sets.map((s, i) => {
+              const first = i === 0;
+              const type = first ? draft.jerseyType : s.jerseyType ?? draft.jerseyType;
+              const mine = setAddons(draft, i);
+              const putAddons = (next: Record<string, boolean>) =>
+                set('sets', draft.sets.map((x, j) => (j === i ? { ...x, addons: next } : x)));
+              return (
+                <div key={i} className="space-y-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/[0.04] p-3">
+                  <div className="text-sm font-bold text-ppc-gold">{s.label}</div>
+                  <TierPresets
+                    jerseyType={type ?? null}
+                    appliedTier={first ? draft.jerseyTier : s.jerseyTier ?? null}
+                    order={{ ...draft, ...mine } as Order}
+                    onApply={(tier, patch) => {
+                      if (first) applyTier(tier, patch);
+                      else set('sets', draft.sets.map((x, j) => (j === i ? { ...x, jerseyTier: tier, addons: { ...mine, ...buildPartOf(patch) } } : x)));
+                    }}
+                  />
+                  <div className="grid gap-2">
+                    {buildAddonsForJerseyType(type ?? null).map((a) => (
+                      <div key={a.key}>
+                        <Toggle
+                          label={a.label}
+                          checked={Boolean(mine[a.key])}
+                          onChange={(v) => (first ? set(a.key as keyof Order, v as never) : putAddons({ ...mine, [a.key]: v }))}
+                        />
+                        {addonHint(a) && <p className="mt-1 px-1 text-xs text-muted">{addonHint(a)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <TierPresets
           jerseyType={draft.jerseyType}
           appliedTier={draft.jerseyTier}
           order={draft}
           onApply={applyTier}
         />
+        )}
         {/* Sock construction sits with the tier because it's the same kind of
             decision: the grade of the build. It isn't tied to a tier, though.
             Pro cut socks come sublimated or embroidered, so any build can have
@@ -897,14 +951,16 @@ export function OrderForm({
           </div>
         )}
         {/* Build add-ons only. The three Powerplay branding ones have their own section below. */}
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {buildAddonsForJerseyType(jerseyTypesInUse(draft)).map((a) => (
-            <div key={a.key}>
-              <Toggle label={a.label} checked={Boolean(draft[a.key as keyof Order])} onChange={(v) => set(a.key as keyof Order, v as never)} />
-              {addonHint(a) && <p className="mt-1 px-1 text-xs text-muted">{addonHint(a)}</p>}
-            </div>
-          ))}
-        </div>
+        {!buildsDiffer(draft) && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {buildAddonsForJerseyType(jerseyTypesInUse(draft)).map((a) => (
+              <div key={a.key}>
+                <Toggle label={a.label} checked={Boolean(draft[a.key as keyof Order])} onChange={(v) => set(a.key as keyof Order, v as never)} />
+                {addonHint(a) && <p className="mt-1 px-1 text-xs text-muted">{addonHint(a)}</p>}
+              </div>
+            ))}
+          </div>
+        )}
         <LacesPicker value={draft.lacesStyle} onChange={(v) => set('lacesStyle', v)} />
         <ChoiceGroup<ShoulderCut>
           label="Shoulder Cut" value={draft.shoulderCut} columns={2}

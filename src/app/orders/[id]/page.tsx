@@ -16,7 +16,7 @@ import { Button, Card, Field, Section, Stat, StatusBadge, Warning, WebsiteBadge,
 import { EnquiryCard } from '@/components/enquiry-card';
 import { CopyButton, OperationalControls } from '@/components/order-controls';
 import { FactoryLink } from '@/components/factory-link';
-import { CUSTOM_BRANDING_ROLES, CaptainCountFields, CustomBrandingList, KeeperBadge, OwnerSectionComments, SetBuildsList, typesBySet } from '@/components/build-sheet';
+import { CUSTOM_BRANDING_ROLES, CaptainCountFields, CustomBrandingList, KeeperBadge, OwnerSectionComments, SetAddonsColumns, SetBuildsList, typesBySet } from '@/components/build-sheet';
 import { buildsDiffer, jerseyTypesInUse } from '@/lib/order-utils';
 import { keepersOfSet } from '@/lib/keepers';
 import { SubmissionReview } from '@/components/submission-review';
@@ -461,6 +461,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
       <Section title="Add-Ons & Customization">
         <OwnerSectionComments comments={order.sectionComments} sections={['addons']} />
+        {/* Sets built differently: each set's build add-ons, side by side. */}
+        <SetAddonsColumns order={order} />
         {(() => {
           const tier = tierById(order.jerseyTier);
           if (!tier) return null;
@@ -482,7 +484,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           {/* Same filter the form uses — an embroidered order shouldn't list
               a sublimated-only option just to say "No" to it. Build add-ons
               only; the branding has its own block below. */}
-          {buildAddonsForJerseyType(jerseyTypesInUse(order)).map((a) => (
+          {(buildsDiffer(order) ? [] : buildAddonsForJerseyType(jerseyTypesInUse(order))).map((a) => (
             <div key={a.key} className="flex items-center justify-between border-b border-line/60 py-1.5 text-sm" title={addonHint(a)}>
               <span className="text-muted">{a.label}</span>
               <YesNo value={Boolean(order[a.key as keyof Order])} />

@@ -183,6 +183,44 @@ export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jer
   );
 }
 
+/**
+ * Each set's own build add-ons, side by side, when the sets are built
+ * differently: what's on that set's jerseys, and what isn't.
+ */
+export function SetAddonsColumns({ order }: { order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier' | 'sockType' | 'pantShellType'> }) {
+  if (!buildsDiffer(order)) return null;
+  return (
+    <div className="mb-4 grid gap-3 sm:grid-cols-2">
+      {setBuilds(order).map((b, i) => {
+        const list = buildAddonsForJerseyType(b.jerseyType);
+        const on = list.filter((a) => b.addons[a.key]);
+        const off = list.filter((a) => !b.addons[a.key]);
+        return (
+          <div key={i} className="rounded-lg border border-line bg-surface-2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">
+              {b.label}{tierById(b.jerseyTier) ? ` · ${tierById(b.jerseyTier)!.label}` : ''}
+            </div>
+            {on.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {on.map((a) => (
+                  <span key={a.key} title={addonHint(a)} className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
+                    <span aria-hidden>&#10003;</span> {a.label}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted">No build add-ons on this set.</p>
+            )}
+            {off.length > 0 && (
+              <p className="mt-2 text-xs text-muted"><span className="font-semibold">Not included:</span> {off.map((a) => a.label).join(' · ')}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** "Embroidered", or "Home: Embroidered · Away: Sublimated" when each set has its own. */
 export function typesBySet(order: Pick<BuildSheet, 'sets' | 'jerseyType' | 'jerseyTier' | 'sockType' | 'pantShellType'>, what: 'socks' | 'shells'): string {
   const each = what === 'socks' ? perSetSockTypes(order) : perSetShellTypes(order);
@@ -361,8 +399,10 @@ export function AddOnsSection({
    * gold chips; what isn't is one muted line underneath.
    */
   // Build add-ons here; the Powerplay branding has its own block below.
+  // Sets built differently list their build add-ons set by set, above; this list is then the rest.
+  const perSet = buildsDiffer(sheet);
   const toggles = [
-    ...buildAddonsForJerseyType(jerseyTypesInUse(sheet)).map((a) => ({ key: a.key, label: a.label, hint: addonHint(a) })),
+    ...(perSet ? [] : buildAddonsForJerseyType(jerseyTypesInUse(sheet)).map((a) => ({ key: a.key, label: a.label, hint: addonHint(a) }))),
     ...(hasPantShells ? PANT_TOGGLES : []),
     // Goalie shells with the logos on the back of the legs — only a question
     // when there's a goalie and shells, so it's only listed then.
@@ -379,7 +419,8 @@ export function AddOnsSection({
   return (
     <Section title="Add-Ons & Customization">
       <SectionComments comments={sheet.sectionComments} sections={['addons']} sheetTitle="Add-Ons & Customization" />
-      <div className="text-xs font-bold uppercase tracking-wide text-muted">Included on this order</div>
+      <SetAddonsColumns order={sheet} />
+      <div className="text-xs font-bold uppercase tracking-wide text-muted">{perSet ? 'Every set' : 'Included on this order'}</div>
       {on.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {on.map((t) => (

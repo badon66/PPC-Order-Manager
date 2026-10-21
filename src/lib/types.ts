@@ -390,6 +390,13 @@ export interface SetQuantities {
    */
   sockType?: SockType | null;
   pantShellType?: PantShellType | null;
+  /**
+   * This set's own build add-ons (vents, elbows, twill outlines, stitched-on
+   * logos…) when the sets are different builds — keyed by add-on, see
+   * BUILD_ADDON_KEYS. Absent = the order's own, which are the first set's.
+   * Powerplay branding and everything else stay order-wide.
+   */
+  addons?: Record<string, boolean>;
   /** Who or what the extras are for, and what sizes. */
   extrasNotes: string;
 

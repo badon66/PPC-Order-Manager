@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TIER_DEFS, matchesTier, tierById, tierPatch } from '@/lib/constants';
-import { blankOrder, buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, perSetShellTypes, perSetSockTypes, setBuilds, setsForMode } from '@/lib/order-utils';
+import { BUILD_ADDON_KEYS, TIER_DEFS, buildPartOf, matchesTier, tierById, tierPatch } from '@/lib/constants';
+import { blankOrder, buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, perSetShellTypes, perSetSockTypes, setAddons, setBuilds, setsForMode } from '@/lib/order-utils';
 import { listPrice } from '@/lib/pricing';
 import type { Order } from '@/lib/types';
 
@@ -101,4 +101,21 @@ test('socks and shells: each set its own type only when the builds differ and mo
   // Same builds: never per set, whatever a set still carries.
   assert.equal(perSetSockTypes({ ...o, sets: o.sets.map((s) => ({ ...s, jerseyType: undefined })) }), false);
   assert.equal(perSetShellTypes(o), false, 'no shells on the order');
+});
+
+test('sets built differently each carry their own build add-ons', () => {
+  const o = homeAway({ underarmVents: true, reinforcedElbows: true, twillBorderNumbers: true, ppcBackBranding: true });
+  o.sets = o.sets.map((s, i) => ({ ...s, ...(i === 1 ? { jerseyType: 'sublimated' as const, jerseyTier: 'hybrid' as const, addons: { underarmVents: false, stitchedSublimatedLogos: true } } : {}) }));
+  assert.equal(setAddons(o, 0).underarmVents, true);
+  assert.equal(setAddons(o, 1).underarmVents, false, 'its own');
+  assert.equal(setAddons(o, 1).reinforcedElbows, true, 'what it never set falls back to the order');
+  // Stitched-on logos priced on the set that has them only.
+  assert.equal(listPrice(o)!.lines.find((l) => /Stitched twill/.test(l.label))?.qty, 16);
+  // Same builds again: a leftover add-on map means nothing.
+  const same = { ...o, sets: o.sets.map((s) => ({ ...s, jerseyType: undefined })) };
+  assert.equal(setAddons(same, 1).underarmVents, true);
+  // A tier's preset, set by set, never carries the branding.
+  const part = buildPartOf(tierPatch(tierById('premier')!));
+  assert.ok(!('ppcBackBranding' in part) && part.underarmVents === true);
+  assert.ok(BUILD_ADDON_KEYS.every((k) => !['ppcBackBranding', 'printedSizingTag', 'rubberizedPpcCrest'].includes(k)));
 });

@@ -88,7 +88,12 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   or more sets have socks (shells), each set picks its own `sockType`
   (`pantShellType`) in its column (`perSetSockTypes`/`perSetShellTypes`);
   socks on one set is one pair a player, one type — the order's own. Priced
-  per type; sheets show "Home: … · Away: …" (`typesBySet`).
+  per type; sheets show "Home: … · Away: …" (`typesBySet`). The build
+  add-ons follow too (2026-10-21): Add-Ons splits into a column per set, each
+  with its own tier preset and toggles; a later set's live in `set.addons`
+  (BUILD_ADDON_KEYS only — branding, laces, shoulders, patches stay
+  order-wide). Read them through `setAddons`; `buildPartOf` keeps a tier
+  preset's branding out of a set. Sheets show `SetAddonsColumns`.
 - **Hybrid** is a sublimated tier: Premier's add-ons plus stitched-on logos
   (`alsoOn` in TIER_DEFS — turned on by the preset, never turned off by the
   others). Priced as Premier + the $20 stitched-logo line.

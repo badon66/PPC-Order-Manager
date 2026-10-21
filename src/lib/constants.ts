@@ -263,6 +263,17 @@ export type AddonKey =
   | (typeof ADDON_TOGGLES)[number]['key']
   | (typeof PANT_TOGGLES)[number]['key'];
 
+/**
+ * The jersey-construction add-ons — what a set built differently can have
+ * its own of. Not the Powerplay branding (order-wide), not the pants.
+ */
+export const BUILD_ADDON_KEYS = ADDON_TOGGLES.filter((a) => !isBranding(a)).map((a) => a.key) as AddonKey[];
+
+/** Just the build add-ons out of a tier preset's toggle changes. */
+export function buildPartOf(patch: Partial<Record<AddonKey, boolean>>): Record<string, boolean> {
+  return Object.fromEntries(BUILD_ADDON_KEYS.filter((k) => k in patch).map((k) => [k, Boolean(patch[k])]));
+}
+
 export interface TierDef {
   id: JerseyTier;
   label: string;
