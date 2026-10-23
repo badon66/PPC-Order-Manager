@@ -61,6 +61,15 @@ export function buildTallies(
             },
           ]
         : []),
+      // Pant shells aren't home or away: one count, ticked per player.
+      ...(includes.pantShells
+        ? [{
+            label: 'Pant Shells',
+            assigned: roster.reduce((n, r) => n + (r.shellsPerPlayer || 0), 0),
+            declared: sets.reduce((n, s) => n + (s.pantShells || 0), 0),
+            extra: sets.reduce((n, s) => n + (s.extraPantShells || 0), 0),
+          }]
+        : []),
     ];
   }
 

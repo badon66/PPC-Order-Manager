@@ -452,17 +452,48 @@ export function nextRowClaims(
  * and three spare sock pairs is three spares, one of them socks only. Sizing
  * to the jerseys would leave the third pair of socks with nowhere to live.
  */
-export function extraRowCount(order: Pick<Order, 'sets'>): number {
-  const jerseys = order.sets.reduce((n, s) => n + (s.extraJerseys || 0), 0);
-  const socks = order.sets.reduce((n, s) => n + (s.extraSockPairs || 0), 0);
-  return Math.max(jerseys, socks);
+export function extraRowCount(order: Pick<Order, 'sets'> & { orderMode?: OrderMode }): number {
+  return Math.max(spareCount(order, 'extraJerseys'), spareCount(order, 'extraSockPairs'));
+}
+
+/**
+ * How many spares get this garment — counted as spares, not as garments.
+ *
+ * On a home/away order a spare is a person: 2 extra home jerseys and 2 extra
+ * away jerseys are 2 spares, each with a home and an away jersey, not 4
+ * (Keenan, 2026-10-23 — two sets doubled every spare to number). So it's the
+ * largest set's count there. Any other order adds the sets up.
+ */
+export function spareCount(
+  order: Pick<Order, 'sets'> & { orderMode?: OrderMode },
+  kind: 'extraJerseys' | 'extraSockPairs',
+): number {
+  const counts = order.sets.map((s) => s[kind] || 0);
+  return order.orderMode === 'home_away_set'
+    ? Math.max(0, ...counts)
+    : counts.reduce((n, c) => n + c, 0);
+}
+
+/**
+ * The garments spare number `i` (0-based) accounts for. On a home/away order,
+ * one per set that has at least i+1 extras (2 home + 3 away: spares 1 and 2
+ * get both, spare 3 only the away); otherwise one.
+ */
+export function spareUnits(
+  order: Pick<Order, 'sets'> & { orderMode?: OrderMode },
+  kind: 'extraJerseys' | 'extraSockPairs',
+  i: number,
+): number {
+  if (order.orderMode !== 'home_away_set') return 1;
+  return order.sets.filter((s) => i < (s[kind] || 0)).length;
 }
 
 /**
  * Keep the spare list the same length as the number of spares ordered.
  *
- * Grows by appending blanks and shrinks by dropping from the end, so numbers
- * already typed stay attached to the same row. Rebuilding the list from
+ * Grows by appending blanks and shrinks by dropping blank rows from the end,
+ * so numbers already typed stay attached to the same row — and a filled-in
+ * spare is never dropped at all (clear it and it goes). Rebuilding the list from
  * scratch on every change would renumber everything under the person's cursor.
  */
 export function syncExtraJerseyDetails(
@@ -470,7 +501,19 @@ export function syncExtraJerseyDetails(
   wanted: number,
 ): ExtraJersey[] {
   if (details.length === wanted) return details;
-  if (details.length > wanted) return details.slice(0, wanted);
+  if (details.length > wanted) {
+    // Drop blank rows, last first. A spare that already has a number or a
+    // size is never thrown away to make the count fit — the form says the
+    // rows and the count disagree instead (2026-10-23, when home/away spares
+    // stopped being counted twice and some lists got shorter).
+    const blank = (x: ExtraJersey) => !x.number.trim() && !x.size.trim() && !x.sockSize.trim() && !x.notes.trim();
+    let excess = details.length - wanted;
+    const kept = [...details];
+    for (let i = kept.length - 1; i >= 0 && excess > 0; i--) {
+      if (blank(kept[i])) { kept.splice(i, 1); excess--; }
+    }
+    return kept.length === details.length ? details : kept;
+  }
   return [
     ...details,
     ...Array.from({ length: wanted - details.length }, () => ({

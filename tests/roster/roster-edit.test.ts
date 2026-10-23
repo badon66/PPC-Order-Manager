@@ -327,3 +327,55 @@ test('coverage: goalies and skaters are checked against their own counts; sock-o
   assert.deepEqual(c.goalieJersey, { ordered: 1, sized: 1 });
   assert.deepEqual(c.skaterJersey, { ordered: 2, sized: 2 });
 });
+
+/* ---- Spares as people, and spares in the size count (2026-10-23) ---- */
+import { extraRowCount, spareCount, spareUnits, syncExtraJerseyDetails } from '@/lib/order-utils';
+import type { ExtraJersey } from '@/lib/types';
+
+const spare = (p: Partial<ExtraJersey> = {}): ExtraJersey => ({ number: '', size: '', sockSize: '', sockOnly: false, notes: '', ...p });
+
+test('home/away: 2 extra home + 2 extra away jerseys is 2 spares, not 4', () => {
+  const o = blankOrder();
+  o.orderMode = 'home_away_set';
+  o.sets = [
+    { ...o.sets[0], label: 'Home Set', extraJerseys: 2, extraSockPairs: 0 },
+    { ...o.sets[0], label: 'Away Set', extraJerseys: 2, extraSockPairs: 0 },
+  ];
+  assert.equal(extraRowCount(o), 2);
+  assert.equal(spareCount(o, 'extraJerseys'), 2);
+  assert.equal(spareUnits(o, 'extraJerseys', 0), 2);
+  // 2 home + 3 away: three spares, the third gets only the away
+  o.sets[1].extraJerseys = 3;
+  assert.equal(extraRowCount(o), 3);
+  assert.equal(spareUnits(o, 'extraJerseys', 2), 1);
+  // any other order adds the sets up
+  const single = blankOrder();
+  single.sets = [{ ...single.sets[0], extraJerseys: 2, extraSockPairs: 3 }];
+  assert.equal(extraRowCount(single), 3);
+  assert.equal(spareUnits(single, 'extraJerseys', 0), 1);
+});
+
+test('sized spares count toward the size breakdown, so they never read as still to size', () => {
+  const o = blankOrder();
+  o.sets = [{ ...o.sets[0], playerJerseys: 2, goalieJerseys: 0, sockPairs: 2, extraJerseys: 2, extraSockPairs: 0 }];
+  const list = rows(2, (r) => { r.jerseySize = 'Senior L'; r.sockSize = 'L'; r.jerseysPerPlayer = 1; r.socksPerPlayer = 1; });
+  const none = sizeCoverage(list, o.orderMode, o.sets, [spare(), spare()]);
+  assert.deepEqual(none.skaterJersey, { ordered: 4, sized: 2, extras: 2 });
+  const sized = sizeCoverage(list, o.orderMode, o.sets, [spare({ number: '33', size: 'Senior L' }), spare({ number: '55', size: 'Senior XL' })]);
+  assert.equal(coverageNote(sized.skaterJersey), null);
+  // home/away: one sized spare covers its home and its away jersey
+  const ha = blankOrder();
+  ha.orderMode = 'home_away_set';
+  ha.sets = [
+    { ...ha.sets[0], playerJerseys: 0, goalieJerseys: 0, sockPairs: 0, extraJerseys: 1, extraSockPairs: 0 },
+    { ...ha.sets[0], playerJerseys: 0, goalieJerseys: 0, sockPairs: 0, extraJerseys: 1, extraSockPairs: 0 },
+  ];
+  assert.deepEqual(sizeCoverage([], 'home_away_set', ha.sets, [spare({ size: 'Senior M' })]).skaterJersey, { ordered: 2, sized: 2, extras: 2 });
+});
+
+test('a shorter spare count drops blank spares, never a filled-in one', () => {
+  const list = [spare({ number: '9', size: 'Senior L' }), spare(), spare({ number: '12' }), spare()];
+  assert.deepEqual(syncExtraJerseyDetails(list, 2).map((x) => x.number), ['9', '12']);
+  const full = [spare({ number: '1' }), spare({ number: '2' })];
+  assert.equal(syncExtraJerseyDetails(full, 1), full);
+});

@@ -1,4 +1,5 @@
-import type { NameStyle, OrderMode, RosterEntry, SetQuantities } from './types';
+import type { ExtraJersey, NameStyle, OrderMode, RosterEntry, SetQuantities } from './types';
+import { spareUnits } from './order-utils';
 
 /**
  * Roster editing rules.
@@ -146,6 +147,8 @@ export interface BulkPatch {
   /* single-set mode */
   jerseysPerPlayer?: number;
   socksPerPlayer?: number;
+  /** Pant shells — a count on most orders, a 0/1 tick on home/away. */
+  shellsPerPlayer?: number;
   /* home/away mode */
   homeJersey?: 0 | 1;
   awayJersey?: 0 | 1;
@@ -280,10 +283,12 @@ export function rowUnits(r: RosterEntry, garment: Garment, mode: OrderMode): num
 }
 
 export interface SizeCoverage {
-  /** Units ordered, across every set. Spares are not in here: they're sized on their own list. */
+  /** Units ordered, across every set — extras included (2026-10-23). */
   ordered: number;
-  /** Units accounted for by rows that have a size. */
+  /** Units accounted for by rows that have a size, and spares that have one. */
   sized: number;
+  /** Of `ordered`, how many are extras — so the breakdown can say so. */
+  extras?: number;
 }
 
 export interface SizeCoverageReport {
@@ -293,21 +298,47 @@ export interface SizeCoverageReport {
   pant: SizeCoverage;
 }
 
-export function sizeCoverage(rows: RosterEntry[], mode: OrderMode, sets: SetQuantities[]): SizeCoverageReport {
+/**
+ * Sized against ordered, garment by garment.
+ *
+ * The extras count too (Keenan, 2026-10-23): numbered and sized in Order
+ * Totals, they're part of what gets made, so "still to size" must not count
+ * a spare that already has its size — nor ignore one that hasn't. Spares are
+ * skater cuts (their size list is the player one), so they join the skaters.
+ * Pant shell extras have no size on the spare list and stay out, as before.
+ */
+export function sizeCoverage(
+  rows: RosterEntry[],
+  mode: OrderMode,
+  sets: SetQuantities[],
+  spares: ExtraJersey[] = [],
+): SizeCoverageReport {
   const sum = (f: (s: SetQuantities) => number) => sets.reduce((n, s) => n + (f(s) || 0), 0);
   const sized = (pick: (r: RosterEntry) => boolean, garment: Garment) =>
     rows.reduce((n, r) => n + (pick(r) ? rowUnits(r, garment, mode) : 0), 0);
   const has = (v: string) => (v ?? '').trim() !== '';
+  const order = { sets, orderMode: mode };
+  const spareSized = (kind: 'extraJerseys' | 'extraSockPairs', pick: (x: ExtraJersey) => boolean) =>
+    spares.reduce((n, x, i) => n + (pick(x) ? spareUnits(order, kind, i) : 0), 0);
+  const extraJerseys = sum((s) => s.extraJerseys);
+  const extraSocks = sum((s) => s.extraSockPairs);
   return {
     skaterJersey: {
-      ordered: sum((s) => s.playerJerseys),
-      sized: sized((r) => !r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey'),
+      ordered: sum((s) => s.playerJerseys) + extraJerseys,
+      sized:
+        sized((r) => !r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey') +
+        spareSized('extraJerseys', (x) => !x.sockOnly && has(x.size)),
+      ...(extraJerseys ? { extras: extraJerseys } : {}),
     },
     goalieJersey: {
       ordered: sum((s) => s.goalieJerseys),
       sized: sized((r) => r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey'),
     },
-    sock: { ordered: sum((s) => s.sockPairs), sized: sized((r) => has(r.sockSize), 'sock') },
+    sock: {
+      ordered: sum((s) => s.sockPairs) + extraSocks,
+      sized: sized((r) => has(r.sockSize), 'sock') + spareSized('extraSockPairs', (x) => has(x.sockSize)),
+      ...(extraSocks ? { extras: extraSocks } : {}),
+    },
     pant: { ordered: sum((s) => s.pantShells), sized: sized((r) => has(r.pantShellSize), 'pant') },
   };
 }

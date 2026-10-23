@@ -94,6 +94,18 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   (BUILD_ADDON_KEYS only — branding, laces, shoulders, patches stay
   order-wide). Read them through `setAddons`; `buildPartOf` keeps a tier
   preset's branding out of a set. Sheets show `SetAddonsColumns`.
+- **Spares are people, and they count in the roster** (Keenan, 2026-10-23).
+  On a home/away order 2 extra home + 2 extra away jerseys are 2 spares, each
+  with a home and an away jersey — `spareCount` takes the largest set there
+  (other orders add the sets up), and `extraRowCount` is the spare list's
+  length; `spareUnits` says how many garments a spare stands for. The spares
+  numbered and sized in Order Totals show under the roster editor (Extras)
+  and count in the Size Breakdown: `sizeCoverage(..., spares)` adds the
+  extras to what's ordered and the sized spares to what's sized, so a sized
+  spare is never "still to size". Don't add spares as roster rows. A shorter
+  spare count drops blank spares only — a filled-in one stays (clear it).
+  The roster has a Pants tick on home/away (`shellsPerPlayer` 0/1 — shells
+  aren't home or away) and a Shells count otherwise; the tick boxes are small.
 - **Hybrid** is a sublimated tier: Premier's add-ons plus stitched-on logos
   (`alsoOn` in TIER_DEFS — turned on by the preset, never turned off by the
   others). Priced as Premier + the $20 stitched-logo line.

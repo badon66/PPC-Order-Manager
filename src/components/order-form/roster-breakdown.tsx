@@ -2,7 +2,8 @@
 
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
 import { coverageNote, sizeBreakdown, sizeCoverage, sizedRows, type SizeCoverage } from '@/lib/roster-edit';
-import type { OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
+import { spareUnits } from '@/lib/order-utils';
+import type { ExtraJersey, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 
 /**
  * Size breakdown, above the roster.
@@ -44,6 +45,7 @@ function Group({
         <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">{label}</span>
         <span className="text-xs text-muted">
           {nothingOrdered ? `${coverage.sized} sized` : `${coverage.sized} of ${coverage.ordered} sized`}
+          {coverage.extras ? ` · incl. ${coverage.extras} extra${coverage.extras === 1 ? '' : 's'}` : ''}
         </span>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -80,20 +82,31 @@ export function RosterBreakdown({
   sets,
   showSocks,
   showPantShells,
+  spares = [],
 }: {
   entries: RosterEntry[];
+  /** The spares from Order Totals: counted and sized with the roster (2026-10-23). */
+  spares?: ExtraJersey[];
   /** The order's mode and sets: what was ordered is what the sizes are checked against. */
   mode: OrderMode;
   sets: SetQuantities[];
   showSocks: boolean;
   showPantShells: boolean;
 }) {
-  if (entries.length === 0) return null;
+  if (entries.length === 0 && spares.length === 0) return null;
 
   const jerseyRows = sizedRows(entries, 'jersey');
   const goalies = jerseyRows.filter((e) => e.isGoalie);
   const skaters = jerseyRows.filter((e) => !e.isGoalie);
-  const cov = sizeCoverage(entries, mode, sets);
+  const cov = sizeCoverage(entries, mode, sets, spares);
+  // A spare's sizes count once per garment it stands for (home and away = 2).
+  const order = { sets, orderMode: mode };
+  const spareJerseySizes = spares.flatMap((x, i) =>
+    !x.sockOnly && x.size.trim() ? Array(spareUnits(order, 'extraJerseys', i)).fill(x.size) : [],
+  );
+  const spareSockSizes = spares.flatMap((x, i) =>
+    x.sockSize.trim() ? Array(spareUnits(order, 'extraSockPairs', i)).fill(x.sockSize) : [],
+  );
 
   return (
     <div className="rounded-lg border border-line bg-surface-2 p-3">
@@ -107,22 +120,23 @@ export function RosterBreakdown({
           */}
         {goalies.length > 0 || cov.goalieJersey.ordered > 0 ? (
           <>
-            <Group label="Skater Jerseys" values={skaters.map((e) => e.jerseySize)} order={jerseySizesFor(false)} coverage={cov.skaterJersey} />
+            <Group label="Skater Jerseys" values={[...skaters.map((e) => e.jerseySize), ...spareJerseySizes]} order={jerseySizesFor(false)} coverage={cov.skaterJersey} />
             <Group label="Goalie Jerseys" values={goalies.map((e) => e.jerseySize)} order={jerseySizesFor(true)} coverage={cov.goalieJersey} />
           </>
         ) : (
           <Group
             label="Jerseys"
-            values={jerseyRows.map((e) => e.jerseySize)}
+            values={[...jerseyRows.map((e) => e.jerseySize), ...spareJerseySizes]}
             order={jerseySizesFor(false)}
             coverage={{
               ordered: cov.skaterJersey.ordered + cov.goalieJersey.ordered,
               sized: cov.skaterJersey.sized + cov.goalieJersey.sized,
+              extras: cov.skaterJersey.extras,
             }}
           />
         )}
         {showSocks && (
-          <Group label="Socks" values={sizedRows(entries, 'sock').map((e) => e.sockSize)} order={SOCK_SIZES} coverage={cov.sock} />
+          <Group label="Socks" values={[...sizedRows(entries, 'sock').map((e) => e.sockSize), ...spareSockSizes]} order={SOCK_SIZES} coverage={cov.sock} />
         )}
         {showPantShells && (
           <Group label="Pant Shells" values={sizedRows(entries, 'pant').map((e) => e.pantShellSize)} order={PANT_SHELL_SIZES} coverage={cov.pant} />

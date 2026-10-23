@@ -54,10 +54,14 @@ export function RosterBulkBar({
     const x = v(k);
     return x === MIXED ? 'mixed' : x ? 'on' : 'off';
   };
-  const qty = (k: 'jerseysPerPlayer' | 'socksPerPlayer') => {
+  const qty = (k: 'jerseysPerPlayer' | 'socksPerPlayer' | 'shellsPerPlayer') => {
     const x = v(k);
     return x === MIXED ? { value: '', mixed: true } : { value: String(x ?? 0), mixed: false };
   };
+  const pantsTick = (() => {
+    const x = v('shellsPerPlayer');
+    return x === MIXED ? 'mixed' : x ? 'on' : 'off';
+  })();
   const noNameState = (() => {
     const x = v('noName');
     return x === MIXED ? 'mixed' : x ? 'on' : 'off';
@@ -158,6 +162,9 @@ export function RosterBulkBar({
               <Cell label="Away S" hidden={!showSocks}>
                 <Tick state={tick('awaySocks')} onChange={(on) => onPatch({ awaySocks: on ? 1 : 0 })} />
               </Cell>
+              <Cell label="Pants" hidden={!showPantShells}>
+                <Tick state={pantsTick} onChange={(on) => onPatch({ shellsPerPlayer: on ? 1 : 0 })} />
+              </Cell>
             </div>
           ) : (
             <div className="flex items-end gap-2">
@@ -166,6 +173,9 @@ export function RosterBulkBar({
               </Cell>
               <Cell label="Socks" hidden={!showSocks}>
                 <Qty {...qty('socksPerPlayer')} onChange={(x) => onPatch({ socksPerPlayer: x })} />
+              </Cell>
+              <Cell label="Shells" hidden={!showPantShells}>
+                <Qty {...qty('shellsPerPlayer')} onChange={(x) => onPatch({ shellsPerPlayer: x })} />
               </Cell>
             </div>
           )}

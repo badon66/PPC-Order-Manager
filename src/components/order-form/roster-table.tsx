@@ -9,7 +9,7 @@ import {
   applyBulkPatch, isNoName, nextHomeAwayClaims, nextSelection, pruneSelection, selectionCut,
   type BulkPatch,
 } from '@/lib/roster-edit';
-import type { NameStyle, Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
+import type { ExtraJersey, NameStyle, Order, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
 import { SizeSelect } from './fields';
 import { CaptaincyPicker } from '@/components/captaincy';
 import { RosterTally, buildTallies } from './roster-tally';
@@ -43,9 +43,16 @@ export function RosterTable({
   sockType,
   pantShellType,
   nameStyle,
+  spares = [],
   onImport,
   onChange,
 }: {
+  /**
+   * The spares numbered and sized in Order Totals. Shown here, marked Extra,
+   * and counted in the size breakdown — so they're never typed in again as
+   * players (2026-10-23). Edited up there, not here.
+   */
+  spares?: ExtraJersey[];
   orderId: string;
   entries: RosterEntry[];
   orderMode: OrderMode;
@@ -252,7 +259,7 @@ export function RosterTable({
         </p>
       )}
 
-      <RosterBreakdown entries={entries} mode={orderMode} sets={sets} showSocks={showSocks} showPantShells={showPantShells} />
+      <RosterBreakdown entries={entries} spares={spares} mode={orderMode} sets={sets} showSocks={showSocks} showPantShells={showPantShells} />
 
       <RosterTally
         tallies={buildTallies(orderMode, sets, entries, {
@@ -288,15 +295,17 @@ export function RosterTable({
                   {showPantShells && <th className="py-2 pr-2 w-28">Pant</th>}
                   {homeAway ? (
                     <>
-                      <th className="py-2 pr-2 w-24">Home Jersey</th>
-                      <th className="py-2 pr-2 w-24">Away Jersey</th>
-                      {showSocks && <th className="py-2 pr-2 w-24">Home Socks</th>}
-                      {showSocks && <th className="py-2 pr-2 w-24">Away Socks</th>}
+                      <th className="w-14 py-2 pr-1 text-center leading-tight">Home<br />Jersey</th>
+                      <th className="w-14 py-2 pr-1 text-center leading-tight">Away<br />Jersey</th>
+                      {showSocks && <th className="w-14 py-2 pr-1 text-center leading-tight">Home<br />Socks</th>}
+                      {showSocks && <th className="w-14 py-2 pr-1 text-center leading-tight">Away<br />Socks</th>}
+                      {showPantShells && <th className="w-14 py-2 pr-1 text-center">Pants</th>}
                     </>
                   ) : (
                     <>
                       <th className="py-2 pr-2 w-20">Jerseys</th>
                       {showSocks && <th className="py-2 pr-2 w-20">Socks</th>}
+                      {showPantShells && <th className="py-2 pr-2 w-20">Shells</th>}
                     </>
                   )}
                   <th className="py-2 pr-2">Notes</th>
@@ -449,6 +458,15 @@ export function RosterTable({
                             />
                           </td>
                         )}
+                        {/* Pant shells have no home/away — one tick: does this player get a pair. */}
+                        {showPantShells && (
+                          <td className="py-2 pr-2">
+                            <TickBox
+                              checked={Boolean(e.shellsPerPlayer)}
+                              onChange={(v) => patch(i, { shellsPerPlayer: v ? 1 : 0 })}
+                            />
+                          </td>
+                        )}
                       </>
                     ) : (
                       <>
@@ -468,6 +486,16 @@ export function RosterTable({
                               min={0}
                               value={e.socksPerPlayer}
                               onChange={(ev) => patch(i, { socksPerPlayer: Number(ev.target.value) || 0 })}
+                            />
+                          </td>
+                        )}
+                        {showPantShells && (
+                          <td className="py-2 pr-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={e.shellsPerPlayer}
+                              onChange={(ev) => patch(i, { shellsPerPlayer: Number(ev.target.value) || 0 })}
                             />
                           </td>
                         )}
@@ -602,6 +630,12 @@ export function RosterTable({
                           onChange={(v) => patch(i, { awaySocks: v ? 1 : 0 })}
                         />
                       )}
+                      {showPantShells && (
+                        <LabelledTick
+                          label="Pants" checked={Boolean(e.shellsPerPlayer)}
+                          onChange={(v) => patch(i, { shellsPerPlayer: v ? 1 : 0 })}
+                        />
+                      )}
                     </div>
                   ) : (
                     <div className="col-span-2 grid grid-cols-2 gap-2">
@@ -621,6 +655,15 @@ export function RosterTable({
                           />
                         </label>
                       )}
+                      {showPantShells && (
+                        <label className="text-xs text-muted">
+                          Shells
+                          <input
+                            type="number" min={0} value={e.shellsPerPlayer}
+                            onChange={(ev) => patch(i, { shellsPerPlayer: Number(ev.target.value) || 0 })}
+                          />
+                        </label>
+                      )}
                     </div>
                   )}
                   <input
@@ -634,6 +677,30 @@ export function RosterTable({
             ))}
           </div>
         </>
+      )}
+
+      {spares.length > 0 && (
+        <div className="rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+              Extras ({spares.length})
+            </span>
+            <span className="text-xs text-muted">
+              Numbered and sized in Order Totals{homeAway ? ' · each gets a home and an away jersey' : ''} — counted in the sizes above.
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {spares.map((x, i) => (
+              <span key={i} className="rounded border border-line bg-surface px-2 py-1 text-xs tabular-nums">
+                <span className="font-semibold">Extra {i + 1}</span>
+                {' · '}#{x.number.trim() || '?'}
+                {' · '}
+                {x.sockOnly ? 'socks only' : x.size.trim() || <span className="text-red-300">no size</span>}
+                {x.sockSize.trim() ? ` · socks ${x.sockSize}` : ''}
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {selected.size > 0 && inView && (
@@ -700,13 +767,13 @@ function TickBox({
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`flex h-9 w-full items-center justify-center rounded-lg border text-sm font-bold transition-colors disabled:opacity-30 ${
+      className={`mx-auto flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors disabled:opacity-30 ${
         checked
           ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold'
           : 'border-line bg-surface-2 text-muted hover:border-ppc-gold/50'
       }`}
     >
-      {checked ? '✓' : '—'}
+      {checked ? '✓' : ''}
     </button>
   );
 }
@@ -729,7 +796,7 @@ function LabelledTick({
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors disabled:opacity-30 ${
+      className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-30 ${
         checked
           ? 'border-ppc-gold bg-ppc-gold/15 text-ppc-gold'
           : 'border-line bg-surface text-muted'

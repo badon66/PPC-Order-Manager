@@ -9,7 +9,7 @@ import {
 import { buildsDiffer, jerseyTypesInUse, orderBuildAddons, perSetShellTypes, perSetSockTypes, setAddons } from '@/lib/order-utils';
 import { buildPartOf } from '@/lib/constants';
 import { tierById, tierPatch, tiersForJerseyType } from '@/lib/constants';
-import { describeSet, extraRowCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
+import { describeSet, extraRowCount, spareCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
 import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
@@ -210,6 +210,9 @@ export function OrderForm({
 
   /** Spares that actually get a jersey — the rest are socks only. */
   const extraJerseyRows = (draft.extraJerseyDetails ?? []).filter((x) => !x.sockOnly).length;
+  /** Spares as people: on home/away, 2 extra home + 2 extra away is 2 spares, not 4. */
+  const spareJerseys = spareCount(draft, 'extraJerseys');
+  const spareSocks = spareCount(draft, 'extraSockPairs');
 
   /*
    * Keepers — "make an extra of this jersey for us to keep". Powerplay's, not
@@ -637,11 +640,12 @@ export function OrderForm({
               Extra Jersey Numbers
             </div>
             <p className="mt-1 text-xs text-muted">
-              {totalAcrossSets.extraJerseys > 0 &&
-                `${totalAcrossSets.extraJerseys} spare jersey${totalAcrossSets.extraJerseys === 1 ? '' : 's'}`}
-              {totalAcrossSets.extraJerseys > 0 && totalAcrossSets.extraSocks > 0 && ' and '}
-              {totalAcrossSets.extraSocks > 0 &&
-                `${totalAcrossSets.extraSocks} spare sock pair${totalAcrossSets.extraSocks === 1 ? '' : 's'}`}
+              {spareJerseys > 0 &&
+                `${spareJerseys} spare jersey${spareJerseys === 1 ? '' : 's'}`}
+              {spareJerseys > 0 && spareSocks > 0 && ' and '}
+              {spareSocks > 0 &&
+                `${spareSocks} spare sock pair${spareSocks === 1 ? '' : 's'}`}
+              {draft.orderMode === 'home_away_set' && ', each in home and away'}
               . Give each a number and size, or leave them for the customer to fill in.
             </p>
 
@@ -695,10 +699,10 @@ export function OrderForm({
               * it, and being told which way it's out is more use than a
               * blocked field.
               */}
-            {extraJerseyRows !== totalAcrossSets.extraJerseys && (
+            {extraJerseyRows !== spareJerseys && (
               <p className="mt-2 text-xs text-amber-400">
                 {extraJerseyRows} of these have a jersey, but the order has{' '}
-                {totalAcrossSets.extraJerseys}. Tick &quot;socks only&quot; on the ones that
+                {spareJerseys}. Tick &quot;socks only&quot; on the ones that
                 don&apos;t get a jersey.
               </p>
             )}
@@ -1262,6 +1266,7 @@ export function OrderForm({
           sockType={draft.sockType}
           pantShellType={draft.pantShellType}
           nameStyle={draft.nameStyle}
+          spares={draft.extraJerseyDetails ?? []}
           onImport={() => setImporting(true)}
           onChange={(next) => {
             rosterDirty.current = true;

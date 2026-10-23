@@ -577,9 +577,9 @@ export function RosterSection({
         * counting a column of twenty by eye is how that goes wrong. Same
         * component the order form shows Keenan.
         */}
-      {sheet.roster.length > 0 && (
+      {(sheet.roster.length > 0 || spares.length > 0) && (
         <div className="mb-4">
-          <RosterBreakdown entries={sheet.roster} mode={sheet.orderMode} sets={sheet.sets} showSocks={showSocks} showPantShells={showPants} />
+          <RosterBreakdown entries={sheet.roster} spares={spares} mode={sheet.orderMode} sets={sheet.sets} showSocks={showSocks} showPantShells={showPants} />
         </div>
       )}
       <div className="mb-3 flex justify-end">
