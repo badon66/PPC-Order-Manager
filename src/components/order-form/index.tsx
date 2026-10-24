@@ -10,7 +10,7 @@ import { buildsDiffer, jerseyTypesInUse, orderBuildAddons, perSetShellTypes, per
 import { buildPartOf } from '@/lib/constants';
 import { tierById, tierPatch, tiersForJerseyType } from '@/lib/constants';
 import { describeSet, extraRowCount, spareCount, newId, offersGoaliePantOption, orderIncludesSocks, rosterSlotCount, setsForMode, syncExtraJerseyDetails } from '@/lib/order-utils';
-import { MAX_KEEPERS_PER_SET, commonJerseySize, keepersOfSet, pruneKeepers, randomFreeNumber, setKeeperCount, takenNumbers } from '@/lib/keepers';
+import { MAX_KEEPERS_PER_SET, commonJerseySize, goodFreeNumber, keepersOfSet, numberBlankSpares, pruneKeepers, setKeeperCount, takenNumbers } from '@/lib/keepers';
 import { formatCad, listPrice } from '@/lib/pricing';
 import { StatusBadge } from '@/components/ui';
 import { COMMENT_SECTIONS, type CommentSection } from '@/lib/types';
@@ -558,7 +558,7 @@ export function OrderForm({
                                     type="button"
                                     title="Pick a number nobody on this order has"
                                     className="shrink-0 rounded-lg border border-line bg-surface-2 px-2.5 py-2 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
-                                    onClick={() => patchKeeper(k.id, { number: randomFreeNumber(takenForKeepers(k.id)) })}
+                                    onClick={() => patchKeeper(k.id, { number: goodFreeNumber(takenForKeepers(k.id)) })}
                                   >
                                     Random
                                   </button>
@@ -636,8 +636,23 @@ export function OrderForm({
           */}
         {extraRows > 0 && (
           <div className="mt-4 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
-              Extra Jersey Numbers
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+                Extra Jersey Numbers
+              </span>
+              {/* Fills only the blank ones, around every number already on the order. */}
+              {(draft.extraJerseyDetails ?? []).some((x) => !x.sockOnly && !x.number.trim()) && (
+                <button
+                  type="button"
+                  title="A good hockey number for each spare without one, none already on this order"
+                  className="rounded-lg border border-ppc-gold/60 bg-surface-2 px-2.5 py-1.5 text-xs font-semibold text-ppc-gold hover:bg-ppc-gold/10"
+                  onClick={() =>
+                    set('extraJerseyDetails', numberBlankSpares(draft.extraJerseyDetails ?? [], takenNumbers(roster, [], keepers)))
+                  }
+                >
+                  Pick numbers
+                </button>
+              )}
             </div>
             <p className="mt-1 text-xs text-muted">
               {spareJerseys > 0 &&
@@ -655,12 +670,32 @@ export function OrderForm({
                   <span className="self-center text-xs font-semibold text-muted">
                     Spare {i + 1}
                   </span>
-                  <input
-                    placeholder="Number"
-                    inputMode="numeric"
-                    value={x.number}
-                    onChange={(e) => patchExtra(i, { number: e.target.value })}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      className="min-w-0 flex-1"
+                      placeholder="Number"
+                      inputMode="numeric"
+                      value={x.number}
+                      onChange={(e) => patchExtra(i, { number: e.target.value })}
+                    />
+                    {!x.sockOnly && (
+                      <button
+                        type="button"
+                        title="A good hockey number nobody on this order has"
+                        aria-label={`Pick a number for spare ${i + 1}`}
+                        className="shrink-0 rounded-lg border border-line bg-surface-2 px-2.5 py-2 text-xs font-semibold hover:border-ppc-gold/60 hover:text-ppc-gold"
+                        onClick={() =>
+                          patchExtra(i, {
+                            number: goodFreeNumber(
+                              takenNumbers(roster, (draft.extraJerseyDetails ?? []).filter((_, j) => j !== i), keepers),
+                            ),
+                          })
+                        }
+                      >
+                        Random
+                      </button>
+                    )}
+                  </div>
                   {x.sockOnly ? (
                     <span className="self-center text-xs text-muted">No jersey</span>
                   ) : (

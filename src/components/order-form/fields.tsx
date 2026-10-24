@@ -209,35 +209,67 @@ export function ChoiceGroup<T extends string>({
 }
 
 /** Controlled size picker. Free text only behind an explicit "Other". */
+/**
+ * What a size reads as in a dropdown: no "Senior" in front (Keenan,
+ * 2026-10-23) — a plain size is a senior size, and only youth says so.
+ * Display only: the stored value stays "Senior Large", which is what the
+ * factory sheet, the CSV and the import all read.
+ */
+export function sizeLabel(v: string): string {
+  return v.replace(/^Senior\s+/i, '');
+}
+
 export function SizeSelect({
   label,
   value,
   options,
   onChange,
   otherToken = 'Other',
+  compact = false,
 }: {
   label?: string;
   value: string;
   options: readonly string[];
   onChange: (v: string) => void;
   otherToken?: string;
+  /**
+   * The roster's narrow columns: the chosen size is drawn as text that wraps
+   * ("Youth" over "S/M") instead of a native box that cuts it to "Senic",
+   * with the real select laid invisibly over it so it still opens the same.
+   */
+  compact?: boolean;
 }) {
   const known = value === '' || options.includes(value);
+  const select = (
+    <select
+      value={known ? value : otherToken}
+      onChange={(e) => onChange(e.target.value === otherToken ? ' ' : e.target.value)}
+      className={compact ? 'absolute inset-0 h-full w-full cursor-pointer opacity-0' : undefined}
+      aria-label={label}
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {sizeLabel(o)}
+        </option>
+      ))}
+      <option value={otherToken}>{otherToken}…</option>
+    </select>
+  );
   return (
     <div className="space-y-1">
       {label && <span className="text-xs font-medium text-muted">{label}</span>}
-      <select
-        value={known ? value : otherToken}
-        onChange={(e) => onChange(e.target.value === otherToken ? ' ' : e.target.value)}
-      >
-        <option value="">—</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-        <option value={otherToken}>{otherToken}…</option>
-      </select>
+      {compact ? (
+        <div className="relative flex min-h-10 items-center justify-between gap-1 rounded-lg border border-line bg-surface-2 px-2 py-1 text-xs font-semibold leading-tight focus-within:border-ppc-gold">
+          <span className={value.trim() || !known ? '' : 'text-muted'}>
+            {known ? (value ? sizeLabel(value) : '—') : `${otherToken}…`}
+          </span>
+          <span aria-hidden className="text-[10px] text-muted">▾</span>
+          {select}
+        </div>
+      ) : (
+        select
+      )}
       {!known && (
         <input
           autoFocus

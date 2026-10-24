@@ -61,7 +61,7 @@ export function setKeeperCount(
   for (const k of mine) if (k.number.trim()) taken.add(k.number.trim());
   const added: KeeperJersey[] = [];
   for (let i = mine.length; i < n; i++) {
-    const number = randomFreeNumber(taken, ctx.random);
+    const number = goodFreeNumber(taken, ctx.random);
     if (number) taken.add(number);
     added.push({ id: ctx.newId(), setIndex, number, name: '', size: ctx.size });
   }
@@ -157,4 +157,70 @@ export function describeKeeper(k: Pick<KeeperJersey, 'number' | 'name' | 'size'>
 export function describeKeepers(keepers: ReadonlyArray<Pick<KeeperJersey, 'number' | 'name' | 'size'>>): string {
   if (keepers.length === 0) return '';
   return `${keepers.length} kept by Powerplay: ${keepers.map(describeKeeper).join(', ')}`;
+}
+
+/*
+ * Picking a good number (Keenan, 2026-10-23): a spare or a keeper gets a
+ * number a hockey player would actually wear, not a random 1–99. Classic
+ * skater numbers first; the next tier only once those are all taken; never a
+ * number that reads as a joke or a tribute nobody asked for.
+ */
+
+/** The numbers skaters wear most. Tried first. */
+export const CLASSIC_NUMBERS = [
+  '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
+  '17', '18', '19', '21', '22', '23', '24', '25', '27', '28',
+] as const;
+
+/** Still normal, just less common. Used once the classics are gone. */
+export const SECOND_NUMBERS = [
+  '20', '26', '29', '32', '34', '36', '37', '38', '39', '41', '42', '43', '44', '47',
+  '55', '71', '74', '77', '88', '91', '93',
+] as const;
+
+/**
+ * Never picked: 99 (retired league-wide), 66 and 87 (one player each, it reads
+ * as a costume), 69, 0/00, and the goalie numbers 1, 30, 31, 35 — a spare is a
+ * skater's jersey.
+ */
+export const NEVER_PICKED = new Set(['0', '00', '1', '30', '31', '35', '66', '69', '87', '99']);
+
+/**
+ * A good number nobody on the order has: a free classic at random, else a
+ * free second-tier one, else any other free 2–98 that isn't on the never
+ * list. '' when nothing's left (the row is left to type by hand).
+ */
+export function goodFreeNumber(taken: ReadonlySet<string>, random: () => number = Math.random): string {
+  const free = (n: string) => !taken.has(n) && !taken.has(n.padStart(2, '0'));
+  const pick = (list: readonly string[]) => {
+    const open = list.filter(free);
+    if (open.length === 0) return '';
+    const r = Math.min(Math.max(random(), 0), 0.999999);
+    return open[Math.floor(r * open.length)];
+  };
+  const rest = Array.from({ length: 97 }, (_, i) => String(i + 2)).filter(
+    (n) => !NEVER_PICKED.has(n) && !(CLASSIC_NUMBERS as readonly string[]).includes(n) && !(SECOND_NUMBERS as readonly string[]).includes(n),
+  );
+  return pick(CLASSIC_NUMBERS) || pick(SECOND_NUMBERS) || pick(rest);
+}
+
+/**
+ * Good numbers for every spare that has a jersey and no number yet, each
+ * pick counted as taken for the next. Spares already numbered, and sock-only
+ * spares, are left exactly as they are.
+ */
+export function numberBlankSpares<T extends { number: string; sockOnly: boolean }>(
+  spares: T[],
+  taken: ReadonlySet<string>,
+  random: () => number = Math.random,
+): T[] {
+  const used = new Set(taken);
+  for (const s of spares) if (!s.sockOnly && s.number.trim()) used.add(s.number.trim());
+  return spares.map((s) => {
+    if (s.sockOnly || s.number.trim()) return s;
+    const n = goodFreeNumber(used, random);
+    if (!n) return s;
+    used.add(n);
+    return { ...s, number: n };
+  });
 }

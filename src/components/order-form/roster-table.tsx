@@ -275,9 +275,18 @@ export function RosterTable({
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden overflow-x-auto md:block">
+          {/*
+            * The column headings follow the scroll (Keenan, 2026-10-23): the
+            * roster is forty rows on a big order and "which box is Away
+            * Socks?" shouldn't need a scroll back up. They sit just under the
+            * page header (60px) and stop with the table. Sticky needs the
+            * table NOT to be inside a scrolling box, so the horizontal scroll
+            * wrapper only applies below lg, where the table is wider than
+            * the page; from lg the page is wide enough for it.
+            */}
+          <div className="hidden overflow-x-auto md:block lg:overflow-visible">
             <table className="w-full min-w-[54rem] text-sm">
-              <thead>
+              <thead className="lg:sticky lg:top-[60px] lg:z-10 lg:bg-background">
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                   <th className="w-8 py-2 pr-2">
                     <input
@@ -290,9 +299,9 @@ export function RosterTable({
                   </th>
                   <th className="py-2 pr-2">Name on back</th>
                   <th className="py-2 pr-2 w-20">#</th>
-                  <th className="py-2 pr-2 w-28">Jersey</th>
-                  {showSocks && <th className="py-2 pr-2 w-32">Sock</th>}
-                  {showPantShells && <th className="py-2 pr-2 w-28">Pant</th>}
+                  <th className="w-24 py-2 pr-2">Jersey</th>
+                  {showSocks && <th className="w-[5.5rem] py-2 pr-2">Sock</th>}
+                  {showPantShells && <th className="w-[5.5rem] py-2 pr-2">Pant</th>}
                   {homeAway ? (
                     <>
                       <th className="w-14 py-2 pr-1 text-center leading-tight">Home<br />Jersey</th>
@@ -402,6 +411,7 @@ export function RosterTable({
                         <span className="text-xs text-muted">—</span>
                       ) : (
                         <SizeSelect
+                          compact
                           value={e.jerseySize}
                           options={jerseySizesFor(e.isGoalie)}
                           onChange={(v) => patch(i, { jerseySize: v })}
@@ -411,6 +421,7 @@ export function RosterTable({
                     {showSocks && (
                       <td className="py-2 pr-2">
                         <SizeSelect
+                          compact
                           value={e.sockSize}
                           options={SOCK_SIZES}
                           onChange={(v) => patch(i, { sockSize: v })}
@@ -420,6 +431,7 @@ export function RosterTable({
                     {showPantShells && (
                       <td className="py-2 pr-2">
                         <SizeSelect
+                          compact
                           value={e.pantShellSize}
                           options={PANT_SHELL_SIZES}
                           onChange={(v) => patch(i, { pantShellSize: v })}

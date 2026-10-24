@@ -1,9 +1,9 @@
 'use client';
 
 import { PANT_SHELL_SIZES, SOCK_SIZES, jerseySizesFor } from '@/lib/constants';
-import { coverageNote, sizeBreakdown, sizeCoverage, sizedRows, type SizeCoverage } from '@/lib/roster-edit';
-import { spareUnits } from '@/lib/order-utils';
+import { coverageNote, isGoalieCut, sizeBreakdown, sizeCoverage, sizedRows, type SizeCoverage } from '@/lib/roster-edit';
 import type { ExtraJersey, OrderMode, RosterEntry, SetQuantities } from '@/lib/types';
+import { sizeLabel } from './fields';
 
 /**
  * Size breakdown, above the roster.
@@ -51,7 +51,7 @@ function Group({
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {buckets.map((b) => (
           <span key={b.size} className="rounded border border-line bg-surface px-2 py-1 text-xs font-semibold tabular-nums">
-            {b.size} <span className="text-ppc-gold">&times;{b.count}</span>
+            {sizeLabel(b.size)} <span className="text-ppc-gold">&times;{b.count}</span>
           </span>
         ))}
         {/*
@@ -96,17 +96,13 @@ export function RosterBreakdown({
   if (entries.length === 0 && spares.length === 0) return null;
 
   const jerseyRows = sizedRows(entries, 'jersey');
-  const goalies = jerseyRows.filter((e) => e.isGoalie);
-  const skaters = jerseyRows.filter((e) => !e.isGoalie);
+  // A goalie cut is its own garment: by the size picked, else by the flag.
+  const goalies = jerseyRows.filter(isGoalieCut);
+  const skaters = jerseyRows.filter((e) => !isGoalieCut(e));
   const cov = sizeCoverage(entries, mode, sets, spares);
-  // A spare's sizes count once per garment it stands for (home and away = 2).
-  const order = { sets, orderMode: mode };
-  const spareJerseySizes = spares.flatMap((x, i) =>
-    !x.sockOnly && x.size.trim() ? Array(spareUnits(order, 'extraJerseys', i)).fill(x.size) : [],
-  );
-  const spareSockSizes = spares.flatMap((x, i) =>
-    x.sockSize.trim() ? Array(spareUnits(order, 'extraSockPairs', i)).fill(x.sockSize) : [],
-  );
+  // One size per spare, as one per player: a spare is one skater (2026-10-24).
+  const spareJerseySizes = spares.filter((x) => !x.sockOnly && x.size.trim()).map((x) => x.size);
+  const spareSockSizes = spares.filter((x) => x.sockSize.trim()).map((x) => x.sockSize);
 
   return (
     <div className="rounded-lg border border-line bg-surface-2 p-3">

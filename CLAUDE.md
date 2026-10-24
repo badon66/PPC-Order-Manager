@@ -102,10 +102,31 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   numbered and sized in Order Totals show under the roster editor (Extras)
   and count in the Size Breakdown: `sizeCoverage(..., spares)` adds the
   extras to what's ordered and the sized spares to what's sized, so a sized
-  spare is never "still to size". Don't add spares as roster rows. A shorter
+  spare is never "still to size". The breakdown counts PEOPLE, by the size
+  dropdowns (2026-10-24): a sized player is one, a spare is one, and on
+  home/away the ordered side is the largest set's count, not home + away —
+  22 players + 4 spares is 26 to size, not 52. Ticks are the tally's business.
+  A goalie cut is its own column by `isGoalieCut`: the goalie flag, or a
+  goalie size on the row — a "Goalie 2XL" never lands under Senior XXL. Don't add spares as roster rows. A shorter
   spare count drops blank spares only — a filled-in one stays (clear it).
   The roster has a Pants tick on home/away (`shellsPerPlayer` 0/1 — shells
   aren't home or away) and a Shells count otherwise; the tick boxes are small.
+- **Picked numbers are hockey numbers** (Keenan, 2026-10-23). Each spare
+  has a Random button and the spare list a "Pick numbers" button (fills the
+  blank ones only); keepers' Random and new keepers use the same picker,
+  `goodFreeNumber` in keepers.ts: a free CLASSIC_NUMBERS one (2–28), then
+  SECOND_NUMBERS, then any other 2–98 — never NEVER_PICKED (99, 66, 87, 69,
+  0/00, goalie 1/30/31/35) and never a number already on the order
+  (`takenNumbers`: roster, spares, keepers).
+- **Sizes read without "Senior"** (Keenan, 2026-10-23): `sizeLabel` in
+  order-form/fields.tsx strips it for display in dropdowns and the Size
+  Breakdown chips — only youth says which. The STORED value keeps "Senior
+  Large" (factory sheet, CSV, import all read it). The roster table's size
+  columns are narrow and use `SizeSelect compact`: the chosen size is text
+  that wraps to two lines, with the real select laid invisibly over it. The
+  table's column headings are sticky under the page header from lg (the
+  horizontal-scroll wrapper is `lg:overflow-visible` for that — sticky dies
+  inside a scrolling box).
 - **Hybrid** is a sublimated tier: Premier's add-ons plus stitched-on logos
   (`alsoOn` in TIER_DEFS — turned on by the preset, never turned off by the
   others). Priced as Premier + the $20 stitched-logo line.

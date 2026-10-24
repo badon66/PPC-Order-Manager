@@ -92,3 +92,35 @@ test('keepersOfSet / describeKeepers read back plainly', () => {
   assert.equal(describeKeepers(ks), '2 kept by Powerplay: #88 (L), no number yet SMITH (no size yet)');
   assert.equal(describeKeepers([]), '');
 });
+
+/* ---- Good numbers for spares and keepers (2026-10-23) ---- */
+import { CLASSIC_NUMBERS, NEVER_PICKED, SECOND_NUMBERS, goodFreeNumber, numberBlankSpares } from '@/lib/keepers';
+
+test('goodFreeNumber: a free classic number, never a taken one', () => {
+  for (let i = 0; i < 200; i++) {
+    const n = goodFreeNumber(new Set(['7', '09', '22']));
+    assert.ok((CLASSIC_NUMBERS as readonly string[]).includes(n), n);
+    assert.ok(!['7', '9', '22'].includes(n));
+  }
+});
+
+test('goodFreeNumber: second tier only once the classics are gone, never 99 or the like', () => {
+  const allClassic = new Set<string>(CLASSIC_NUMBERS);
+  for (let i = 0; i < 200; i++) assert.ok((SECOND_NUMBERS as readonly string[]).includes(goodFreeNumber(allClassic)));
+  const everythingGood = new Set<string>([...CLASSIC_NUMBERS, ...SECOND_NUMBERS]);
+  for (let i = 0; i < 300; i++) {
+    const n = goodFreeNumber(everythingGood);
+    assert.ok(n && !NEVER_PICKED.has(n) && Number(n) >= 2 && Number(n) <= 98, n);
+  }
+  const all = new Set(Array.from({ length: 100 }, (_, i) => String(i)));
+  assert.equal(goodFreeNumber(all), '');
+});
+
+test('numberBlankSpares: fills only blank jersey spares, all different, around what is taken', () => {
+  const spare = (number: string, sockOnly = false) => ({ number, size: '', sockSize: '', sockOnly, notes: '' });
+  const out = numberBlankSpares([spare(''), spare('12'), spare('', true), spare('')], new Set(['7']));
+  assert.equal(out[1].number, '12');
+  assert.equal(out[2].number, '');
+  assert.ok(out[0].number && out[3].number && out[0].number !== out[3].number);
+  for (const n of [out[0].number, out[3].number]) assert.ok(!['7', '12'].includes(n));
+});

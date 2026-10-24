@@ -1,5 +1,6 @@
 import type { ExtraJersey, NameStyle, OrderMode, RosterEntry, SetQuantities } from './types';
-import { spareUnits } from './order-utils';
+import { spareCount } from './order-utils';
+import { GOALIE_JERSEY_SIZES } from './constants';
 
 /**
  * Roster editing rules.
@@ -283,9 +284,9 @@ export function rowUnits(r: RosterEntry, garment: Garment, mode: OrderMode): num
 }
 
 export interface SizeCoverage {
-  /** Units ordered, across every set — extras included (2026-10-23). */
+  /** People ordered (one set's worth on home/away) — spares included. */
   ordered: number;
-  /** Units accounted for by rows that have a size, and spares that have one. */
+  /** Rows with that size picked, and spares with one. Ticks don't enter into it. */
   sized: number;
   /** Of `ordered`, how many are extras — so the breakdown can say so. */
   extras?: number;
@@ -299,13 +300,28 @@ export interface SizeCoverageReport {
 }
 
 /**
- * Sized against ordered, garment by garment.
+ * Is this row's jersey a goalie cut? The flag says so, and so does a goalie
+ * size on its own — a "Goalie 2XL" is a goalie jersey whoever it's on (an
+ * imported row can carry the size without the flag), never a Senior XXL.
+ */
+export function isGoalieCut(r: Pick<RosterEntry, 'isGoalie' | 'jerseySize'>): boolean {
+  const size = (r.jerseySize ?? '').trim();
+  return Boolean(r.isGoalie) || GOALIE_JERSEY_SIZES.includes(size) || /goalie/i.test(size);
+}
+
+/**
+ * Sized against ordered, garment by garment — counted in PEOPLE, by the size
+ * dropdowns (Keenan, 2026-10-24). A player with a jersey size picked is one
+ * sized skater, whatever their home/away ticks say, and a spare is one
+ * skater too: 22 players + 4 spares on a home/away order is 26 to size, not
+ * 52 jerseys. So the ordered side is people as well — the largest set's
+ * count on home/away (every set dresses the same squad), the sets added up
+ * otherwise. The ticks are the tally's business (RosterTally), not this one's.
  *
- * The extras count too (Keenan, 2026-10-23): numbered and sized in Order
- * Totals, they're part of what gets made, so "still to size" must not count
- * a spare that already has its size — nor ignore one that hasn't. Spares are
- * skater cuts (their size list is the player one), so they join the skaters.
- * Pant shell extras have no size on the spare list and stay out, as before.
+ * The extras count: numbered and sized in Order Totals, they're part of what
+ * gets made, so a sized spare is never "still to size" — nor is one with no
+ * size ignored. Spares are skater cuts, so they join the skaters. Pant shell
+ * extras have no size on the spare list and stay out.
  */
 export function sizeCoverage(
   rows: RosterEntry[],
@@ -313,33 +329,31 @@ export function sizeCoverage(
   sets: SetQuantities[],
   spares: ExtraJersey[] = [],
 ): SizeCoverageReport {
-  const sum = (f: (s: SetQuantities) => number) => sets.reduce((n, s) => n + (f(s) || 0), 0);
-  const sized = (pick: (r: RosterEntry) => boolean, garment: Garment) =>
-    rows.reduce((n, r) => n + (pick(r) ? rowUnits(r, garment, mode) : 0), 0);
+  const homeAway = mode === 'home_away_set';
+  const people = (f: (s: SetQuantities) => number) =>
+    homeAway ? Math.max(0, ...sets.map((s) => f(s) || 0)) : sets.reduce((n, s) => n + (f(s) || 0), 0);
   const has = (v: string) => (v ?? '').trim() !== '';
+  const count = <T,>(list: T[], pick: (x: T) => boolean) => list.filter(pick).length;
   const order = { sets, orderMode: mode };
-  const spareSized = (kind: 'extraJerseys' | 'extraSockPairs', pick: (x: ExtraJersey) => boolean) =>
-    spares.reduce((n, x, i) => n + (pick(x) ? spareUnits(order, kind, i) : 0), 0);
-  const extraJerseys = sum((s) => s.extraJerseys);
-  const extraSocks = sum((s) => s.extraSockPairs);
+  const extraJerseys = spareCount(order, 'extraJerseys');
+  const extraSocks = spareCount(order, 'extraSockPairs');
+  const jerseyRows = rows.filter((r) => !r.sockOnly && has(r.jerseySize));
   return {
     skaterJersey: {
-      ordered: sum((s) => s.playerJerseys) + extraJerseys,
-      sized:
-        sized((r) => !r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey') +
-        spareSized('extraJerseys', (x) => !x.sockOnly && has(x.size)),
+      ordered: people((s) => s.playerJerseys) + extraJerseys,
+      sized: count(jerseyRows, (r) => !isGoalieCut(r)) + count(spares, (x) => !x.sockOnly && has(x.size)),
       ...(extraJerseys ? { extras: extraJerseys } : {}),
     },
     goalieJersey: {
-      ordered: sum((s) => s.goalieJerseys),
-      sized: sized((r) => r.isGoalie && !r.sockOnly && has(r.jerseySize), 'jersey'),
+      ordered: people((s) => s.goalieJerseys),
+      sized: count(jerseyRows, isGoalieCut),
     },
     sock: {
-      ordered: sum((s) => s.sockPairs) + extraSocks,
-      sized: sized((r) => has(r.sockSize), 'sock') + spareSized('extraSockPairs', (x) => has(x.sockSize)),
+      ordered: people((s) => s.sockPairs) + extraSocks,
+      sized: count(rows, (r) => has(r.sockSize)) + count(spares, (x) => has(x.sockSize)),
       ...(extraSocks ? { extras: extraSocks } : {}),
     },
-    pant: { ordered: sum((s) => s.pantShells), sized: sized((r) => has(r.pantShellSize), 'pant') },
+    pant: { ordered: people((s) => s.pantShells), sized: count(rows, (r) => has(r.pantShellSize)) },
   };
 }
 
