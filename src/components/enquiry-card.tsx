@@ -26,7 +26,7 @@ export function EnquiryCard({ enquiry }: { enquiry: WebsiteEnquiry }) {
     timeStyle: 'short',
   });
   return (
-    <Section title="Website enquiry">
+    <Section title="Website enquiry" id="enquiry">
       <div className="grid gap-3 sm:grid-cols-2">
         {rows
           .filter(([, v]) => v)

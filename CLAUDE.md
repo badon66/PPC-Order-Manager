@@ -389,6 +389,11 @@ to a row (2026-10-20: full-width ones were far too big), the next pair below.
   constants, never a hand-written list: the queue had one, `waiting_for_approval`
   was added later and nobody updated it, and every order awaiting a signature
   silently vanished from the schedule.
+- **Enquiries button on the board** (Keenan, 2026-10-26): `?enquiries=1`
+  brings every open website enquiry (`source === 'website'` or an `enquiry`)
+  to the top, drafts included even though the board hides drafts. An
+  enquiry's card has three buttons — Enquiry (the order page at `#enquiry`,
+  what the team wrote on the site), Edit, Order Sheet.
 - **Urgency colour is only for live jobs.** A draft with an old finish date is
   not late — nothing is owed on it. Red on a card that doesn't need action
   teaches you to ignore red on the ones that do.

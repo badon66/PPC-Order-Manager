@@ -40,6 +40,12 @@ type Search = {
   drafts?: string;
   /** Show finished ones too. `completed=1` is kept from the old URL shape. */
   completed?: string;
+  /**
+   * Website enquiries to the top (Keenan, 2026-10-26): every order that came
+   * in through the site, whatever its stage — drafts included, since a fresh
+   * enquiry is a draft and would otherwise be hidden under Drafts.
+   */
+  enquiries?: string;
   /** Which completed ones: month | last | two | year | all. */
   range?: string;
 };
@@ -212,14 +218,29 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
 
       <p className="mt-3 text-xs text-muted">Updated {formatShort(order.updatedAt.slice(0, 10))}</p>
 
-      <div className="mt-3 flex gap-2 border-t border-line pt-3">
-        <Button href={`/orders/${order.id}/edit`} className="flex-1">
-          Edit
-        </Button>
-        <Button href={`/orders/${order.id}`} variant="primary" className="flex-1">
-          View Details
-        </Button>
-      </div>
+      {/* An enquiry's card opens what the team wrote on the site, or the order sheet built from it. */}
+      {order.enquiry ? (
+        <div className="mt-3 flex gap-2 border-t border-line pt-3">
+          <Button href={`/orders/${order.id}#enquiry`} className="flex-1">
+            Enquiry
+          </Button>
+          <Button href={`/orders/${order.id}/edit`} className="flex-1">
+            Edit
+          </Button>
+          <Button href={`/orders/${order.id}`} variant="primary" className="flex-1">
+            Order Sheet
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-3 flex gap-2 border-t border-line pt-3">
+          <Button href={`/orders/${order.id}/edit`} className="flex-1">
+            Edit
+          </Button>
+          <Button href={`/orders/${order.id}`} variant="primary" className="flex-1">
+            View Details
+          </Button>
+        </div>
+      )}
     </Card>
     </OrderCardShell>
   );
@@ -384,12 +405,15 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const pin = (allStatuses as string[]).includes(sp.pin ?? '') ? (sp.pin as OrderStatus) : null;
   const showDrafts = sp.drafts === '1' || (pin !== null && (UNFINALIZED_STATUSES as string[]).includes(pin));
   const showCompleted = sp.completed === '1' || pin === 'completed';
+  const showEnquiries = sp.enquiries === '1';
   const range: Range = (RANGES.map((r) => r[0]) as string[]).includes(sp.range ?? '') ? (sp.range as Range) : 'month';
   const now = today();
 
   const all = await repo.listOrders({ status: 'all', includeCompleted: true, search });
   const countOf = (s: OrderStatus) => all.filter((o) => o.status === s).length;
   const draftsCount = all.filter((o) => statusBucket(o.status) === 'unfinalized').length;
+  const isEnquiry = (o: Order) => o.source === 'website' || Boolean(o.enquiry);
+  const enquiries = all.filter((o) => isEnquiry(o) && statusBucket(o.status) !== 'completed');
 
   /*
    * Money, Keenan's eyes only (this page is behind the access code).
@@ -445,7 +469,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     (o) => o.status === 'completed' && (!win || ((o.completedAt ?? '') >= win[0] && (o.completedAt ?? '') <= win[1])),
   );
 
-  const linkTo = (patch: Partial<Record<'pin' | 'drafts' | 'completed' | 'range', string | null>>) => {
+  const linkTo = (patch: Partial<Record<'pin' | 'drafts' | 'completed' | 'range' | 'enquiries', string | null>>) => {
     const p = new URLSearchParams();
     if (search) p.set('q', search);
     const next = {
@@ -453,7 +477,9 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       drafts: 'drafts' in patch ? patch.drafts : showDrafts ? '1' : null,
       completed: 'completed' in patch ? patch.completed : showCompleted ? '1' : null,
       range: 'range' in patch ? patch.range : range !== 'month' ? range : null,
+      enquiries: 'enquiries' in patch ? patch.enquiries : showEnquiries ? '1' : null,
     };
+    if (next.enquiries) p.set('enquiries', '1');
     if (next.pin) p.set('pin', next.pin);
     if (next.drafts) p.set('drafts', '1');
     if (next.completed) p.set('completed', '1');
@@ -462,11 +488,14 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     return qs ? `/orders?${qs}` : '/orders';
   };
 
-  const shown = [
+  const shownList = [
     ...all.filter((o) => (ACTIVE_STATUSES as string[]).includes(o.status)),
     ...(showDrafts ? all.filter((o) => statusBucket(o.status) === 'unfinalized') : []),
     ...(showCompleted ? completedInRange : []),
+    // Enquiries on: every open enquiry, even the drafts the board hides.
+    ...(showEnquiries ? enquiries : []),
   ];
+  const shown = shownList.filter((o, i) => shownList.findIndex((x) => x.id === o.id) === i);
 
   const bundles = await Promise.all(
     shown.map(async (o) => {
@@ -475,10 +504,12 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     }),
   );
 
-  // Pinned stage first; then pipeline position; then soonest finish date.
-  const rank = (s: OrderStatus) => (pin && s === pin ? -1 : STATUS_META[s].order);
+  // Enquiries (when brought up) first, then the pinned stage; then pipeline
+  // position; then soonest finish date.
+  const rank = (o: Order) =>
+    showEnquiries && isEnquiry(o) ? -2 : pin && o.status === pin ? -1 : STATUS_META[o.status].order;
   bundles.sort((a, b) => {
-    const r = rank(a.order.status) - rank(b.order.status);
+    const r = rank(a.order) - rank(b.order);
     if (r !== 0) return r;
     const da = a.order.estimatedFinishDate ?? '';
     const db2 = b.order.estimatedFinishDate ?? '';
@@ -548,11 +579,23 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           {pin && <input type="hidden" name="pin" value={pin} />}
           {showDrafts && <input type="hidden" name="drafts" value="1" />}
           {showCompleted && <input type="hidden" name="completed" value="1" />}
+          {showEnquiries && <input type="hidden" name="enquiries" value="1" />}
           {range !== 'month' && <input type="hidden" name="range" value={range} />}
           <Button type="submit">Search</Button>
         </form>
 
         <div className="flex shrink-0 gap-2">
+          {/* Website enquiries to the top — drafts and all. Each card then offers the enquiry and the order sheet. */}
+          <Link
+            href={linkTo({ enquiries: showEnquiries ? null : '1' })}
+            aria-pressed={showEnquiries}
+            title={showEnquiries ? 'Put the enquiries back' : 'Bring every website enquiry to the top'}
+            className={`${CHIP} ${showEnquiries ? CHIP_ON : enquiries.length === 0 ? CHIP_EMPTY : CHIP_OFF}`}
+          >
+            <span aria-hidden>📨</span>
+            Enquiries
+            <span className={`${COUNT} ${showEnquiries ? COUNT_ON : 'bg-surface text-fg'}`}>{enquiries.length}</span>
+          </Link>
           <StageButton status="in_production" count={countOf('in_production')} pinned={pin === 'in_production'} href={linkTo({ pin: pin === 'in_production' ? null : 'in_production' })} />
 
           <details className="relative">
@@ -600,6 +643,12 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
+      {showEnquiries && (
+        <p className="text-sm text-muted">
+          <span className="font-semibold text-ppc-gold">Website enquiries</span> at the top — {enquiries.length} open.{' '}
+          <Link href={linkTo({ enquiries: null })} className="font-semibold text-ppc-gold hover:underline">Put them back</Link>
+        </p>
+      )}
       {pin && (
         <p className="text-sm text-muted">
           <span className="font-semibold text-ppc-gold">{STATUS_META[pin].label}</span> pinned to the top.{' '}
