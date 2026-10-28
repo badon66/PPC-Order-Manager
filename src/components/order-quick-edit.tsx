@@ -9,7 +9,7 @@ import { formatCad, listPrice } from '@/lib/pricing';
 import { paymentsOn } from '@/lib/payments';
 import { dueUpdates } from '@/lib/data/customer-updates-logic';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
-import { saveOrder } from '@/app/orders/actions';
+import { deleteOrder, saveOrder } from '@/app/orders/actions';
 import { markUpdateSentAction } from '@/app/orders/mark-sent-action';
 import {
   PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
@@ -57,6 +57,32 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
   const [paidTouched, setPaidTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<UpdateStage>>(() => new Set());
+  /*
+   * Delete takes three presses (Keenan, 2026-10-28): the button says how
+   * many are left, and a press anywhere else in the dialog — or a few
+   * seconds — puts it back to the start. A soft delete, like the order
+   * page's: the row is hidden, not gone.
+   */
+  const [deletePresses, setDeletePresses] = useState(0);
+  useEffect(() => {
+    if (deletePresses === 0) return;
+    const t = setTimeout(() => setDeletePresses(0), 4000);
+    return () => clearTimeout(t);
+  }, [deletePresses]);
+  function pressDelete() {
+    const n = deletePresses + 1;
+    if (n < 3) {
+      setDeletePresses(n);
+      return;
+    }
+    setDeletePresses(0);
+    setError(null);
+    start(async () => {
+      await deleteOrder(order.id);
+      router.refresh();
+      onClose();
+    });
+  }
 
   const lp = listPrice(order);
   const inferred = paymentsOn(order);
@@ -194,7 +220,14 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-2xl">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onClickCapture={(e) => {
+          // Any press that isn't the Delete button starts the count over.
+          if (deletePresses > 0 && !(e.target as HTMLElement).closest('[data-delete]')) setDeletePresses(0);
+        }}
+        className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-2xl"
+      >
         <div className="flex items-start justify-between gap-3">
           <input value={teamName} onChange={(e) => setTeamName(e.target.value)} aria-label="Team name" className="min-w-0 flex-1 !text-lg !font-bold" />
           <button type="button" onClick={onClose} aria-label="Close" className="rounded px-2 py-1 text-muted hover:text-red-300">✕</button>
@@ -332,9 +365,27 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
         {error && <p className="mt-3 text-sm font-semibold text-red-300">{error}</p>}
 
         <div className="mt-5 flex items-center justify-between gap-2">
-          <div className="flex gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <Link href={`/orders/${order.id}`} className="font-semibold text-ppc-gold hover:underline">Full order</Link>
             <Link href={`/orders/${order.id}/edit`} className="font-semibold text-ppc-gold hover:underline">Edit everything</Link>
+            <button
+              type="button"
+              data-delete
+              disabled={pending}
+              onClick={pressDelete}
+              title="Press three times to delete this order"
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
+                deletePresses === 0
+                  ? 'border-line text-muted hover:border-red-500/60 hover:text-red-300'
+                  : 'border-red-500 bg-red-500/15 text-red-200'
+              }`}
+            >
+              {deletePresses === 0
+                ? 'Delete'
+                : deletePresses === 1
+                  ? 'Press 2 more times to delete'
+                  : 'Press once more — this deletes it'}
+            </button>
           </div>
           <div className="flex items-center gap-2">
             {value !== '' && lp && (

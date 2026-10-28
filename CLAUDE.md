@@ -394,6 +394,12 @@ to a row (2026-10-20: full-width ones were far too big), the next pair below.
   to the top, drafts included even though the board hides drafts. An
   enquiry's card has three buttons — Enquiry (the order page at `#enquiry`,
   what the team wrote on the site), Edit, Order Sheet.
+- **Delete from the board takes three presses** (Keenan, 2026-10-28). The
+  quick-edit dialog (double-click a card) has a Delete button that counts
+  down — "Press 2 more times", "Press once more" — and resets on any other
+  click in the dialog or after four seconds. The third press calls
+  `deleteOrder` (soft delete, same as the order page). No confirm dialog;
+  the three presses are the confirmation.
 - **Urgency colour is only for live jobs.** A draft with an old finish date is
   not late — nothing is owed on it. Red on a card that doesn't need action
   teaches you to ignore red on the ones that do.
