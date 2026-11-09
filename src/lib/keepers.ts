@@ -1,4 +1,5 @@
 import type { ExtraJersey, KeeperJersey, RosterEntry } from './types';
+import { sizeLabel } from './constants';
 
 /**
  * Keeper jerseys — the ones Powerplay keeps.
@@ -149,7 +150,7 @@ export function pruneKeepers(keepers: KeeperJersey[], setCount: number): KeeperJ
 export function describeKeeper(k: Pick<KeeperJersey, 'number' | 'name' | 'size'>): string {
   const num = k.number.trim() ? `#${k.number.trim()}` : 'no number yet';
   const name = k.name.trim() ? ` ${k.name.trim()}` : '';
-  const size = k.size.trim() ? ` (${k.size.trim()})` : ' (no size yet)';
+  const size = k.size.trim() ? ` (${sizeLabel(k.size)})` : ' (no size yet)';
   return `${num}${name}${size}`;
 }
 

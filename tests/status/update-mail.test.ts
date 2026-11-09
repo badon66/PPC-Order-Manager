@@ -13,7 +13,7 @@ const base: UpdateMailInput = {
   products: { socks: true, pantShells: false },
   amount: '$250', howToPay: 'E-transfer to info@powerplaycustoms.ca (no fee), or by card (3% fee).',
   estimatedFinishDate: '2026-10-15', trackingCode: 'CP123456789CA',
-  paymentReceivedFirst: false, cameFromGate: false, paymentKind: 'final_payment', mockupVersion: 'V1', photos: [], finalPaid: false,
+  paymentReceivedFirst: false, cameFromGate: false, productionDaysAgo: 0, paymentKind: 'final_payment', mockupVersion: 'V1', photos: [], finalPaid: false,
   nextAfterApproval: 'production', approvedBy: 'Sam Carter',
   googleReviewUrl: 'https://g.page/r/abc/review', referralLine: 'Know another team? Send them our way.',
 };
@@ -200,4 +200,15 @@ test('from production on, every email points at the order sheet, never the team 
     assert.ok(m.text.includes(base.shareUrl), `${stage} links the order sheet`);
     assert.ok(!m.text.includes(base.rosterUrl) && !m.html.includes(base.rosterUrl), `${stage} doesn't link the form`);
   }
+});
+
+test('in_production sent late says how long it has been in the works', () => {
+  const today = composeUpdateMail('in_production', { ...base, productionDaysAgo: 0 });
+  assert.match(today.text, /is in production/);
+  assert.doesNotMatch(today.subject, /already/);
+  const yesterday = composeUpdateMail('in_production', { ...base, productionDaysAgo: 1 });
+  assert.match(yesterday.text, /went into production yesterday/);
+  const four = composeUpdateMail('in_production', { ...base, productionDaysAgo: 4, cameFromGate: true });
+  assert.match(four.subject, /already in production/);
+  assert.match(four.text, /We received your payment, and .* has been in production for 4 days now/);
 });

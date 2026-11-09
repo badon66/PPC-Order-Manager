@@ -9,6 +9,7 @@ import { formatLong } from '@/lib/dates';
 import { loadClientPage } from './load';
 import { detailsStillOpenMessage, stageMessage } from '@/lib/data/timeline';
 import { contactComplete } from '@/lib/data/logic';
+import { DeclinedNote } from './declined-note';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
   const { token } = await params;
   const data = await loadClientPage(token);
   if (!data) notFound();
-  const { link, previous, previousPreviews, currentRoster, contactOnFile } = data;
+  const { link, previous, previousPreviews, currentRoster, contactOnFile, declined } = data;
 
   const keys = Object.keys(CLIENT_LINK_SECTION_META) as Array<keyof ClientLinkSections>;
   // What the form still takes. Before production, everything Keenan ticked.
@@ -36,6 +37,7 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
+      <DeclinedNote declined={declined} />
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">Powerplay Customs</p>
         <h1 className="mt-1 text-2xl font-bold text-ppc-gold">{link.teamName || 'Your order'}</h1>

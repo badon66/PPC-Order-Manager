@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { repo } from '@/lib/data';
-import { computeTotals, shipToSummary } from '@/lib/order-utils';
+import { computeTotals, playersDressed, shipToSummary } from '@/lib/order-utils';
 import { dueLabel, dueStatus, formatShort, today } from '@/lib/dates';
 import {
   ACTIVE_STATUSES, DUE_SOON_WINDOW_DAYS, JERSEY_TYPE_LABELS, STATUS_META, UNFINALIZED_STATUSES, awaitingFinish, statusBucket,
@@ -40,6 +40,8 @@ type Search = {
   drafts?: string;
   /** Show finished ones too. `completed=1` is kept from the old URL shape. */
   completed?: string;
+  /** How the grid is ordered — see SORTS. Absent = by stage. */
+  sort?: string;
   /**
    * Website enquiries to the top (Keenan, 2026-10-26): every order that came
    * in through the site, whatever its stage — drafts included, since a fresh
@@ -85,7 +87,7 @@ function windowFor(range: Range, now: string): [string, string] | null {
  * Card
  * ------------------------------------------------------------------ */
 
-function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]; now: string }) {
+function OrderCard({ order, roster, now, notes = 0 }: { order: Order; roster: RosterEntry[]; now: string; notes?: number }) {
   const totals = computeTotals(order, roster);
   const shipTo = shipToSummary(order);
   const bucket = statusBucket(order.status);
@@ -116,7 +118,17 @@ function OrderCard({ order, roster, now }: { order: Order; roster: RosterEntry[]
     <Card className="flex h-full flex-col p-4 transition-colors hover:border-ppc-gold/50">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold leading-tight">{order.teamName || 'Untitled order'}</h3>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {/* Open notes from the team's or factory's sheet, waiting to be read. */}
+          {notes > 0 && (
+            <a
+              href={`/orders/${order.id}#sheet-notes`}
+              title={`${notes} open note${notes === 1 ? '' : 's'} from the sheets`}
+              className="rounded-full bg-ppc-gold px-2 py-0.5 text-xs font-bold text-black"
+            >
+              💬 {notes}
+            </a>
+          )}
           {order.source === 'website' && <WebsiteBadge />}
           <StatusBadge status={order.status} />
         </div>
@@ -380,12 +392,12 @@ function NumbersPanel({
       <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted">The numbers · all time</div>
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Players dressed" value={n(players)} size="xl" />
-        <Stat label="Products sold" value={n(jerseys + socks + shells)} size="xl" hint="jerseys + socks + shells" />
+        <Stat label="Products sold" value={n(jerseys + socks + shells)} size="xl" />
       </div>
       <div className="grid grid-cols-4 gap-3 border-t border-line pt-2.5">
         <Stat label="Teams happy" value={n(completed)} tone="plain" />
         <Stat label="Jerseys" value={n(jerseys)} tone="plain" />
-        <Stat label="Socks" value={n(socks)} hint="singles" tone="plain" />
+        <Stat label="Socks" value={n(socks)} tone="plain" />
         <Stat label="Pant shells" value={n(shells)} tone="plain" />
       </div>
     </div>
@@ -397,6 +409,23 @@ function NumbersPanel({
  * ------------------------------------------------------------------ */
 
 const PRICED_FROM = STATUS_META.design_talk.order;
+
+/**
+ * Ways to order the board (Keenan, 2026-11-09). "By stage" is the board as
+ * it always was; the rest put one question first. Pinning a stage or
+ * bringing up the enquiries still lifts those to the top within any of them.
+ */
+const SORTS = [
+  ['stage', 'By stage'],
+  ['due', 'Due soonest'],
+  ['biggest', 'Biggest order'],
+  ['value', 'Highest value'],
+  ['newest', 'Newest'],
+  ['oldest', 'Oldest'],
+  ['updated', 'Recently updated'],
+  ['notes', 'Open notes'],
+] as const;
+type SortKey = (typeof SORTS)[number][0];
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -453,10 +482,9 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const numbers = {
     // One happy team per finished order.
     completed: done.length,
-    // A player is dressed by a top. Jerseys today; apparel tops join this
-    // sum when the app sells them. Not the squad size: a home/away set
-    // dresses the same 18 players twice, and that's two tops out the door.
-    players: jerseys,
+    // People, not jerseys (2026-10-28): a home/away set dresses the same 18
+    // players twice — 36 jerseys, 18 players dressed.
+    players: done.reduce((n, o) => n + playersDressed(o), 0),
     jerseys,
     // Ordered in pairs, counted as singles: 173 pairs is 346 socks.
     socks: doneTotals.reduce((n, t) => n + t.totalSockPairs, 0) * 2,
@@ -469,7 +497,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     (o) => o.status === 'completed' && (!win || ((o.completedAt ?? '') >= win[0] && (o.completedAt ?? '') <= win[1])),
   );
 
-  const linkTo = (patch: Partial<Record<'pin' | 'drafts' | 'completed' | 'range' | 'enquiries', string | null>>) => {
+  const sort: SortKey = (SORTS.map((x) => x[0]) as string[]).includes(sp.sort ?? '') ? (sp.sort as SortKey) : 'stage';
+  const linkTo = (patch: Partial<Record<'pin' | 'drafts' | 'completed' | 'range' | 'enquiries' | 'sort', string | null>>) => {
     const p = new URLSearchParams();
     if (search) p.set('q', search);
     const next = {
@@ -478,7 +507,9 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       completed: 'completed' in patch ? patch.completed : showCompleted ? '1' : null,
       range: 'range' in patch ? patch.range : range !== 'month' ? range : null,
       enquiries: 'enquiries' in patch ? patch.enquiries : showEnquiries ? '1' : null,
+      sort: 'sort' in patch ? patch.sort : sort !== 'stage' ? sort : null,
     };
+    if (next.sort) p.set('sort', next.sort);
     if (next.enquiries) p.set('enquiries', '1');
     if (next.pin) p.set('pin', next.pin);
     if (next.drafts) p.set('drafts', '1');
@@ -508,14 +539,32 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   // position; then soonest finish date.
   const rank = (o: Order) =>
     showEnquiries && isEnquiry(o) ? -2 : pin && o.status === pin ? -1 : STATUS_META[o.status].order;
-  bundles.sort((a, b) => {
-    const r = rank(a.order) - rank(b.order);
-    if (r !== 0) return r;
-    const da = a.order.estimatedFinishDate ?? '';
-    const db2 = b.order.estimatedFinishDate ?? '';
+  const noteCounts = await repo.openPageNoteCounts();
+  // Lifted to the top whatever the sort: the enquiries when brought up, then a pinned stage.
+  const lift = (o: Order) => (showEnquiries && isEnquiry(o) ? 0 : pin && o.status === pin ? 1 : 2);
+  const byDue = (a: Order, b: Order) => {
+    const da = a.estimatedFinishDate ?? '';
+    const db2 = b.estimatedFinishDate ?? '';
     if (da && db2 && da !== db2) return da.localeCompare(db2);
     if (da !== db2) return da ? -1 : 1;
-    return b.order.updatedAt.localeCompare(a.order.updatedAt);
+    return 0;
+  };
+  const jerseysOf = (x: (typeof bundles)[number]) => computeTotals(x.order, x.roster).totalJerseys;
+  bundles.sort((a, b) => {
+    const l = lift(a.order) - lift(b.order);
+    if (l !== 0) return l;
+    let r = 0;
+    switch (sort) {
+      case 'due': r = byDue(a.order, b.order); break;
+      case 'biggest': r = jerseysOf(b) - jerseysOf(a); break;
+      case 'value': r = (orderValueOf(b.order) ?? -1) - (orderValueOf(a.order) ?? -1); break;
+      case 'newest': r = b.order.createdAt.localeCompare(a.order.createdAt); break;
+      case 'oldest': r = a.order.createdAt.localeCompare(b.order.createdAt); break;
+      case 'updated': r = b.order.updatedAt.localeCompare(a.order.updatedAt); break;
+      case 'notes': r = (noteCounts[b.order.id] ?? 0) - (noteCounts[a.order.id] ?? 0); break;
+      default: r = rank(a.order) - rank(b.order) || byDue(a.order, b.order);
+    }
+    return r || b.order.updatedAt.localeCompare(a.order.updatedAt);
   });
 
   // The working stages across the top; In Production and Completed sit with
@@ -580,11 +629,32 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           {showDrafts && <input type="hidden" name="drafts" value="1" />}
           {showCompleted && <input type="hidden" name="completed" value="1" />}
           {showEnquiries && <input type="hidden" name="enquiries" value="1" />}
+          {sort !== 'stage' && <input type="hidden" name="sort" value={sort} />}
           {range !== 'month' && <input type="hidden" name="range" value={range} />}
           <Button type="submit">Search</Button>
         </form>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {/* How the grid is ordered. */}
+          <details className="relative">
+            <summary className={`${CHIP} ${sort !== 'stage' ? CHIP_ON : CHIP_OFF}`}>
+              <span aria-hidden>↕</span>
+              {SORTS.find((x) => x[0] === sort)?.[1]}
+              <span aria-hidden className="text-xs">▾</span>
+            </summary>
+            <div className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+              <div className="px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Sort by</div>
+              {SORTS.map(([key, label]) => (
+                <Link
+                  key={key}
+                  href={linkTo({ sort: key === 'stage' ? null : key })}
+                  className={`block rounded px-2 py-1 text-sm ${sort === key ? 'bg-ppc-gold/15 font-semibold text-ppc-gold' : 'hover:bg-surface-2'}`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </details>
           {/* Website enquiries to the top — drafts and all. Each card then offers the enquiry and the order sheet. */}
           <Link
             href={linkTo({ enquiries: showEnquiries ? null : '1' })}
@@ -664,7 +734,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 4xl:grid-cols-5">
           {bundles.map(({ order, roster }) => (
-            <OrderCard key={order.id} order={order} roster={roster} now={now} />
+            <OrderCard key={order.id} order={order} roster={roster} now={now} notes={noteCounts[order.id] ?? 0} />
           ))}
         </div>
       )}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import { ARTWORK_ACCEPT_WITH_FONTS, MAX_FILES_PER_REFERENCE_GROUP } from '@/lib/constants';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import { FilePreview } from '@/components/file-preview';
+import { RotateButtons } from '@/components/rotate-buttons';
 import type { AssetRole, OrderAsset, ViewableAsset } from '@/lib/types';
 import type { UploadPurpose } from '@/lib/storage';
 
@@ -57,6 +58,13 @@ export interface AssetGroupProps {
  * and no function limit to dodge, so it posts to /api/upload as before. The
  * 409 is that case announcing itself rather than an error.
  */
+/**
+ * How a photo turned in an upload group gets back into the form's own list of
+ * assets (the form holds them in state). Provided by the order form; outside
+ * it the page is refreshed instead.
+ */
+export const AssetSwapContext = createContext<((next: ViewableAsset) => void) | null>(null);
+
 export async function uploadFile(
   file: File,
   /** 'roster' for a roster file to import: spreadsheets and documents allowed, not just artwork. */
@@ -122,6 +130,7 @@ export function AssetGroup({
   onAdd,
   onRemove,
 }: AssetGroupProps) {
+  const swap = useContext(AssetSwapContext);
   const mine = assets
     .filter((a) => a.role === role && (!group || a.groupId === group.id || (group.includeUngrouped && !a.groupId)))
     .sort((a, b) => a.slot - b.slot);
@@ -205,6 +214,7 @@ export function AssetGroup({
             <li key={a.id} className="rounded border border-line bg-surface p-2">
               <FilePreview fileName={a.fileName} url={a.viewUrl} />
               <div className="mt-2 flex items-center gap-2">
+                <RotateButtons asset={a} onRotated={swap ?? undefined} />
                 <a
                   href={a.viewUrl}
                   target="_blank"

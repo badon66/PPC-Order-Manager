@@ -40,6 +40,9 @@ import { stageSummary } from '@/lib/data/stage-track';
 import { DateLadder, StageNow, StageTrack } from '@/components/stage-track';
 import { today } from '@/lib/dates';
 import type { AssetRole } from '@/lib/types';
+import { SheetNotesInbox } from '@/components/sheet-notes-inbox';
+import { pageNotesOf } from '@/lib/page-notes';
+import { sizeLabel } from '@/lib/constants';
 
 /** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
 const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
@@ -127,6 +130,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
   const totals = computeTotals(order, roster);
   const history = await repo.getHistory(order.id);
+  // Notes pinned on the team's and factory's sheets — from the same history, no second read.
+  const sheetNotes = pageNotesOf(history);
+  const openSheetNotes = sheetNotes.filter((n) => !n.archivedAt).length;
   const settings = await repo.getSettings();
   // Same stage-page links the customer's own timeline points at — see
   // stagePagePaths in stage-pages.ts. Without these the compact timeline here
@@ -138,7 +144,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const finishedPhotos = assets.filter((a) => a.role === 'finished_photo');
   const showPhotos = STATUS_META[order.status].order >= STATUS_META.waiting_for_final_approval.order;
   const preview = mailInputFor(order, history, settings, BASE_URL, {});
-  const pendingSubs = submissions.filter((s) => !s.acceptedAt);
+  const pendingSubs = submissions.filter((s) => !s.acceptedAt && !s.declinedAt);
   // Tracking only exists once there's a parcel. Same threshold the editable
   // control uses — see OperationalControls.
   const showTracking = STATUS_META[order.status].order >= STATUS_META.in_production.order;
@@ -182,6 +188,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       </p>
 
       {order.enquiry && <EnquiryCard enquiry={order.enquiry} />}
+
+      <Section
+        id="sheet-notes"
+        title={`Notes on the sheets${openSheetNotes ? ` (${openSheetNotes} open)` : ''}`}
+      >
+        <SheetNotesInbox orderId={order.id} notes={sheetNotes} shareUrl={shareLink} factoryUrl={factoryLink} />
+      </Section>
 
       {/*
         * Only ever appears on a laptop. A localhost link works perfectly for
@@ -454,7 +467,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
           <div className="mt-4">
             <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
-            <ArtworkGallery assets={assets.filter((a) => NUMBER_ROLES.includes(a.role))} teamName={order.teamName} />
+            <ArtworkGallery assets={assets.filter((a) => NUMBER_ROLES.includes(a.role))} teamName={order.teamName} rotatable />
           </div>
         )}
       </Section>
@@ -637,9 +650,9 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                       )}
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
-                    <td className="py-2 pr-3">{r.jerseySize || '—'}</td>
-                    <td className="py-2 pr-3">{r.sockSize || '—'}</td>
-                    {hasPantShells && <td className="py-2 pr-3">{r.pantShellSize || '—'}</td>}
+                    <td className="py-2 pr-3">{sizeLabel(r.jerseySize) || '—'}</td>
+                    <td className="py-2 pr-3">{sizeLabel(r.sockSize) || '—'}</td>
+                    {hasPantShells && <td className="py-2 pr-3">{sizeLabel(r.pantShellSize) || '—'}</td>}
                     <td className="py-2 pr-3 tabular-nums">{r.jerseysPerPlayer}</td>
                     <td className="py-2 pr-3 tabular-nums">{r.socksPerPlayer}</td>
                     <td className="py-2 text-muted">{r.notes || '—'}</td>
@@ -659,8 +672,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                       )}
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
-                    <td className="py-2 pr-3">{x.sockOnly ? '—' : x.size || '—'}</td>
-                    <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                    <td className="py-2 pr-3">{x.sockOnly ? '—' : sizeLabel(x.size) || '—'}</td>
+                    <td className="py-2 pr-3">{sizeLabel(x.sockSize) || '—'}</td>
                     {hasPantShells && <td className="py-2 pr-3">—</td>}
                     <td className="py-2 pr-3 tabular-nums">{x.sockOnly ? 0 : 1}</td>
                     <td className="py-2 pr-3 tabular-nums">{x.sockSize ? 1 : 0}</td>
@@ -676,7 +689,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                       {k.name.trim() && <span className="ml-2 font-semibold">{k.name.trim()}</span>}
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{k.number || '—'}</td>
-                    <td className="py-2 pr-3">{k.size || '—'}</td>
+                    <td className="py-2 pr-3">{sizeLabel(k.size) || '—'}</td>
                     <td className="py-2 pr-3">—</td>
                     {hasPantShells && <td className="py-2 pr-3">—</td>}
                     <td className="py-2 pr-3 tabular-nums">1</td>
@@ -695,7 +708,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
       <Section title="Logos & Artwork">
         <OwnerSectionComments comments={order.sectionComments} sections={['artwork']} />
-        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo', ...NUMBER_ROLES, ...CUSTOM_BRANDING_ROLES]} teamName={order.teamName} />
+        <ArtworkGallery assets={assets} hideRoles={['font', 'finished_photo', ...NUMBER_ROLES, ...CUSTOM_BRANDING_ROLES]} teamName={order.teamName} rotatable />
         {(order.designReferenceNotes || order.collarReferenceNotes || order.mainCrestNotes) && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Design Reference Notes">{order.designReferenceNotes}</Field>

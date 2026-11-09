@@ -5,6 +5,7 @@ import { loadClientPage } from '../load';
 import { STAGE_SECTIONS, stagePageCopy } from '@/lib/data/stage-pages';
 import { NO_CLIENT_SECTIONS, anyClientSection, openClientSections, pageAsks } from '@/lib/data/logic';
 import { stageMessage } from '@/lib/data/timeline';
+import { DeclinedNote } from '../declined-note';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
   const { token } = await params;
   const data = await loadClientPage(token);
   if (!data) notFound();
-  const { link, previous, previousPreviews } = data;
+  const { link, previous, previousPreviews, declined } = data;
   const copy = stagePageCopy(STAGE, { socks: link.includesSocks, pantShells: link.includesPantShells });
   // Logos and inspiration are what's being made: nothing here is open from
   // production on, so this is simply the stage's sections or none.
@@ -32,6 +33,7 @@ export default async function DesignStagePage({ params }: { params: Promise<{ to
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
+      <DeclinedNote declined={declined} />
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">Powerplay Customs</p>
         <h1 className="mt-1 text-2xl font-bold text-ppc-gold">{copy.title}</h1>

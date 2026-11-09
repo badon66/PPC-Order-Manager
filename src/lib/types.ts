@@ -1,3 +1,4 @@
+import type { PageNote } from './page-notes';
 import type { CalendarDate } from './dates';
 
 /* ------------------------------------------------------------------ *
@@ -1035,6 +1036,14 @@ export interface ClientRosterSubmission {
   submittedAt: string;
   /** Set when the admin accepts it onto the order. Submission is kept either way. */
   acceptedAt: string | null;
+  /**
+   * Keenan turned it down (2026-11-09): none of it reaches the order, and the
+   * team's form starts again from what's on the order, not from this. Absent
+   * on submissions from before declining existed.
+   */
+  declinedAt?: string | null;
+  /** Why, in Keenan's words — shown to the team on their form. */
+  declineReason?: string;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1048,12 +1057,19 @@ export type ChangeAction =
   | 'roster_changed'
   | 'asset_added'
   | 'asset_removed'
+  | 'asset_rotated'
   | 'client_submitted'
   | 'submission_accepted'
   | 'approved'
   | 'customer_emailed'
   | 'order_deleted'
-  | 'order_restored';
+  | 'order_restored'
+  /** A note pinned on the team's or the factory's sheet — see lib/page-notes.ts. */
+  | 'page_note'
+  | 'page_note_archived'
+  | 'page_note_restored'
+  /** Keenan turned a team's submission down; nothing of it reached the order. */
+  | 'submission_declined';
 
 export interface ChangeLogEntry {
   id: string;
@@ -1065,6 +1081,8 @@ export interface ChangeLogEntry {
   summary: string;
   /** Full order snapshot, written on approval so "what was signed off" is answerable. */
   snapshot?: Order;
+  /** The note itself, on a `page_note` entry. */
+  note?: PageNote;
   actorEmail: string;
   actorName: string;
   at: string;

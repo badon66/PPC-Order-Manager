@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, LACES_LABELS, NAME_STYLE_LABELS,
   PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS,
-  addonHint, buildAddonsForJerseyType, tierById,
+  addonHint, buildAddonsForJerseyType, sizeLabel, tierById,
 } from '@/lib/constants';
 import { buildsDiffer, captainCounts, customBrandingFiles, jerseyTypesInUse, perSetShellTypes, perSetSockTypes, setBuilds } from '@/lib/order-utils';
 import { describeOrderTotals, describeSet, offersGoaliePantOption, orderIncludesPantShells, orderIncludesSocks, type OrderTotals } from '@/lib/order-utils';
@@ -616,7 +616,12 @@ export function RosterSection({
           </thead>
           <tbody>
             {sheet.roster.map((r) => (
-              <tr key={r.id} className="border-b border-line/50">
+              <tr
+                key={r.id}
+                className="border-b border-line/50"
+                data-note-key={`roster:${r.id}`}
+                data-note-label={`Roster: #${r.number || '?'} ${isNoName(r, sheet.addons.nameStyle) ? '(no name)' : r.playerNameAsPrinted || ''}`.trim()}
+              >
                 <td className="py-2 pr-3 font-semibold">
                   {/* Spelled out: a blank here would read as "still to come" to
                       the manufacturer, and this one is finished. */}
@@ -629,9 +634,9 @@ export function RosterSection({
                   <CaptaincyBadge value={r.captaincy} />
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
-                <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : r.jerseySize || '—'}</td>
-                <td className="py-2 pr-3">{r.sockSize || '—'}</td>
-                {showPants && <td className="py-2 pr-3">{r.pantShellSize || '—'}</td>}
+                <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : sizeLabel(r.jerseySize) || '—'}</td>
+                <td className="py-2 pr-3">{sizeLabel(r.sockSize) || '—'}</td>
+                {showPants && <td className="py-2 pr-3">{sizeLabel(r.pantShellSize) || '—'}</td>}
                 <td className="py-2 text-muted">{r.notes || '—'}</td>
               </tr>
             ))}
@@ -645,15 +650,20 @@ export function RosterSection({
               * SPARE, so one read covers everything being made.
               */}
             {spares.map((x, i) => (
-              <tr key={`extra-${i}`} className="border-b border-line/50 bg-ppc-gold/5">
+              <tr
+                key={`extra-${i}`}
+                className="border-b border-line/50 bg-ppc-gold/5"
+                data-note-key={`spare:${i + 1}`}
+                data-note-label={`Spare ${i + 1}${x.number ? ` (#${x.number})` : ''}`}
+              >
                 <td className="py-2 pr-3">
                   <span className="rounded border border-ppc-gold/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ppc-gold">
                     Spare
                   </span>
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
-                <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : x.size || '—'}</td>
-                <td className="py-2 pr-3">{x.sockSize || '—'}</td>
+                <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : sizeLabel(x.size) || '—'}</td>
+                <td className="py-2 pr-3">{sizeLabel(x.sockSize) || '—'}</td>
                 {showPants && <td className="py-2 pr-3">—</td>}
                 {/* Same column as the players', not tucked beside the badge. */}
                 <td className="py-2 text-muted">{x.notes || '—'}</td>
@@ -672,7 +682,7 @@ export function RosterSection({
                   {k.name.trim() && <span className="ml-2 font-semibold">{k.name.trim()}</span>}
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{k.number || '—'}</td>
-                <td className="py-2 pr-3">{k.size || '—'}</td>
+                <td className="py-2 pr-3">{sizeLabel(k.size) || '—'}</td>
                 <td className="py-2 pr-3">—</td>
                 {showPants && <td className="py-2 pr-3">—</td>}
                 <td className="py-2 text-amber-200">

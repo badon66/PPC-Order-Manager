@@ -12,6 +12,9 @@ import {
   NotesSection, OrderTotalsSection, RosterSection,
 } from '@/components/build-sheet';
 import { lockFactory } from '../unlock/actions';
+import { SheetNotes } from '@/components/sheet-notes';
+import { addFactoryNote } from '@/app/sheet-notes-actions';
+import { sizeLabel } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +45,11 @@ export default async function FactorySheet({ params }: { params: Promise<{ token
   const keepers = view.keeperJerseys;
   const status = STATUS_META[view.status];
 
+  const notes = await repo.pageNotesByToken({ sheet: 'factory', token });
+
   return (
     <div className="space-y-5">
+      <SheetNotes initial={notes} save={addFactoryNote.bind(null, token)} who="factory" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-ppc-gold">Powerplay Customs · Production sheet</p>
@@ -116,7 +122,7 @@ export default async function FactorySheet({ params }: { params: Promise<{ token
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                     <span><span className="text-muted">Number</span> <span className="font-bold tabular-nums">{k.number || '—'}</span></span>
                     <span><span className="text-muted">Name</span> <span className="font-bold">{k.name.trim() || 'none'}</span></span>
-                    <span><span className="text-muted">Size</span> <span className="font-bold">{k.size || '—'}</span></span>
+                    <span><span className="text-muted">Size</span> <span className="font-bold">{sizeLabel(k.size) || '—'}</span></span>
                   </div>
                 </div>
               )),

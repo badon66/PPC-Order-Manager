@@ -24,7 +24,7 @@ import { RosterImporter } from '@/components/roster-import/importer';
 import { RosterVersions } from '@/components/roster-import/versions';
 import { importContextOf } from '@/lib/roster-import/analyze';
 import { activeRosterIdOf, nextRosterNumber, type RosterVersionSummary } from '@/lib/roster-versions';
-import { AssetGroup } from './assets';
+import { AssetGroup, AssetSwapContext } from './assets';
 import { AdditionalLogos } from './additional-logos';
 import { ClientLinkConfig } from './client-link-config';
 import { TierPresets } from './tier-presets';
@@ -290,6 +290,8 @@ export function OrderForm({
     const created = await attachAsset(a);
     setAssets((prev) => [...prev, created]);
   };
+  /** A photo turned the right way up: same asset, new file (RotateButtons). */
+  const swapAsset = (next: ViewableAsset) => setAssets((prev) => prev.map((a) => (a.id === next.id ? next : a)));
   const removeAsset = async (assetId: string) => {
     await detachAsset(assetId, draft.id);
     setAssets((prev) => prev.filter((a) => a.id !== assetId));
@@ -1445,6 +1447,7 @@ export function OrderForm({
   }
 
   return (
+    <AssetSwapContext.Provider value={swapAsset}>
     <div className="space-y-4 pb-24">
       {modificationGate}
 
@@ -1520,6 +1523,7 @@ export function OrderForm({
         </div>
       </div>
     </div>
+    </AssetSwapContext.Provider>
   );
 }
 

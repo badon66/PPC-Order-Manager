@@ -13,7 +13,7 @@ const base: UpdateMailInput = {
   designUrl: 'https://x/roster/t/design', detailsUrl: 'https://x/roster/t/details',
   products: { socks: true, pantShells: false },
   amount: '', howToPay: 'e-transfer', estimatedFinishDate: null, trackingCode: '',
-  paymentReceivedFirst: false, cameFromGate: false, nextAfterApproval: 'deposit', approvedBy: '',
+  paymentReceivedFirst: false, cameFromGate: false, productionDaysAgo: 0, nextAfterApproval: 'deposit', approvedBy: '',
   paymentKind: 'final_payment', mockupVersion: 'V1', photos: [], finalPaid: false,
   googleReviewUrl: '', referralLine: '',
 };

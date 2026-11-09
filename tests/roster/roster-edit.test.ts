@@ -392,3 +392,21 @@ test('a goalie size on a row counts as a goalie jersey even without the goalie f
   assert.equal(isGoalieCut({ isGoalie: true, jerseySize: '' }), true);
   assert.equal(isGoalieCut({ isGoalie: false, jerseySize: 'Goalie 2XL' }), true);
 });
+
+test('players dressed counts people: a home/away squad once, other sets added, spares once', async () => {
+  const { playersDressed } = await import('@/lib/order-utils');
+  const ha = blankOrder();
+  ha.orderMode = 'home_away_set';
+  ha.sets = [
+    { ...ha.sets[0], playerJerseys: 17, goalieJerseys: 1, extraJerseys: 2 },
+    { ...ha.sets[0], playerJerseys: 17, goalieJerseys: 1, extraJerseys: 2 },
+  ];
+  assert.equal(playersDressed(ha), 20);
+  const multi = blankOrder();
+  multi.orderMode = 'multiple_sets';
+  multi.sets = [
+    { ...multi.sets[0], playerJerseys: 10, goalieJerseys: 1, extraJerseys: 0 },
+    { ...multi.sets[0], playerJerseys: 12, goalieJerseys: 1, extraJerseys: 1 },
+  ];
+  assert.equal(playersDressed(multi), 25);
+});

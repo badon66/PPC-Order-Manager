@@ -38,6 +38,13 @@ export interface UpdateMailInput {
   paymentReceivedFirst: boolean;
   /** Did this "in production" email follow right after the pre-production deposit gate? */
   cameFromGate: boolean;
+  /**
+   * How long the order has already been in production as "in production"
+   * goes out — Keenan doesn't always send it the day it starts (2026-10-30).
+   * 0 = today (the plain wording); 1 = yesterday; more = "for N days".
+   * Defaults from the factory date; picked in the send panel.
+   */
+  productionDaysAgo: number;
   nextAfterApproval: 'production' | 'deposit';
   approvedBy: string;
   /** Which payment `payment_received` is confirming. */
@@ -257,14 +264,22 @@ function draft(stage: UpdateStage, i: UpdateMailInput): Draft {
       };
     case 'in_production': {
       const estimate = i.estimatedFinishDate ? ` Estimated finish: ${formatLong(i.estimatedFinishDate)}.` : '';
+      // Sent a few days late, it says so honestly: "already in production,
+      // in the works for 4 days" rather than "it's starting".
+      const days = Math.max(0, Math.floor(i.productionDaysAgo || 0));
+      const since =
+        days === 0 ? 'is in production'
+          : days === 1 ? 'went into production yesterday'
+            : `has been in production for ${days} days now`;
+      const already = days > 0;
       return {
-        subject: `Your jerseys are in production — ${team}`,
-        preheader: "They're being made. Here's what to expect.",
-        headline: "They're being made.",
+        subject: already ? `Your jerseys are already in production — ${team}` : `Your jerseys are in production — ${team}`,
+        preheader: already ? "They're already in the works. Here's what to expect." : "They're being made. Here's what to expect.",
+        headline: already ? "They're already being made." : "They're being made.",
         lines: [
           i.cameFromGate
-            ? `We received your payment, and ${team} is in production.${estimate}`
-            : `${team} is in production.${estimate}`,
+            ? `We received your payment, and ${team} ${since}.${estimate}`
+            : `${team} ${since}.${estimate}`,
         ],
         box: { eyebrow: 'While they are being made', text: PRODUCTION_NOTE, typed: false },
         // The order sheet, not the team page: once production starts there's

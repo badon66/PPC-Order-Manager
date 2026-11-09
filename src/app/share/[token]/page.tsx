@@ -17,6 +17,8 @@ import { clientEditingLocked, shareDetailsOpen } from '@/lib/data/logic';
 import { ShippingDetailsForm } from './details-form';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { resolveAll } from '@/lib/storage';
+import { SheetNotes } from '@/components/sheet-notes';
+import { addTeamNote } from '@/app/sheet-notes-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,9 +67,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   // Missing (or sent and waiting) shipping details: filled in right here.
   const detailsOpen = shareDetailsOpen(view.status, view.contact, view.pendingContact);
   const stage = stageMessage(view.status);
+  // Their own notes, pinned back on what they're about (components/sheet-notes.tsx).
+  const notes = await repo.pageNotesByToken({ sheet: 'team', token });
 
   return (
     <div className="space-y-5">
+      <SheetNotes initial={notes} save={addTeamNote.bind(null, token)} who="team" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ppc-gold">{view.teamName}</h1>

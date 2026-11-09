@@ -132,3 +132,18 @@ input[type="checkbox"], input[type="radio"] {
   --breakpoint-3xl: 120rem;
   --breakpoint-4xl: 160rem;
 }
+
+/* ---- Notes pinned on the sheets (components/sheet-notes.tsx) ---- */
+body.ppc-note-picking, body.ppc-note-picking * { cursor: crosshair !important; }
+body.ppc-note-picking [data-notes-ui], body.ppc-note-picking [data-notes-ui] * { cursor: auto !important; }
+.ppc-note-hover { outline: 2px solid var(--gold) !important; outline-offset: 2px; border-radius: 6px; }
+[data-noted] { outline: 2px dashed color-mix(in srgb, var(--gold) 70%, transparent); outline-offset: 2px; border-radius: 6px; }
+[data-noted]:not(tr) { position: relative; }
+[data-noted]:not(tr)::after {
+  content: "💬 " attr(data-noted);
+  position: absolute; top: 4px; right: 4px; z-index: 5;
+  border-radius: 9999px; background: var(--gold); color: #000;
+  font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 6px;
+  pointer-events: none;
+}
+.ppc-note-flash { outline: 3px solid var(--gold) !important; outline-offset: 3px; transition: outline-color .3s; }

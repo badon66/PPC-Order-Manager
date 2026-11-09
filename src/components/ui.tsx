@@ -30,9 +30,28 @@ export function WebsiteBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
   );
 }
 
-export function Card({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
+export function Card({
+  children,
+  className = '',
+  id,
+  noteSection,
+}: {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+  /** A section of a sheet a note can be pinned in (components/sheet-notes.tsx). */
+  noteSection?: string;
+}) {
   return (
-    <div id={id} className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
+    <div
+      id={id}
+      data-note-section={noteSection}
+      data-note-key={noteSection ? `section:${noteSection}` : undefined}
+      data-note-label={noteSection}
+      className={`rounded-xl border border-line bg-surface ${className}`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -49,7 +68,8 @@ export function Section({
   id?: string;
 }) {
   return (
-    <Card id={id} className={`overflow-hidden ${id ? 'scroll-mt-4' : ''}`}>
+    // A note is "on Player Roster", not "on Player Roster (19 + 2 spares)": the count goes stale.
+    <Card id={id} noteSection={title.replace(/\s*\([^)]*\)\s*$/, '')} className={`overflow-hidden ${id ? 'scroll-mt-4' : ''}`}>
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <h2 className="text-sm font-bold tracking-wide text-ppc-gold uppercase">{title}</h2>
         {action}
@@ -61,7 +81,7 @@ export function Section({
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" data-note-key={`field:${label}`} data-note-label={label}>
       <div className="text-xs font-medium text-muted">{label}</div>
       <div className="mt-1 text-sm font-semibold break-words">{children || <span className="text-muted font-normal">—</span>}</div>
     </div>

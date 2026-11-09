@@ -2,6 +2,7 @@ import { repo } from '@/lib/data';
 import type { Actor } from '@/lib/data/repository';
 import { MONEY_STAGES, defaultPaymentKind, formatAmount, dueUpdates, nextMockupVersion, recipientOf, statusAfterApproval } from '@/lib/data/customer-updates-logic';
 import { everInStatus } from '@/lib/data/timeline';
+import { daysBetween, today } from '@/lib/dates';
 import { stagePagePaths } from '@/lib/data/stage-pages';
 import { composeUpdateMail, type UpdateMailInput } from '@/lib/data/update-mail';
 import { firstNameOf } from '@/lib/data/mail-layout';
@@ -31,6 +32,18 @@ export interface SendUpdateOptions {
   alreadyPaid?: boolean;
   /** Which round `mockup_ready` announces. Defaults to the next one after what's been sent. */
   mockupVersion?: MockupVersion;
+  /** "In production" sent late: how many days ago it went in. Defaults from the factory date. */
+  productionDaysAgo?: number;
+}
+
+/**
+ * Days since the order went into production, for the "in production" email:
+ * from the production start date, else the day it was sent off to the
+ * factory, else 0. Never negative (a date typed in the future reads as today).
+ */
+export function productionDaysAgoOf(order: Pick<Order, 'productionStartDate' | 'sentToFactoryAt'>, now: string = today()): number {
+  const start = order.productionStartDate || order.sentToFactoryAt;
+  return start ? Math.max(0, daysBetween(start, now)) : 0;
 }
 
 /** The most recent `status_changed` entry, or null. History normally arrives
@@ -58,6 +71,7 @@ export function mailInputFor(order: Order, history: ChangeLogEntry[], settings: 
     trackingCode: (order.trackingCode ?? '').trim(),
     paymentReceivedFirst: everInStatus('waiting_for_payment', history, order.status),
     cameFromGate: gate?.fromValue === 'waiting_for_production_deposit' && gate?.toValue === order.status,
+    productionDaysAgo: opts.productionDaysAgo ?? productionDaysAgoOf(order),
     nextAfterApproval: statusAfterApproval(order.status, history) === 'in_production' || order.status === 'in_production' ? 'production' : 'deposit',
     approvedBy: order.approvedBy ?? '',
     paymentKind: opts.paymentKind ?? defaultPaymentKind(order.status),

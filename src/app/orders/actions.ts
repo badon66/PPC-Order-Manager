@@ -382,6 +382,27 @@ export async function renameAssetGroup(
   return { ok: true };
 }
 
+/**
+ * A photo turned the right way up: the browser uploaded the turned copy
+ * (rotate-image.ts); this points the asset at it. Same asset, same place.
+ */
+export async function rotateAssetFile(
+  assetId: string,
+  orderId: string,
+  file: { fileUrl: string; fileName: string },
+): Promise<{ ok: true; asset: ViewableAsset } | { ok: false; error: string }> {
+  await requireRole('staff');
+  const actor = await currentActor();
+  if (!file.fileUrl || /^https?:/i.test(file.fileUrl)) return { ok: false, error: 'That upload did not land.' };
+  const bundle = await repo.getOrder(orderId);
+  if (!bundle?.assets.some((a) => a.id === assetId)) return { ok: false, error: 'That photo is no longer on this order.' };
+  const updated = await repo.replaceAssetFile(assetId, file, actor);
+  if (!updated) return { ok: false, error: 'That photo is no longer on this order.' };
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath(`/orders/${orderId}/edit`);
+  return { ok: true, asset: { ...updated, viewUrl: await resolveFileUrl(updated.fileUrl) } };
+}
+
 export async function detachAsset(assetId: string, orderId: string): Promise<SaveResult> {
   await requireRole('staff');
   const actor = await currentActor();
@@ -399,6 +420,26 @@ export async function acceptClientSubmission(submissionId: string, orderId: stri
   const actor = await currentActor();
   await repo.acceptSubmission(submissionId, actor);
   revalidatePath(`/orders/${orderId}`);
+}
+
+/**
+ * Turn a team's submission down (Keenan, 2026-11-09). Nothing of it reaches
+ * the order; their form starts from the order again and shows the reason.
+ */
+export async function declineClientSubmission(submissionId: string, orderId: string, reason: string) {
+  await requireRole('staff');
+  const actor = await currentActor();
+  await repo.declineSubmission(submissionId, String(reason ?? '').trim().slice(0, 500), actor);
+  revalidatePath(`/orders/${orderId}`);
+}
+
+/** Archive (or bring back) a note from the team's or factory's sheet. */
+export async function setSheetNoteArchived(orderId: string, noteId: string, archived: boolean) {
+  await requireRole('staff');
+  const actor = await currentActor();
+  await repo.setPageNoteArchived(orderId, noteId, archived, actor);
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath('/orders');
 }
 
 export async function deleteOrder(orderId: string) {

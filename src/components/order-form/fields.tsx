@@ -209,15 +209,8 @@ export function ChoiceGroup<T extends string>({
 }
 
 /** Controlled size picker. Free text only behind an explicit "Other". */
-/**
- * What a size reads as in a dropdown: no "Senior" in front (Keenan,
- * 2026-10-23) — a plain size is a senior size, and only youth says so.
- * Display only: the stored value stays "Senior Large", which is what the
- * factory sheet, the CSV and the import all read.
- */
-export function sizeLabel(v: string): string {
-  return v.replace(/^Senior\s+/i, '');
-}
+import { sizeLabel } from '@/lib/constants';
+export { sizeLabel };
 
 export function SizeSelect({
   label,

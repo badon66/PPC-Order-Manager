@@ -84,6 +84,8 @@ export function SendUpdatePanel({
   const [howToPay, setHowToPay] = useState(preview.howToPay);
   const [paymentKind, setPaymentKind] = useState<PaymentKind | null>(null);
   const [mockupVersion, setMockupVersion] = useState<MockupVersion | null>(null);
+  /** "In production" sent late — starts from the factory date (see productionDaysAgoOf). */
+  const [daysAgo, setDaysAgo] = useState(preview.productionDaysAgo);
   const [msg, setMsg] = useState<{ stage: string; text: string; ok: boolean } | null>(null);
   /** Resend of an old `payment_received` row whose `detail` doesn't match any
    *  known label — keyed by that row's position in the sorted sent list, so
@@ -167,6 +169,7 @@ export function SendUpdatePanel({
   }, [hidden, storageKey]);
 
   function send(stage: UpdateStage, opts: { force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean; mockupVersion?: MockupVersion } = {}) {
+    const productionDaysAgo = stage === 'in_production' ? daysAgo : undefined;
     setMsg(null);
     setInFlight(stage);
     start(async () => {
@@ -178,6 +181,7 @@ export function SendUpdatePanel({
           paymentKind: opts.paymentKind,
           alreadyPaid: opts.alreadyPaid,
           mockupVersion: opts.mockupVersion,
+          productionDaysAgo,
         });
         setMsg({ stage, text: r.ok ? (r.note ? `Sent. ${r.note}` : 'Sent.') : r.error ?? 'Could not send', ok: r.ok });
       } finally {
@@ -207,6 +211,7 @@ export function SendUpdatePanel({
           ...preview,
           amount: formatAmount(amount[d.stage] ?? ''),
           howToPay,
+          productionDaysAgo: daysAgo,
           ...(isDone
             ? {
                 photos: finishedPhotos.slice(0, 8).map((a, n) => ({ cid: `photo-${n + 1}`, name: a.displayName || a.fileName })),
@@ -229,6 +234,32 @@ export function SendUpdatePanel({
               </p>
             )}
             {d.blocked && <p className="mt-2 text-sm text-amber-300">{d.blocked}</p>}
+            {d.stage === 'in_production' && (
+              <div className="mt-3">
+                <label htmlFor="production-days-ago" className="text-xs font-medium text-muted">
+                  Went into production
+                </label>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <select
+                    id="production-days-ago"
+                    value={daysAgo}
+                    onChange={(e) => setDaysAgo(Number(e.target.value))}
+                    className="!w-auto"
+                  >
+                    {Array.from({ length: Math.max(31, daysAgo + 1) }, (_, n) => (
+                      <option key={n} value={n}>
+                        {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : `${n} days ago`}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-muted">
+                    {daysAgo === 0
+                      ? 'The email says it\u2019s in production.'
+                      : `The email says it\u2019s already in production \u2014 ${daysAgo === 1 ? 'since yesterday' : `in the works for ${daysAgo} days`}.`}
+                  </span>
+                </div>
+              </div>
+            )}
             {isDone && (
               <label className="mt-3 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={finalPaid} onChange={(e) => setFinalPaid(e.target.checked)} />

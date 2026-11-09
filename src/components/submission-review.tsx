@@ -3,10 +3,11 @@
 import { useState, useTransition } from 'react';
 import type { ClientRosterSubmission, RosterEntry } from '@/lib/types';
 import { CLIENT_LINK_SECTION_META, type ClientLinkSections } from '@/lib/types';
-import { acceptClientSubmission } from '@/app/orders/actions';
+import { acceptClientSubmission, declineClientSubmission } from '@/app/orders/actions';
 import { formatShort } from '@/lib/dates';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { FilePreview } from '@/components/file-preview';
+import { sizeLabel } from '@/lib/constants';
 
 /**
  * Review a client submission before it touches the order.
@@ -33,9 +34,11 @@ export function SubmissionReview({
   signedUrls: Record<string, string>;
   currentRoster: RosterEntry[];
 }) {
-  const pending = submissions.filter((s) => !s.acceptedAt);
+  const pending = submissions.filter((s) => !s.acceptedAt && !s.declinedAt);
   const accepted = submissions.filter((s) => s.acceptedAt);
+  const declined = submissions.filter((s) => !s.acceptedAt && s.declinedAt);
   const [showAccepted, setShowAccepted] = useState(false);
+  const [showDeclined, setShowDeclined] = useState(false);
 
   if (submissions.length === 0) {
     return <p className="text-sm text-muted">Nothing submitted by the client yet.</p>;
@@ -49,6 +52,25 @@ export function SubmissionReview({
       {pending.map((s) => (
         <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} signedUrls={signedUrls} />
       ))}
+
+      {declined.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowDeclined((v) => !v)}
+            className="text-xs font-semibold text-muted hover:text-ppc-gold"
+          >
+            {showDeclined ? '▾' : '▸'} {declined.length} declined
+          </button>
+          {showDeclined && (
+            <div className="mt-2 space-y-3">
+              {declined.map((s) => (
+                <SubmissionCard key={s.id} s={s} orderId={orderId} currentRoster={currentRoster} signedUrls={signedUrls} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {accepted.length > 0 && (
         <div>
@@ -84,7 +106,10 @@ function SubmissionCard({
   signedUrls: Record<string, string>;
 }) {
   const [pending, start] = useTransition();
-  const done = Boolean(s.acceptedAt);
+  const done = Boolean(s.acceptedAt) || Boolean(s.declinedAt);
+  /** Decline asks for a reason first (optional) — it's shown to the team on their form. */
+  const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState('');
 
   // Two players in this list on one number: worth a look before it's a roster.
   const numberCount = new Map<string, number>();
@@ -108,7 +133,7 @@ function SubmissionCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-bold">
-            {done ? 'Accepted' : 'Waiting for review'} ·{' '}
+            {s.declinedAt ? 'Declined' : done ? 'Accepted' : 'Waiting for review'} ·{' '}
             <span className="font-normal text-muted">
               submitted {formatShort(s.submittedAt.slice(0, 10))}
             </span>
@@ -116,16 +141,63 @@ function SubmissionCard({
           <div className="mt-0.5 text-xs text-muted">Asked for: {asked.join(', ') || '—'}</div>
         </div>
         {!done && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => start(() => acceptClientSubmission(s.id, orderId))}
-            className="rounded-lg bg-ppc-gold px-4 py-2 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-50"
-          >
-            {pending ? 'Adding…' : 'Accept → add to order'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setDeclining((v) => !v)}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-muted hover:border-red-500/60 hover:text-red-300 disabled:opacity-50"
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => start(() => acceptClientSubmission(s.id, orderId))}
+              className="rounded-lg bg-ppc-gold px-4 py-2 text-sm font-bold text-black hover:bg-ppc-gold-dim disabled:opacity-50"
+            >
+              {pending ? 'Working…' : 'Accept → add to order'}
+            </button>
+          </div>
         )}
       </div>
+
+      {s.declinedAt && (
+        <p className="mt-2 text-xs text-muted">
+          Declined {formatShort(s.declinedAt.slice(0, 10))}{s.declineReason ? ` — “${s.declineReason}”` : ''}. Nothing from it was added to the order.
+        </p>
+      )}
+
+      {!done && declining && (
+        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/5 p-3">
+          <label className="text-xs font-medium text-muted" htmlFor={`decline-${s.id}`}>
+            Why? (optional — the team sees this on their form)
+          </label>
+          <textarea
+            id={`decline-${s.id}`}
+            rows={2}
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. We already have your roster from the coach — no changes needed."
+            className="mt-1 w-full"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => start(() => declineClientSubmission(s.id, orderId, reason))}
+              className="rounded-lg bg-red-500/80 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              {pending ? 'Declining…' : 'Decline this submission'}
+            </button>
+            <button type="button" onClick={() => setDeclining(false)} className="text-xs font-semibold text-muted hover:text-ppc-gold">
+              Cancel
+            </button>
+            <span className="text-xs text-muted">Nothing from it reaches the order.</span>
+          </div>
+        </div>
+      )}
 
       {!done && dupCount > 0 && (
         <p className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -205,9 +277,9 @@ function SubmissionCard({
                         {dup && <span className="ml-1.5 text-[0.65rem]">SAME #</span>}
                       </td>
                       <td className="py-1.5 pr-2 tabular-nums">{p.number || '—'}</td>
-                      <td className="py-1.5 pr-2">{p.jerseySize || '—'}</td>
-                      <td className="py-1.5 pr-2">{p.sockSize || '—'}</td>
-                      {hasPants && <td className="py-1.5 pr-2">{p.pantShellSize || '—'}</td>}
+                      <td className="py-1.5 pr-2">{sizeLabel(p.jerseySize) || '—'}</td>
+                      <td className="py-1.5 pr-2">{sizeLabel(p.sockSize) || '—'}</td>
+                      {hasPants && <td className="py-1.5 pr-2">{sizeLabel(p.pantShellSize) || '—'}</td>}
                       <td className="py-1.5 text-muted">{p.notes || '—'}</td>
                     </tr>
                   );

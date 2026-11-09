@@ -432,6 +432,18 @@ export const GOALIE_JERSEY_SIZES: readonly string[] = [
   'Goalie 3XL',
 ];
 
+/**
+ * A size as people read it: no "Senior" in front (Keenan, 2026-10-23 and
+ * 2026-11-09) — a plain size is a senior size, and only youth says so.
+ * "Senior XL" → "XL", "Senior Goalie" → "Goalie"; "Youth S/M" stays.
+ * DISPLAY ONLY: the stored value keeps "Senior XL" — the CSV, the import and
+ * the size tables all read it — so use this wherever a size is shown, never
+ * when one is saved.
+ */
+export function sizeLabel(v: string | null | undefined): string {
+  return (v ?? '').replace(/^\s*Senior\s+/i, '').trim();
+}
+
 /** Which jersey sizes a given roster row can choose from. */
 export function jerseySizesFor(isGoalie: boolean): readonly string[] {
   return isGoalie ? GOALIE_JERSEY_SIZES : PLAYER_JERSEY_SIZES;

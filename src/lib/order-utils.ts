@@ -412,6 +412,18 @@ export function offersGoaliePantOption(order: Pick<IncludesInput, 'sets' | 'pant
  * it drifted — an order for 16 jerseys with the field left at 0 reported no
  * players at all. One number, derived, can't disagree with itself.
  */
+/**
+ * People an order dresses — not jerseys (Keenan, 2026-10-28: a player can
+ * get two). Home/away dresses one squad twice, so it's the largest set;
+ * any other order's sets are different people, so they add up. Spares are
+ * people too (coaches, a call-up), counted once each — see spareCount.
+ */
+export function playersDressed(order: Pick<Order, 'sets'> & { orderMode?: OrderMode }): number {
+  const per = order.sets.map((s) => (s.playerJerseys || 0) + (s.goalieJerseys || 0));
+  const squad = order.orderMode === 'home_away_set' ? Math.max(0, ...per) : per.reduce((n, c) => n + c, 0);
+  return squad + spareCount(order, 'extraJerseys');
+}
+
 export function rosterSlotCount(order: Pick<Order, 'sets'>): number {
   return order.sets.reduce(
     (most, s) => Math.max(most, (s.playerJerseys || 0) + (s.goalieJerseys || 0)),

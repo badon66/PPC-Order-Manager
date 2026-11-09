@@ -151,9 +151,14 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
     });
   }
 
-  /** "Sent off to factory": stamp today and, if it isn't there yet, move it to In Production. */
+  /**
+   * "Sent off to factory": stamp the day it went (today unless Keenan picks
+   * an earlier one — he doesn't always mark it the same day, 2026-10-30) and,
+   * if it isn't there yet, move it to In Production.
+   */
+  const [factoryDay, setFactoryDay] = useState(order.sentToFactoryAt ?? today());
   function sentToFactory() {
-    const extra: Partial<Order> = { sentToFactoryAt: today() };
+    const extra: Partial<Order> = { sentToFactoryAt: factoryDay || today() };
     if (STATUS_META[status].order < STATUS_META.in_production.order) {
       extra.status = 'in_production';
       setStatus('in_production');
@@ -293,10 +298,36 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
           <div className="rounded-lg border border-line bg-surface-2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Factory</div>
             {order.sentToFactoryAt ? (
-              <p className="mt-2 text-sm">
+              <div className="mt-2 text-sm">
                 <span className="font-semibold text-ppc-gold">Sent off {formatLong(order.sentToFactoryAt)}</span>
-              </p>
+                {/* Wrong day? Fix it here. */}
+                <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+                  Change the day
+                  <input
+                    type="date"
+                    max={today()}
+                    value={factoryDay}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFactoryDay(v);
+                      if (v && v !== order.sentToFactoryAt) save({ sentToFactoryAt: v }, false);
+                    }}
+                    className="!w-auto"
+                  />
+                </label>
+              </div>
             ) : (
+              <>
+              <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+                Sent off on
+                <input
+                  type="date"
+                  max={today()}
+                  value={factoryDay}
+                  onChange={(e) => setFactoryDay(e.target.value)}
+                  className="!w-auto"
+                />
+              </label>
               <button
                 type="button"
                 disabled={pending}
@@ -305,10 +336,11 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
               >
                 🏭 Sent off to factory
               </button>
+              <p className="mt-2 text-xs text-muted">
+                Stamps {factoryDay === today() ? 'today' : formatLong(factoryDay)}{STATUS_META[status].order < STATUS_META.in_production.order ? ' and moves the order to In Production' : ''}.
+              </p>
+              </>
             )}
-            <p className="mt-2 text-xs text-muted">
-              Stamps today{STATUS_META[status].order < STATUS_META.in_production.order ? ' and moves the order to In Production' : ''}.
-            </p>
             {order.trackingCode && (
               <p className="mt-2 text-sm">
                 <span className="text-muted">UPS: </span>

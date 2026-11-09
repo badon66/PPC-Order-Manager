@@ -15,6 +15,7 @@ import { CaptaincyPicker } from '@/components/captaincy';
 import { RosterTally, buildTallies } from './roster-tally';
 import { RosterBreakdown } from './roster-breakdown';
 import { RosterBulkBar } from './roster-bulk-edit';
+import { sizeLabel } from '@/lib/constants';
 
 /**
  * Roster editor.
@@ -707,8 +708,8 @@ export function RosterTable({
                 <span className="font-semibold">Extra {i + 1}</span>
                 {' · '}#{x.number.trim() || '?'}
                 {' · '}
-                {x.sockOnly ? 'socks only' : x.size.trim() || <span className="text-red-300">no size</span>}
-                {x.sockSize.trim() ? ` · socks ${x.sockSize}` : ''}
+                {x.sockOnly ? 'socks only' : sizeLabel(x.size) || <span className="text-red-300">no size</span>}
+                {x.sockSize.trim() ? ` · socks ${sizeLabel(x.sockSize)}` : ''}
               </span>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import type { AssetRole, ViewableAsset } from '@/lib/types';
 import { asDownload, downloadName } from '@/lib/download';
+import { RotateButtons } from '@/components/rotate-buttons';
 
 /**
  * Artwork, shown as pictures rather than a list of filenames.
@@ -129,10 +130,13 @@ function Tile({
   groupSize,
   hero = false,
   namePrefix,
+  rotatable = false,
 }: {
   asset: ViewableAsset;
   index: number;
   groupSize: number;
+  /** Keenan's order page only: ⟲ ⟳ under a photo. Never on a shared sheet. */
+  rotatable?: boolean;
   /** The design reference: shown at a size you can actually judge a jersey by. */
   hero?: boolean;
   /** Team name, so a downloaded file says whose it is. */
@@ -171,7 +175,11 @@ function Tile({
   const printDownloadName = downloadName([namePrefix, title, 'print'], asset.fileName, asset.viewUrl);
 
   return (
-    <div className="group overflow-hidden rounded-lg border border-line bg-black/20 transition hover:border-ppc-gold">
+    <div
+      className="group overflow-hidden rounded-lg border border-line bg-black/20 transition hover:border-ppc-gold"
+      data-note-key={`asset:${asset.id}`}
+      data-note-label={title}
+    >
       <a
         href={shownUrl}
         target="_blank"
@@ -237,6 +245,8 @@ function Tile({
           * behind it. One upload doesn't need two buttons pointing at it.
           */}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {/* The tile shows the placement photo when there is one; that's a separate file, so only the plain case turns. */}
+          {rotatable && !asset.placementViewUrl && <RotateButtons asset={asset} />}
           <a
             href={asDownload(shownUrl, shownDownloadName)}
             download={shownDownloadName}
@@ -279,10 +289,12 @@ function Grid({
   assets,
   hero = false,
   namePrefix,
+  rotatable = false,
 }: {
   assets: ViewableAsset[];
   hero?: boolean;
   namePrefix?: string;
+  rotatable?: boolean;
 }) {
   return (
     <div
@@ -300,6 +312,7 @@ function Grid({
           groupSize={assets.length}
           hero={hero}
           namePrefix={namePrefix}
+          rotatable={rotatable}
         />
       ))}
     </div>
@@ -310,7 +323,10 @@ export function ArtworkGallery({
   assets,
   hideRoles = [],
   teamName,
+  rotatable = false,
 }: {
+  /** Keenan's order page: offer ⟲ ⟳ on photos. Shared sheets never pass it. */
+  rotatable?: boolean;
   assets: ViewableAsset[];
   /** Roles shown elsewhere on the page — the font moved up to Order Information. */
   hideRoles?: AssetRole[];
@@ -365,7 +381,7 @@ export function ArtworkGallery({
                     {block[0].displayName.trim() || `Logo ${blockIndex + 1}`}
                   </p>
                   {block[0].notes && <p className="text-xs text-muted">{block[0].notes}</p>}
-                  <Grid assets={block} namePrefix={teamName} />
+                  <Grid assets={block} namePrefix={teamName} rotatable={rotatable} />
                 </div>
               ))}
             </div>
@@ -382,7 +398,7 @@ export function ArtworkGallery({
               {ROLE_LABELS[role] ?? role}
               {group.length > 1 && ` (${group.length})`}
             </h3>
-            <Grid assets={group} hero={hero} namePrefix={teamName} />
+            <Grid assets={group} hero={hero} namePrefix={teamName} rotatable={rotatable} />
           </div>
         );
       })}

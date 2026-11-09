@@ -152,6 +152,14 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
   The email's second line comes from `paymentReceivedNext(kind, status)`: an
   early payment says what it covers ("once the design is signed off, your
   order goes straight into production"), never a next step that isn't next.
+- **"In production" can go out late** (Keenan, 2026-10-30). The email's
+  card has a "Went into production" picker (Today, Yesterday, N days ago),
+  defaulting from `productionDaysAgoOf` (production start, else the factory
+  date). 1+ days reads "already in production … for N days now"
+  (`productionDaysAgo` on UpdateMailInput / SendUpdateOptions, checked
+  0–120 in `sendUpdateAction`). The quick edit's "Sent off to factory" takes
+  a day (today by default, no future) and an already-stamped day can be
+  changed there.
 - **The customer's form locks by section, not all at once** (Keenan,
   2026-10-16). `openClientSections` in `data/logic.ts` is the one rule:
   before In Production everything ticked is open; from In Production the
@@ -378,6 +386,47 @@ really is up to the width of its space — scaled down to fit, never cropped,
 never boxed, never blown up. No `object-cover` on a photo. Non-image files (AI,
 EPS, PDF) keep their format badge. Galleries and upload groups lay them out two
 to a row (2026-10-20: full-width ones were far too big), the next pair below.
+
+**Photos can be turned** (Keenan, 2026-11-03). ⟲ ⟳ under every photo in the
+form's upload groups, the logo blocks, the finished photos and the gallery on
+Keenan's order page (`rotatable` — never on a shared sheet). It turns the
+PICTURE, not the display: `rotate-image.ts` redraws it a quarter turn in the
+browser (EXIF orientation applied first), `uploadFile` stores the copy, and
+`rotateAssetFile` → `repo.replaceAssetFile` points the same asset (same id,
+role, slot, name) at it and logs `asset_rotated`. So the emailed attachment,
+the factory's download and the customer's sheet all get it the right way up.
+JPEG/PNG/WebP only; a vector or PDF shows no buttons. Inside the order form
+the turned asset goes back into the form's state through `AssetSwapContext`.
+
+**Notes pinned on the sheets** (Keenan, 2026-11-09). The team's sheet
+(`/share`) and the factory's (`/factory`) have a 💬 Comment button
+(`components/sheet-notes.tsx`): click anything — a photo, a word, a roster
+row, a field — and leave a note; highlighted words are quoted. What a click
+pins to comes from `data-note-key`/`data-note-label` marks (Section/Field in
+ui.tsx, roster and spare rows in build-sheet.tsx, artwork tiles). Notes are
+APPEND-ONLY HISTORY ENTRIES (`page_note`, archive = `page_note_archived` /
+`page_note_restored`), never a field on the order — the order row is
+read-modify-written by autosave and accept, and a note written onto it at
+the same moment would be lost. Rules and caps in `lib/page-notes.ts`; the
+writes are `addTeamNote` (share token is the credential) and
+`addFactoryNote` (token + factory or admin cookie) in
+`app/sheet-notes-actions.ts`. Each new note emails Keenan
+(`note-notify.ts`, `NOTES_EMAIL` or info@). Each sheet sees only its own
+notes; Keenan sees both on the order page (`#sheet-notes`, Archive / Bring
+back) and a 💬 count on the board card. Notes never change the order.
+
+**Submissions can be declined** (2026-11-09): Decline (optional reason) on a
+waiting submission sets `declinedAt`/`declineReason`; nothing reaches the
+order, accept refuses it, the team's form starts from the order again and
+shows the reason (`DeclinedNote`). Pending means `!acceptedAt && !declinedAt`.
+
+**The board sorts** (`?sort=`): by stage (default), due soonest, biggest
+order, highest value, newest, oldest, recently updated, open notes. Enquiries
+and a pinned stage still lift to the top within any sort.
+
+**Sizes never say "Senior"** on any page: `sizeLabel` (constants.ts) on every
+size shown — sheets, roster tables, breakdown, spares, keepers, the team's
+dropdowns. Display only; stored values keep "Senior XL".
 
 ## Conventions
 

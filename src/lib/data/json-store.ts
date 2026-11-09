@@ -18,6 +18,8 @@ import {
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
 import { seedDatabase } from './seed';
+import { NOTE_ACTIONS, NOTE_MAX_PER_SHEET, openNoteCounts, pageNotesOf } from '@/lib/page-notes';
+import { declineEntry, noteArchiveEntry, pageNoteEntry } from './logic';
 
 /**
  * File-backed store. Lets the app run with no database at all, which is how it
@@ -347,6 +349,23 @@ export const jsonStore: Repository = {
     });
   },
 
+  async replaceAssetFile(assetId, file, actor) {
+    return withWrite((db) => {
+      const a = db.assets.find((x) => x.id === assetId);
+      if (!a) return null;
+      a.fileUrl = file.fileUrl;
+      a.fileName = file.fileName;
+      db.history.push(
+        logEntry({
+          orderId: a.orderId, action: 'asset_rotated',
+          summary: `Photo turned: ${a.displayName || a.fileName} (${a.role})`,
+          actorEmail: actor.email, actorName: actor.name,
+        }),
+      );
+      return { ...a };
+    });
+  },
+
   async removeAsset(assetId, actor) {
     await withWrite((db) => {
       const a = db.assets.find((x) => x.id === assetId);
@@ -417,7 +436,7 @@ export const jsonStore: Repository = {
   async acceptSubmission(submissionId, actor) {
     await withWrite((db) => {
       const s = db.submissions.find((x) => x.id === submissionId);
-      if (!s || s.acceptedAt) return;
+      if (!s || s.acceptedAt || s.declinedAt) return;
       const order = db.orders.find((o) => o.id === s.orderId);
       if (!order) return;
 
@@ -463,6 +482,54 @@ export const jsonStore: Repository = {
         .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt))
         .pop() ?? null
     );
+  },
+
+  async addPageNote(via, input) {
+    return withWrite((db) => {
+      const tokenOf = (o: Order) => (via.sheet === 'team' ? o.shareToken : o.factoryToken);
+      const o = via.token ? db.orders.find((x) => tokenOf(x) === via.token && !x.deletedAt) : undefined;
+      if (!o) return null;
+      const already = db.history.filter((h) => h.orderId === o.id && h.action === 'page_note' && h.note?.from === via.sheet).length;
+      if (already >= NOTE_MAX_PER_SHEET) return null;
+      const entry = pageNoteEntry(o, via.sheet, input);
+      db.history.push(entry);
+      return { note: entry.note!, orderId: o.id, teamName: o.teamName };
+    });
+  },
+
+  async pageNotesByToken(via) {
+    const db = await load();
+    const o = via.token
+      ? db.orders.find((x) => (via.sheet === 'team' ? x.shareToken : x.factoryToken) === via.token && !x.deletedAt)
+      : undefined;
+    if (!o) return [];
+    return pageNotesOf(db.history.filter((h) => h.orderId === o.id)).filter((n) => n.from === via.sheet);
+  },
+
+  async pageNotes(orderId) {
+    const db = await load();
+    return pageNotesOf(db.history.filter((h) => h.orderId === orderId));
+  },
+
+  async setPageNoteArchived(orderId, noteId, archived, actor) {
+    await withWrite((db) => {
+      db.history.push(noteArchiveEntry(orderId, noteId, archived, actor));
+    });
+  },
+
+  async openPageNoteCounts() {
+    const db = await load();
+    return openNoteCounts(db.history.filter((h) => (NOTE_ACTIONS as readonly string[]).includes(h.action)));
+  },
+
+  async declineSubmission(submissionId, reason, actor) {
+    await withWrite((db) => {
+      const s = db.submissions.find((x) => x.id === submissionId);
+      if (!s || s.acceptedAt || s.declinedAt) return;
+      s.declinedAt = new Date().toISOString();
+      s.declineReason = reason;
+      db.history.push(declineEntry(s, reason, actor));
+    });
   },
 
   async getHistory(orderId) {

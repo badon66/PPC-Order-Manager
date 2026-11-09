@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { attachAsset, detachAsset } from '@/app/orders/actions';
 import { uploadFile } from '@/components/order-form/assets';
+import { RotateButtons } from '@/components/rotate-buttons';
 import type { ViewableAsset } from '@/lib/types';
 
 /**
@@ -103,6 +104,8 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
             <li key={p.id} className="group relative overflow-hidden rounded-lg border border-line bg-black/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.viewUrl} alt="" className="block h-auto w-full" />
+              {/* A phone shot of a jersey often lands sideways: turn it before it's emailed. */}
+              <RotateButtons asset={p} className="absolute bottom-1 left-1 rounded bg-black/60 p-0.5" />
               <button
                 type="button"
                 onClick={() => remove(p.id)}

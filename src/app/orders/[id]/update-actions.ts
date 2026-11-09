@@ -8,7 +8,7 @@ import { MOCKUP_VERSIONS, PAYMENT_KINDS, UPDATE_STAGES, type MockupVersion, type
 export async function sendUpdateAction(
   orderId: string,
   stage: UpdateStage,
-  input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean; mockupVersion?: MockupVersion },
+  input: { amount?: string; howToPay?: string; force?: boolean; paymentKind?: PaymentKind; alreadyPaid?: boolean; mockupVersion?: MockupVersion; productionDaysAgo?: number },
 ): Promise<{ ok: boolean; error?: string; note?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
@@ -19,6 +19,12 @@ export async function sendUpdateAction(
     }
     if (input.mockupVersion !== undefined && !(MOCKUP_VERSIONS as readonly string[]).includes(input.mockupVersion)) {
       return { ok: false, error: 'Unknown mockup version' };
+    }
+    if (
+      input.productionDaysAgo !== undefined &&
+      !(Number.isInteger(input.productionDaysAgo) && input.productionDaysAgo >= 0 && input.productionDaysAgo <= 120)
+    ) {
+      return { ok: false, error: 'Days in production has to be a whole number from 0 to 120' };
     }
     const r = await sendCustomerUpdate(orderId, stage, { ...input, alreadyPaid: input.alreadyPaid === true }, actor);
     revalidatePath(`/orders/${orderId}`);

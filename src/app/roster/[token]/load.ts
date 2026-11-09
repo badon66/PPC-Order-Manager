@@ -40,7 +40,8 @@ export async function loadClientPage(token: string) {
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 
   const newestWith = (section: SectionOf): ClientRosterSubmission | undefined =>
-    submissions.find((s) => s.sections[section]);
+    // A declined submission is skipped: what Keenan turned down isn't theirs to start from.
+    submissions.find((s) => s.sections[section] && !s.declinedAt);
 
   const newest = submissions[0] ?? null;
   const logoSrc = newestWith('logos');
@@ -57,7 +58,8 @@ export async function loadClientPage(token: string) {
    * revising it. Otherwise the roster in use, which is the truth now (it may
    * have been imported or edited since they last sent anything).
    */
-  const pendingRoster = rosterSrc && !rosterSrc.acceptedAt ? rosterSrc : undefined;
+  // A declined one is no longer being revised: they start from what's on the order.
+  const pendingRoster = rosterSrc && !rosterSrc.acceptedAt && !rosterSrc.declinedAt ? rosterSrc : undefined;
   const currentRoster: SubmittedPlayer[] = pendingRoster
     ? []
     : (bundle?.roster ?? []).map((r) => ({
@@ -80,7 +82,7 @@ export async function loadClientPage(token: string) {
    * used the form still sees the address we have, so "check your shipping
    * details" has something to check.
    */
-  const pendingContact = contactSrc && !contactSrc.acceptedAt ? contactSrc.contact : undefined;
+  const pendingContact = contactSrc && !contactSrc.acceptedAt && !contactSrc.declinedAt ? contactSrc.contact : undefined;
   const orderContact = bundle ? contactOfOrder(bundle.order) : undefined;
   const contactOnFile: SubmittedContact | undefined =
     pendingContact ??
@@ -119,5 +121,11 @@ export async function loadClientPage(token: string) {
     ).map((f) => [f.fileUrl, f.resolvedUrl]),
   );
 
-  return { link, previous, previousPreviews, currentRoster, contactOnFile };
+  /*
+   * Their last send, turned down (2026-11-09): the form says so, with
+   * Keenan's reason, so a team doesn't think it went through.
+   */
+  const declined = newest?.declinedAt ? { at: newest.declinedAt, reason: newest.declineReason ?? '' } : null;
+
+  return { link, previous, previousPreviews, currentRoster, contactOnFile, declined };
 }

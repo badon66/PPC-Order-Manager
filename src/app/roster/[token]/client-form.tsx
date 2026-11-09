@@ -21,6 +21,7 @@ import { readableCopy, requestRead } from '@/lib/roster-import/client';
 import { noAnswers, teamFill, type RowFlag, type TeamAnswers, type TeamFill } from '@/lib/roster-import/team';
 import { FIELD_LABELS, type ImportAnalysis, type ImportField } from '@/lib/roster-import/types';
 import type { ImportContext } from '@/lib/roster-import/build';
+import { sizeLabel } from '@/lib/constants';
 
 /**
  * The customer's form. Written for a team manager on their phone at 10pm the
@@ -176,9 +177,9 @@ function sizeOptions(options: readonly string[], current: string) {
   return (
     <>
       {options.map((s) => (
-        <option key={s} value={s}>{s}</option>
+        <option key={s} value={s}>{sizeLabel(s)}</option>
       ))}
-      {unknown && <option value={current}>{current} (as previously entered)</option>}
+      {unknown && <option value={current}>{sizeLabel(current)} (as previously entered)</option>}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import type { CalendarDate } from '@/lib/dates';
+import { NOTE_FROM_LABEL, type NoteAnchor, type NoteFrom, type PageNote } from '@/lib/page-notes';
 import type {
   ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, RosterVersion, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
@@ -174,6 +175,52 @@ export function str(v: unknown): string | null {
 
 export function logEntry(entry: Omit<ChangeLogEntry, 'id' | 'at'>): ChangeLogEntry {
   return { ...entry, id: newId(), at: new Date().toISOString() };
+}
+
+/*
+ * Sheet notes and declined submissions — the entries both stores write,
+ * built here so the two can't word them differently.
+ */
+
+export function pageNoteEntry(
+  o: Pick<Order, 'id'>,
+  from: NoteFrom,
+  input: { where: NoteAnchor; text: string },
+): ChangeLogEntry {
+  const at = new Date().toISOString();
+  const note: PageNote = { id: newId(), from, where: input.where, text: input.text, at, archivedAt: null };
+  const where = input.where.label || input.where.section || 'the sheet';
+  return {
+    id: newId(),
+    orderId: o.id,
+    action: 'page_note',
+    summary: `${NOTE_FROM_LABEL[from]} left a note on ${where}: “${input.text.slice(0, 120)}${input.text.length > 120 ? '…' : ''}”`,
+    note,
+    actorEmail: '',
+    actorName: from === 'team' ? 'Team (order sheet)' : 'Factory (production sheet)',
+    at,
+  };
+}
+
+export function noteArchiveEntry(orderId: string, noteId: string, archived: boolean, actor: Actor): ChangeLogEntry {
+  return logEntry({
+    orderId,
+    action: archived ? 'page_note_archived' : 'page_note_restored',
+    field: noteId,
+    summary: archived ? 'Sheet note archived' : 'Sheet note brought back',
+    actorEmail: actor.email,
+    actorName: actor.name,
+  });
+}
+
+export function declineEntry(s: Pick<ClientRosterSubmission, 'orderId' | 'revision'>, reason: string, actor: Actor): ChangeLogEntry {
+  return logEntry({
+    orderId: s.orderId,
+    action: 'submission_declined',
+    summary: `Declined the team's submission (visit ${s.revision})${reason ? `: ${reason}` : ''}`,
+    actorEmail: actor.email,
+    actorName: actor.name,
+  });
 }
 
 /**
@@ -830,7 +877,7 @@ export function pendingContactOf(submissions: ClientRosterSubmission[]): Submitt
   const newest = [...submissions]
     .filter((s) => s.sections?.personalDetails && s.contact)
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
-  return newest && !newest.acceptedAt ? newest.contact ?? null : null;
+  return newest && !newest.acceptedAt && !newest.declinedAt ? newest.contact ?? null : null;
 }
 
 /**

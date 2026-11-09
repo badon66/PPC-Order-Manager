@@ -1,8 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { ARTWORK_ACCEPT, MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
 import { FilePreview } from '@/components/file-preview';
+import { RotateButtons } from '@/components/rotate-buttons';
+import { AssetSwapContext } from './assets';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -143,6 +145,7 @@ function LogoCard({
   onLocalChange: (patch: Partial<Group>) => void;
   onDiscard: () => void;
 }) {
+  const swap = useContext(AssetSwapContext);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -254,6 +257,7 @@ function LogoCard({
               {/* The whole picture, at its own shape — never a crop to click into. */}
               <FilePreview fileName={a.fileName} url={a.viewUrl} />
               <div className="mt-2 flex items-center gap-2">
+                <RotateButtons asset={a} onRotated={swap ?? undefined} />
                 <a
                   href={a.viewUrl}
                   target="_blank"

@@ -16,6 +16,8 @@ import {
 } from '@/lib/roster-versions';
 import { today } from '@/lib/dates';
 import { healCallList, healCallLog, healCallSession, healContact } from './sales-logic';
+import { NOTE_ACTIONS, NOTE_MAX_PER_SHEET, openNoteCounts, pageNotesOf } from '@/lib/page-notes';
+import { declineEntry, noteArchiveEntry, pageNoteEntry } from './logic';
 
 /**
  * Postgres-backed store, for the hosted app.
@@ -67,6 +69,16 @@ const rows = <T>(r: Array<Row<T>> | null): T[] => (r ?? []).map((x) => x.data);
 async function putOrder(o: Order): Promise<void> {
   const res = await supabase().from(ORDERS).upsert({ id: o.id, data: o });
   if (res.error) throw new Error(`save order: ${res.error.message}`);
+}
+
+/** The note entries of one order — only those, never the whole history (snapshots are big). */
+async function noteEntriesOf(orderId: string): Promise<ChangeLogEntry[]> {
+  const res = await supabase()
+    .from(HISTORY)
+    .select('id, data')
+    .eq('order_id', orderId)
+    .in('data->>action', [...NOTE_ACTIONS]);
+  return rows<ChangeLogEntry>(unwrap(res, 'load sheet notes'));
 }
 
 async function appendHistory(entries: ChangeLogEntry[]): Promise<void> {
@@ -415,6 +427,23 @@ export const supabaseStore: Repository = {
     return created;
   },
 
+  async replaceAssetFile(assetId, file, actor) {
+    const found = await supabase().from(ASSETS).select('id, data').eq('id', assetId).maybeSingle();
+    if (found.error) throw new Error(`find artwork: ${found.error.message}`);
+    if (!found.data) return null;
+    const next: OrderAsset = { ...(found.data as Row<OrderAsset>).data, fileUrl: file.fileUrl, fileName: file.fileName };
+    const res = await supabase().from(ASSETS).update({ data: next }).eq('id', assetId);
+    if (res.error) throw new Error(`turn photo: ${res.error.message}`);
+    await appendHistory([
+      logEntry({
+        orderId: next.orderId, action: 'asset_rotated',
+        summary: `Photo turned: ${next.displayName || next.fileName} (${next.role})`,
+        actorEmail: actor.email, actorName: actor.name,
+      }),
+    ]);
+    return next;
+  },
+
   async removeAsset(assetId, actor) {
     const found = await supabase().from(ASSETS).select('id, data').eq('id', assetId).maybeSingle();
     if (found.error) throw new Error(`find artwork: ${found.error.message}`);
@@ -494,7 +523,7 @@ export const supabaseStore: Repository = {
     if (!found.data) return;
 
     const s = healSubmission((found.data as Row<ClientRosterSubmission>).data);
-    if (s.acceptedAt) return;
+    if (s.acceptedAt || s.declinedAt) return;
 
     const order = await orderById(s.orderId, true);
     if (!order) return;
@@ -560,6 +589,52 @@ export const supabaseStore: Repository = {
       .maybeSingle();
     if (res.error) throw new Error(`load latest submission: ${res.error.message}`);
     return res.data ? healSubmission((res.data as Row<ClientRosterSubmission>).data) : null;
+  },
+
+  async addPageNote(via, input) {
+    const o = await orderByToken(via.sheet === 'team' ? 'share_token' : 'factory_token', via.token);
+    if (!o) return null;
+    const existing = await noteEntriesOf(o.id);
+    if (existing.filter((h) => h.action === 'page_note' && h.note?.from === via.sheet).length >= NOTE_MAX_PER_SHEET) return null;
+    const entry = pageNoteEntry(o, via.sheet, input);
+    await appendHistory([entry]);
+    return { note: entry.note!, orderId: o.id, teamName: o.teamName };
+  },
+
+  async pageNotesByToken(via) {
+    const o = await orderByToken(via.sheet === 'team' ? 'share_token' : 'factory_token', via.token);
+    if (!o) return [];
+    return pageNotesOf(await noteEntriesOf(o.id)).filter((n) => n.from === via.sheet);
+  },
+
+  async pageNotes(orderId) {
+    return pageNotesOf(await noteEntriesOf(orderId));
+  },
+
+  async setPageNoteArchived(orderId, noteId, archived, actor) {
+    await appendHistory([noteArchiveEntry(orderId, noteId, archived, actor)]);
+  },
+
+  async openPageNoteCounts() {
+    const res = await supabase()
+      .from(HISTORY)
+      .select('id, data')
+      .in('data->>action', [...NOTE_ACTIONS]);
+    return openNoteCounts(rows<ChangeLogEntry>(unwrap(res, 'load sheet notes')));
+  },
+
+  async declineSubmission(submissionId, reason, actor) {
+    const found = await supabase()
+      .from(SUBMISSIONS).select('id, data').eq('id', submissionId).maybeSingle();
+    if (found.error) throw new Error(`find submission: ${found.error.message}`);
+    if (!found.data) return;
+    const s = healSubmission((found.data as Row<ClientRosterSubmission>).data);
+    if (s.acceptedAt || s.declinedAt) return;
+    s.declinedAt = new Date().toISOString();
+    s.declineReason = reason;
+    const res = await supabase().from(SUBMISSIONS).update({ data: s }).eq('id', submissionId);
+    if (res.error) throw new Error(`decline submission: ${res.error.message}`);
+    await appendHistory([declineEntry(s, reason, actor)]);
   },
 
   async getHistory(orderId) {

@@ -3,6 +3,7 @@ import type {
   Contact, CustomerEmailRecord, KeeperJersey, Order, OrderAsset, RosterEntry, RosterVersion, RouteVariant, SheetComment, CustomBrandingItem, SubmittedContact,
 } from '@/lib/types';
 import type { RosterVersionSummary } from '@/lib/roster-versions';
+import type { NoteAnchor, NoteFrom, PageNote } from '@/lib/page-notes';
 import type { TimelineStep } from './timeline';
 
 /**
@@ -273,6 +274,11 @@ export interface Repository {
   /* Assets ------------------------------------------------------------- */
   addAsset(asset: Omit<OrderAsset, 'id'>, actor: Actor): Promise<OrderAsset>;
   removeAsset(assetId: string, actor: Actor): Promise<void>;
+  /**
+   * The same asset, a new file behind it — a photo turned the right way up
+   * (2026-11-03). Keeps the id, role, slot, name and notes; null if it's gone.
+   */
+  replaceAssetFile(assetId: string, file: { fileUrl: string; fileName: string }, actor: Actor): Promise<OrderAsset | null>;
 
   /* Public (token-addressed, redacted) --------------------------------- */
   getByShareToken(token: string): Promise<PublicOrderView | null>;
@@ -350,6 +356,27 @@ export interface Repository {
 
   /* History ------------------------------------------------------------ */
   getHistory(orderId: string): Promise<ChangeLogEntry[]>;
+
+  /* ---- notes pinned on the sheets (lib/page-notes.ts) ---- */
+  /**
+   * A note from the team's sheet (`share`) or the factory's (`factory`), by
+   * that sheet's token. Appended to history, never written onto the order.
+   * Null for a dead token or a sheet that has hit NOTE_MAX_PER_SHEET.
+   */
+  addPageNote(
+    via: { sheet: NoteFrom; token: string },
+    input: { where: NoteAnchor; text: string },
+  ): Promise<{ note: PageNote; orderId: string; teamName: string } | null>;
+  /** One sheet's own notes, by its token — what that sheet shows back. */
+  pageNotesByToken(via: { sheet: NoteFrom; token: string }): Promise<PageNote[]>;
+  /** Every note on an order, both sheets — Keenan's order page. */
+  pageNotes(orderId: string): Promise<PageNote[]>;
+  setPageNoteArchived(orderId: string, noteId: string, archived: boolean, actor: Actor): Promise<void>;
+  /** Open notes per order id, for the board. */
+  openPageNoteCounts(): Promise<Record<string, number>>;
+
+  /** Turn a team's submission down: nothing of it reaches the order. */
+  declineSubmission(submissionId: string, reason: string, actor: Actor): Promise<void>;
   /** One update email went out: remember it on the order and in the history. */
   recordCustomerEmail(orderId: string, record: CustomerEmailRecord, actor: Actor): Promise<void>;
 

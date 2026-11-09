@@ -25,3 +25,11 @@ test('mailInputFor: cameFromGate only from the latest change, paymentKind by sta
   assert.equal(r.designUrl, `${base}/roster/${o.rosterToken}/design`);
   assert.equal(r.detailsUrl, `${base}/roster/${o.rosterToken}/details`);
 });
+
+test('productionDaysAgoOf: production start, else the factory date, never negative', async () => {
+  const { productionDaysAgoOf } = await import('@/lib/customer-updates');
+  assert.equal(productionDaysAgoOf({ productionStartDate: null, sentToFactoryAt: '2026-10-26' }, '2026-10-30'), 4);
+  assert.equal(productionDaysAgoOf({ productionStartDate: '2026-10-29', sentToFactoryAt: '2026-10-26' }, '2026-10-30'), 1);
+  assert.equal(productionDaysAgoOf({ productionStartDate: null, sentToFactoryAt: null }, '2026-10-30'), 0);
+  assert.equal(productionDaysAgoOf({ productionStartDate: '2026-11-02', sentToFactoryAt: null }, '2026-10-30'), 0);
+});
