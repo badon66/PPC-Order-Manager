@@ -428,6 +428,47 @@ and a pinned stage still lift to the top within any sort.
 size shown — sheets, roster tables, breakdown, spares, keepers, the team's
 dropdowns. Display only; stored values keep "Senior XL".
 
+**The form saves only what it changed** (2026-11-12). `flush` diffs the draft
+against `savedRef` (what the server has as far as this page knows) and sends
+just those fields — never the whole draft, which is loaded once and goes
+stale: a customer's sign-off, a server-stamped `completedAt`, or a quick-edit
+change made while the form was open used to be written back over. `orderMode`,
+`numberOfSets` and `sets` always travel together (the server rebuilds sets
+from them). The dirty flags clear BEFORE the save goes out, so a keystroke
+during a save gets its own; a failed save keeps them set and Done stays put.
+The signed-order prompt gates the first press/keystroke on any control in the
+form (`gateInteraction`), not `set` — mutators that bypassed `set` saved
+silently. Number boxes don't commit while emptied (clearing "3" to type "4"
+in Number of Sets used to drop set 2 on). Order value takes cents
+(`MoneyInput`). Uploads take the first free slot (`firstFreeSlot`). Logo
+renames update in place (`updateAssetText`). Team submissions accept only
+files in our own storage (`STORED_FILE`). The bundle is per full kit, by
+people (home/away = one squad).
+
+**Phones**: the header must fit 390px or EVERY page zooms out — short labels
+on small screens (Queue, ⚙). The editor's phone jump menu sits above the
+sections (`flex-col lg:flex-row`), never beside them. Check new pages at 390px.
+
+**Speed rules** (2026-11-18 pass):
+- Never `repo.getOrder` in a loop. The board gets every roster in one query
+  (`repo.rostersForOrders`); a page that needs only the order row uses
+  `repo.getOrderRow`. Independent reads go in one `Promise.all`.
+- Don't hand a client component a whole `Order`: `approvalRecord.signatureDataUrl`
+  is an inline image, and the board was shipping every signature to the browser.
+- Autosave and per-click actions (`saveOrder`, `saveRoster`, asset add/remove/
+  rename/rotate, call logging) do NOT `revalidatePath`: in Next 16 that
+  re-renders the current page inside every action response. The form calls
+  `revalidateOrder(id)` once on Done; elsewhere it's one `router.refresh()`.
+- Signed file links are cached in memory (`storage.ts`) and reused while 15+
+  minutes remain, so images aren't re-downloaded after every refresh.
+- Every admin route has a `loading.tsx` skeleton — add one with a new route.
+  (A `notFound()` under one streams after a 200.)
+- The React Compiler is on (`reactCompiler: true`, `babel-plugin-react-compiler`).
+  try/finally and throw inside a component make it bail out: put that logic in
+  a helper outside the component (`messageIfThrown` in order-form/assets.tsx).
+- The roster table renders ONE layout (`useIsDesktop`), not both hidden by CSS.
+- No `backdrop-blur` on sticky bars.
+
 ## Conventions
 
 - **Statuses group into three buckets** (`constants.ts`): `UNFINALIZED_STATUSES`

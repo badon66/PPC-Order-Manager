@@ -151,6 +151,29 @@ async function rosterOf(orderId: string): Promise<RosterEntry[]> {
   return rows<RosterEntry>(unwrap(res, 'load roster')).map(healRosterEntry);
 }
 
+/** How many order ids go in one `in (…)` — keeps the request URL well under any limit. */
+const ROSTER_BATCH = 150;
+/** PostgREST caps a response (1000 rows by default), so a batch is read a page at a time. */
+const ROSTER_PAGE = 1000;
+
+/** Every roster row of the given orders, in sort order, each with the order it belongs to. */
+async function allRosterRowsIn(orderIds: string[]): Promise<Array<{ order_id: string; entry: RosterEntry }>> {
+  const out: Array<{ order_id: string; entry: RosterEntry }> = [];
+  for (let from = 0; ; from += ROSTER_PAGE) {
+    const res = await supabase()
+      .from(ROSTER)
+      .select('id, order_id, data')
+      .in('order_id', orderIds)
+      .order('sort_order')
+      .order('id')
+      .range(from, from + ROSTER_PAGE - 1);
+    const page = unwrap(res, 'load rosters') as Array<{ id: string; order_id: string; data: RosterEntry }>;
+    for (const r of page) out.push({ order_id: r.order_id, entry: healRosterEntry(r.data) });
+    if (page.length < ROSTER_PAGE) break;
+  }
+  return out;
+}
+
 async function assetsOf(orderId: string): Promise<OrderAsset[]> {
   const res = await supabase()
     .from(ASSETS).select('id, data').eq('order_id', orderId).order('slot');
@@ -196,12 +219,34 @@ export const supabaseStore: Repository = {
   },
 
   async getOrder(id: string): Promise<OrderBundle | null> {
-    const order = await orderById(id);
-    if (!order) return null;
-    const [all, assets, submissions] = await Promise.all([
-      rosterOf(id), assetsOf(id), submissionsOf(id),
+    // The child reads are keyed by the id alone, so they don't wait for the order row.
+    const [order, all, assets, submissions] = await Promise.all([
+      orderById(id), rosterOf(id), assetsOf(id), submissionsOf(id),
     ]);
+    if (!order) return null;
     return { order, roster: activeRows(order, all), rosters: listRosters(order, all), assets, submissions };
+  },
+
+  async getOrderRow(id) {
+    return orderById(id);
+  },
+
+  async rostersForOrders(orders) {
+    const out: Record<string, RosterEntry[]> = {};
+    if (orders.length === 0) return out;
+    const ids = [...new Set(orders.map((o) => o.id))];
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += ROSTER_BATCH) chunks.push(ids.slice(i, i + ROSTER_BATCH));
+    const byOrder = new Map<string, RosterEntry[]>();
+    const results = await Promise.all(chunks.map((chunk) => allRosterRowsIn(chunk)));
+    for (const found of results) {
+      for (const row of found) {
+        const list = byOrder.get(row.order_id);
+        if (list) list.push(row.entry); else byOrder.set(row.order_id, [row.entry]);
+      }
+    }
+    for (const o of orders) out[o.id] = activeRows(o, byOrder.get(o.id) ?? []);
+    return out;
   },
 
   async createOrder(patch, actor) {
@@ -271,14 +316,16 @@ export const supabaseStore: Repository = {
   },
 
   async replaceRoster(orderId, entries, actor, rosterId) {
-    const order = await orderById(orderId, true);
+    // One read of each, side by side; the rows read here are also "what was there before" below.
+    const [order, existing] = await Promise.all([orderById(orderId, true), rosterOf(orderId)]);
     if (!order) throw new Error(`Order ${orderId} not found`);
     const active = activeRosterIdOf(order);
     // Refused rather than written into the wrong roster: see the interface.
     if (rosterId !== undefined && rosterId !== active) {
       throw new Error('A different roster has been put in use since this page loaded. Reload the page.');
     }
-    const before = rowsOfRoster(await rosterOf(orderId), active).length;
+    const previous = rowsOfRoster(existing, active);
+    const before = previous.length;
     const normalised = entries.map((e, i) => ({ ...e, orderId, sortOrder: i, rosterId: order.activeRosterId || '' }));
 
     /*
@@ -297,7 +344,7 @@ export const supabaseStore: Repository = {
     }
 
     // Only rows of the roster in use: the other rosters are left exactly as they are.
-    const stale = rowsOfRoster(await rosterOf(orderId), active).filter((r) => !keep.has(r.id)).map((r) => r.id);
+    const stale = previous.filter((r) => !keep.has(r.id)).map((r) => r.id);
     if (stale.length) {
       const res = await supabase().from(ROSTER).delete().in('id', stale);
       if (res.error) throw new Error(`clear old roster: ${res.error.message}`);
@@ -313,6 +360,8 @@ export const supabaseStore: Repository = {
       }),
     ]);
 
+    // Read again, on purpose: the order form autosaves the order alongside the
+    // roster, and writing back the row read at the top could undo that save.
     const o = await orderById(orderId, true);
     if (o) {
       o.updatedAt = new Date().toISOString();
@@ -425,6 +474,20 @@ export const supabaseStore: Repository = {
       }),
     ]);
     return created;
+  },
+
+  async updateAssetText(assetId, text) {
+    const found = await supabase().from(ASSETS).select('id, data').eq('id', assetId).maybeSingle();
+    if (found.error) throw new Error(`find artwork: ${found.error.message}`);
+    if (!found.data) return;
+    const a = (found.data as Row<OrderAsset>).data;
+    const next: OrderAsset = {
+      ...a,
+      ...(text.displayName !== undefined ? { displayName: text.displayName } : {}),
+      ...(text.notes !== undefined ? { notes: text.notes } : {}),
+    };
+    const res = await supabase().from(ASSETS).update({ data: next }).eq('id', assetId);
+    if (res.error) throw new Error(`rename artwork: ${res.error.message}`);
   },
 
   async replaceAssetFile(assetId, file, actor) {
@@ -704,15 +767,16 @@ export const supabaseStore: Repository = {
   },
 
   async getCallList(id) {
-    const found = await supabase().from(CALL_LISTS).select('id, data').eq('id', id).is('deleted_at', null).maybeSingle();
-    if (found.error) throw new Error(`find call list: ${found.error.message}`);
-    if (!found.data) return null;
-    const list = healCallList((found.data as Row<CallList>).data);
-    const [cs, gs, ss] = await Promise.all([
+    // The child reads are keyed by the list id alone, so all four go at once.
+    const [found, cs, gs, ss] = await Promise.all([
+      supabase().from(CALL_LISTS).select('id, data').eq('id', id).is('deleted_at', null).maybeSingle(),
       supabase().from(CALL_CONTACTS).select('id, data').eq('list_id', id).order('sort_order').order('created_at'),
       supabase().from(CALL_LOGS).select('id, data').eq('list_id', id).order('started_at', { ascending: false }),
       supabase().from(CALL_SESSIONS).select('id, data').eq('list_id', id).order('started_at', { ascending: false }),
     ]);
+    if (found.error) throw new Error(`find call list: ${found.error.message}`);
+    if (!found.data) return null;
+    const list = healCallList((found.data as Row<CallList>).data);
     return {
       list,
       contacts: rows<Contact>(unwrap(cs, 'load contacts')).map(healContact),

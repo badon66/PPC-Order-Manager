@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 export function FormSection({
   title,
@@ -106,6 +106,16 @@ export function NumberField({
   /** Stable hook for tests — repeated labels inside set cards aren't unique. */
   testId?: string;
 }) {
+  /*
+   * The box holds its own text while it's being typed in (2026-11-12). It used
+   * to turn an emptied box straight into `min`: backspacing "3" to type "4" in
+   * Number of Sets committed 1 for an instant — and set 2 onward, their
+   * quantities and their keepers were gone. Now an empty box commits nothing
+   * until you type a number or leave it.
+   */
+  const shown = Number.isFinite(value) ? String(value) : '0';
+  const [text, setText] = useState(shown);
+  const [editing, setEditing] = useState(false);
   return (
     <label className="block">
       <span className="text-xs font-medium text-muted">{label}</span>
@@ -113,9 +123,23 @@ export function NumberField({
         className="mt-1"
         type="number"
         min={min}
+        inputMode="numeric"
         data-testid={testId}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(Math.max(min, Number(e.target.value) || 0))}
+        value={editing ? text : shown}
+        onFocus={() => {
+          setText(shown);
+          setEditing(true);
+        }}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (e.target.value.trim() === '') return;
+          const n = Number(e.target.value);
+          if (Number.isFinite(n)) onChange(Math.max(min, Math.floor(n)));
+        }}
+        onBlur={() => {
+          setEditing(false);
+          if (text.trim() === '' && value !== min) onChange(min);
+        }}
       />
     </label>
   );
@@ -266,11 +290,59 @@ export function SizeSelect({
       {!known && (
         <input
           autoFocus
-          value={value.trim()}
+          // ' ' alone means "Other picked, nothing typed yet"; anything else is
+          // shown as typed — trimming it ate the space in "Senior XL".
+          value={value === ' ' ? '' : value}
           placeholder="Specify size"
           onChange={(e) => onChange(e.target.value || ' ')}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Dollars, cents allowed (2026-11-12). The old box kept digits only, so
+ * typing or pasting "1850.50" stored 185050. One decimal point, two places,
+ * and commas and $ are ignored.
+ */
+export function cleanMoneyText(raw: string): string {
+  const s = raw.replace(/[^0-9.]/g, '');
+  const dot = s.indexOf('.');
+  return dot === -1 ? s : `${s.slice(0, dot)}.${s.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`;
+}
+
+export function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+  className = '',
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const shown = value === null || value === undefined ? '' : String(value);
+  const [text, setText] = useState(shown);
+  const [editing, setEditing] = useState(false);
+  return (
+    <input
+      className={className}
+      inputMode="decimal"
+      value={editing ? text : shown}
+      placeholder={placeholder}
+      onFocus={() => {
+        setText(shown);
+        setEditing(true);
+      }}
+      onBlur={() => setEditing(false)}
+      onChange={(e) => {
+        const t = cleanMoneyText(e.target.value);
+        setText(t);
+        if (t === '' || t === '.') onChange(null);
+        else onChange(Math.round(Number(t) * 100) / 100);
+      }}
+    />
   );
 }

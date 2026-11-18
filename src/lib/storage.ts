@@ -109,6 +109,44 @@ const MAX_BYTES = 50 * 1024 * 1024;
  *  look at it; short enough that a forwarded link goes stale. */
 const SIGNED_URL_SECONDS = 60 * 60;
 
+/*
+ * Signed links, remembered for a while.
+ *
+ * Signing afresh on every render gave every image a new URL each time a page
+ * refreshed, so the browser threw its copy away and downloaded the lot again.
+ * A link is handed out again while it still has SIGNED_URL_MIN_LEFT_MS to
+ * live — nobody is given one about to expire — and signed anew after that.
+ * Nothing lives longer than it did before: the expiry is still fixed when the
+ * link is minted. Failures are never remembered.
+ *
+ * Per server instance, which is all it needs to be: a cold instance signs
+ * again, exactly as before.
+ */
+const SIGNED_URL_MIN_LEFT_MS = 15 * 60 * 1000;
+const SIGNED_URL_CACHE_MAX = 5000;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+function cachedSignedUrl(key: string, now: number): string | null {
+  const hit = signedUrlCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt - now < SIGNED_URL_MIN_LEFT_MS) {
+    signedUrlCache.delete(key);
+    return null;
+  }
+  return hit.url;
+}
+
+function rememberSignedUrl(key: string, url: string, mintedAt: number): void {
+  // Re-inserted so the Map's order stays oldest-first for the trim below.
+  signedUrlCache.delete(key);
+  signedUrlCache.set(key, { url, expiresAt: mintedAt + SIGNED_URL_SECONDS * 1000 });
+  while (signedUrlCache.size > SIGNED_URL_CACHE_MAX) {
+    const oldest = signedUrlCache.keys().next().value;
+    if (oldest === undefined) break;
+    signedUrlCache.delete(oldest);
+  }
+}
+
 export interface StoredFile {
   fileUrl: string;
   fileName: string;
@@ -246,6 +284,10 @@ export async function resolveFileUrl(fileUrl: string): Promise<string> {
   if (!fileUrl || !isBucketKey(fileUrl)) return fileUrl;
 
   const key = fileUrl.slice(ARTWORK_BUCKET.length + 1);
+  // Taken before the request, so the remembered expiry is never later than the real one.
+  const now = Date.now();
+  const cached = cachedSignedUrl(key, now);
+  if (cached) return cached;
   const { data, error } = await supabase()
     .storage
     .from(ARTWORK_BUCKET)
@@ -255,6 +297,7 @@ export async function resolveFileUrl(fileUrl: string): Promise<string> {
   // as a broken thumbnail, which tells Keenan something's wrong with that one
   // asset rather than hiding it behind a 500.
   if (error || !data) return '';
+  if (data.signedUrl) rememberSignedUrl(key, data.signedUrl, now);
   return data.signedUrl;
 }
 
@@ -285,14 +328,26 @@ export async function resolveAll<T extends { fileUrl: string; placementFileUrl?:
   ].filter((k): k is string => k !== null);
 
   const signed = new Map<string, string>();
-  if (keys.length) {
+  // Taken before the request, so the remembered expiry is never later than the real one.
+  const now = Date.now();
+  const misses: string[] = [];
+  // Duplicates are harmless — the same path signs to the same entry.
+  for (const key of new Set(keys)) {
+    const cached = cachedSignedUrl(key, now);
+    if (cached) signed.set(key, cached);
+    else misses.push(key);
+  }
+  // Only what isn't already in hand is signed, still in one round trip.
+  if (misses.length) {
     const { data } = await supabase()
       .storage
       .from(ARTWORK_BUCKET)
-      // Duplicates are harmless — the same path signs to the same entry.
-      .createSignedUrls([...new Set(keys)], SIGNED_URL_SECONDS);
+      .createSignedUrls(misses, SIGNED_URL_SECONDS);
     for (const row of data ?? []) {
-      if (row.path && row.signedUrl) signed.set(row.path, row.signedUrl);
+      if (row.path && row.signedUrl) {
+        signed.set(row.path, row.signedUrl);
+        rememberSignedUrl(row.path, row.signedUrl, now);
+      }
     }
   }
 

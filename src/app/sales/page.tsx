@@ -10,8 +10,7 @@ import { ListCard } from '@/components/sales/list-card';
 export const dynamic = 'force-dynamic';
 
 export default async function SalesPage() {
-  const user = await currentUser();
-  const lists = await repo.listCallLists();
+  const [user, lists] = await Promise.all([currentUser(), repo.listCallLists()]);
   const bundles = (await Promise.all(lists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
   const day = today(BUSINESS_TIMEZONE);
 

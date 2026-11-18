@@ -223,9 +223,14 @@ export async function saveOrder(
   }
 
   await repo.updateOrder(orderId, clean, actor);
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath('/orders');
-  revalidatePath('/queue');
+  /*
+   * No revalidatePath here, on purpose. This is the autosave: it fires about
+   * once a second while typing, and a revalidation inside a server action
+   * makes the action's response re-render the page being typed into — every
+   * read, every signed URL, every second. The caller already holds what it
+   * just saved. When the editing is over the form calls `revalidateOrder`
+   * once; the quick-edit dialog calls router.refresh() itself.
+   */
 
   return Object.keys(blocking).length > 0
     ? { ok: false, error: 'Some fields need fixing', errors: blocking, warnings }
@@ -245,9 +250,22 @@ export async function saveRoster(orderId: string, entries: RosterEntry[], roster
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+  // Autosave, like saveOrder: no revalidation per keystroke. See revalidateOrder.
+  return { ok: true };
+}
+
+/**
+ * The editing is done: let every page that shows this order start fresh.
+ *
+ * saveOrder and saveRoster used to do this on every autosave. It is called
+ * once instead, when the user leaves the form (Done), so the order page, the
+ * board and the queue aren't served from what the browser saw before.
+ */
+export async function revalidateOrder(orderId: string): Promise<void> {
+  await requireRole('staff');
   revalidatePath(`/orders/${orderId}`);
   revalidatePath('/orders');
-  return { ok: true };
+  revalidatePath('/queue');
 }
 
 /* ------------------------------------------------------------------ *
@@ -270,10 +288,10 @@ export async function acceptRosterImport(orderId: string, analysis: unknown, dec
   const a = cleanAnalysis(analysis);
   if (!a) return { ok: false, error: 'The preview was damaged on the way. Read the file again.' };
   const d = cleanDecisions(decisions, a);
-  const bundle = await repo.getOrder(orderId);
-  if (!bundle) return { ok: false, error: 'Order not found.' };
+  const order = await repo.getOrderRow(orderId);
+  if (!order) return { ok: false, error: 'Order not found.' };
 
-  const ctx = importContextOf(bundle.order);
+  const ctx = importContextOf(order);
   const result = buildImport(a, d, ctx);
   if (!result.ready) {
     return {
@@ -342,7 +360,8 @@ export async function attachAsset(asset: Omit<OrderAsset, 'id'>): Promise<Viewab
   await requireRole('staff');
   const actor = await currentActor();
   const created = await repo.addAsset(asset, actor);
-  revalidatePath(`/orders/${asset.orderId}`);
+  // No revalidatePath: the form keeps its own list, and the finished-photos
+  // card calls router.refresh() itself.
   // Signed here so the form can show the thumbnail straight away without a
   // round trip through the page. `viewUrl` is display-only and never stored.
   return { ...created, viewUrl: await resolveFileUrl(created.fileUrl) };
@@ -358,27 +377,22 @@ export async function renameAssetGroup(
   patch: { displayName?: string; notes?: string },
 ): Promise<SaveResult> {
   await requireRole('staff');
-  const actor = await currentActor();
   const bundle = await repo.getOrder(orderId);
   if (!bundle) return { ok: false, error: 'Order not found' };
 
+  /*
+   * In place (2026-11-12). This used to remove each file and add it back,
+   * which gave every file a new id — so the form's Remove and Rotate then
+   * pointed at ids that no longer existed and quietly did nothing, and two
+   * quick edits (name, then notes) could add the logo twice.
+   */
   for (const a of bundle.assets.filter((x) => x.groupId === groupId)) {
-    await repo.removeAsset(a.id, actor);
-    await repo.addAsset(
-      {
-        orderId: a.orderId,
-        role: a.role,
-        slot: a.slot,
-        fileUrl: a.fileUrl,
-        fileName: a.fileName,
-        displayName: patch.displayName ?? a.displayName,
-        notes: patch.notes ?? a.notes,
-        groupId: a.groupId,
-      },
-      actor,
-    );
+    const changed =
+      (patch.displayName !== undefined && patch.displayName !== a.displayName) ||
+      (patch.notes !== undefined && patch.notes !== a.notes);
+    if (changed) await repo.updateAssetText(a.id, patch);
   }
-  revalidatePath(`/orders/${orderId}`);
+  // No revalidatePath: fired per edit from the form, which holds the new text.
   return { ok: true };
 }
 
@@ -398,8 +412,7 @@ export async function rotateAssetFile(
   if (!bundle?.assets.some((a) => a.id === assetId)) return { ok: false, error: 'That photo is no longer on this order.' };
   const updated = await repo.replaceAssetFile(assetId, file, actor);
   if (!updated) return { ok: false, error: 'That photo is no longer on this order.' };
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath(`/orders/${orderId}/edit`);
+  // No revalidatePath: RotateButtons hands the new asset back or refreshes itself.
   return { ok: true, asset: { ...updated, viewUrl: await resolveFileUrl(updated.fileUrl) } };
 }
 
@@ -407,7 +420,7 @@ export async function detachAsset(assetId: string, orderId: string): Promise<Sav
   await requireRole('staff');
   const actor = await currentActor();
   await repo.removeAsset(assetId, actor);
-  revalidatePath(`/orders/${orderId}`);
+  // No revalidatePath: see attachAsset.
   return { ok: true };
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { formatLong } from '@/lib/dates';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BRANDING_ADDONS, CAPTAIN_PATCH_STYLE_META, JERSEY_TYPE_LABELS, MAX_DESIGN_REFERENCE_FILES, NAME_STYLE_LABELS, ORDER_MODE_META, PANT_SHELL_TYPE_LABELS, PANT_TOGGLES, SHOULDER_CUT_LABELS, SOCK_TYPE_LABELS, STATUS_META, STATUS_OPTIONS, addonHint, buildAddonsForJerseyType, type AddonKey, TERMS_URL, PLAYER_JERSEY_SIZES, SOCK_SIZES,
@@ -17,10 +17,10 @@ import { COMMENT_SECTIONS, type CommentSection } from '@/lib/types';
 import type {
   CaptainPatchStyle, ExtraJersey, JerseyTier, JerseyType, KeeperJersey, NameStyle, Order, OrderAsset, OrderMode, PantShellType, RosterEntry, ShoulderCut, SockType, ViewableAsset,
 } from '@/lib/types';
-import { attachAsset, detachAsset, renameAssetGroup, saveOrder, saveRoster } from '@/app/orders/actions';
-import { ChoiceGroup, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
+import { attachAsset, detachAsset, renameAssetGroup, revalidateOrder, saveOrder, saveRoster } from '@/app/orders/actions';
+import { ChoiceGroup, MoneyInput, NumberField, SizeSelect, TextArea, TextField, Toggle } from './fields';
 import { RosterTable } from './roster-table';
-import { RosterImporter } from '@/components/roster-import/importer';
+import dynamic from 'next/dynamic';
 import { RosterVersions } from '@/components/roster-import/versions';
 import { importContextOf } from '@/lib/roster-import/analyze';
 import { activeRosterIdOf, nextRosterNumber, type RosterVersionSummary } from '@/lib/roster-versions';
@@ -50,6 +50,16 @@ import {
 
 const AUTOSAVE_MS = 1000;
 
+// The import screen is big and only opens on demand: its code is fetched the
+// first time it's opened instead of with every order page.
+const RosterImporter = dynamic(
+  () => import('@/components/roster-import/importer').then((m) => m.RosterImporter),
+  { ssr: false },
+);
+
+/** One empty list for "no spares", so the roster table isn't handed a new one every render. */
+const NO_SPARES: ExtraJersey[] = [];
+
 type Draft = Order;
 
 export function OrderForm({
@@ -77,7 +87,9 @@ export function OrderForm({
   const [assets, setAssets] = useState<ViewableAsset[]>(initialAssets);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // The "Saving… / Saved" line has its own little store: flipping it re-renders
+  // only that line, not the whole form twice per save.
+  const [saveStore] = useState(createSaveStore);
   /** Why the roster table didn't save, when it didn't (another roster put in use elsewhere). */
   const [rosterError, setRosterError] = useState<string | null>(null);
   /** The import screen: closed, open to pick a file. */
@@ -125,52 +137,81 @@ export function OrderForm({
   const isApproved = Boolean(draft.approvedDate || draft.approvalRecord);
   const [editUnlocked, setEditUnlocked] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<null | (() => void)>(null);
+  const gateOn = isApproved && !editUnlocked;
 
   const set = useCallback(<K extends keyof Draft>(key: K, value: Draft[K]) => {
-    const apply = () => {
-      dirty.current = true;
-      setDraft((d) => ({ ...d, [key]: value }));
-    };
+    dirty.current = true;
+    setDraft((d) => ({ ...d, [key]: value }));
+  }, []);
 
-    if (isApproved && !editUnlocked) {
-      // Hold the edit rather than dropping it — confirming applies exactly
-      // what was typed, so nothing has to be retyped.
-      setPendingEdit(() => apply);
-      return;
-    }
-    apply();
-  }, [isApproved, editUnlocked]);
+  /*
+   * The gate sits on the INTERACTION, not on `set` (2026-11-12). Gating `set`
+   * missed every edit that doesn't go through it — quantities, extras, mode,
+   * set count, tier presets, keepers, the roster, uploads — so the changes
+   * that matter most on a signed order saved silently; it held only the last
+   * of two edits made together (custom branding's switch was lost); and the
+   * spare-list sync calling `set` could raise the prompt on load. Now the
+   * first press or keystroke on any control in the form asks first, and the
+   * press itself is held back until you say yes.
+   */
+  const gateInteraction = useCallback(
+    (e: React.SyntheticEvent) => {
+      if (!isApproved || editUnlocked) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('[role="dialog"], [data-no-gate]')) return;
+      if (!t.closest('input, select, textarea, button, [role="checkbox"], label')) return;
+      if (e.type === 'keydown') {
+        const k = (e as React.KeyboardEvent).key;
+        if (k.length !== 1 && k !== 'Backspace' && k !== 'Delete' && k !== 'Enter' && k !== ' ') return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingEdit(() => () => {});
+    },
+    [isApproved, editUnlocked],
+  );
+
+  /*
+   * What the server has, as far as this page knows: what it loaded plus every
+   * save since. A save sends only what differs from this (2026-11-12).
+   *
+   * It used to send the whole draft every time — and the draft is loaded once.
+   * So a customer who signed off while this page was open had their signature
+   * wiped by Keenan's next keystroke (approvedDate, approvedBy and the status
+   * all written back from the stale copy), a "Shipped" date stamped by the
+   * server was nulled on the following save, and anything changed from quick
+   * edit or the email panel meanwhile was reverted. Sending only what this
+   * page actually changed leaves everyone else's changes alone.
+   */
+  const savedRef = useRef<Draft>(initialOrder);
+
+  /*
+   * The save reads the newest draft and roster from refs rather than closing
+   * over them, so `flush` is one function for the life of the form instead of
+   * a new one per keystroke (which re-rendered everything it was handed to).
+   * Layout effect, declared before the autosave timer below: the refs are
+   * current before any timer or click can call `flush`.
+   */
+  const draftRef = useRef(draft);
+  const rosterRef = useRef(roster);
+  useLayoutEffect(() => {
+    draftRef.current = draft;
+    rosterRef.current = roster;
+  }, [draft, roster]);
 
   const flush = useCallback(async () => {
     if (!dirty.current && !rosterDirty.current) return;
-    setSaveState('saving');
+    saveStore.set('saving');
+    const draft = draftRef.current;
+    const roster = rosterRef.current;
 
-    let ok = true;
-    if (dirty.current) {
-      const res = await saveOrder(draft.id, draft);
-      dirty.current = false;
-      setWarnings(res.warnings ?? {});
-      if (res.ok) setErrors({});
-      else {
-        setErrors(res.errors ?? {});
-        ok = false;
-      }
-    }
-    if (rosterDirty.current) {
-      // Saved into the roster this page loaded, and only that one: if another
-      // roster went in use meanwhile, the save is refused, not misfiled.
-      const res = await saveRoster(draft.id, roster, loadedRosterId);
-      rosterDirty.current = false;
-      if (res.ok) setRosterError(null);
-      else {
-        setRosterError(res.error);
-        ok = false;
-      }
-    }
+    const ok = await saveChanges({
+      draft, roster, loadedRosterId, dirty, rosterDirty, savedRef, setWarnings, setErrors, setRosterError,
+    });
 
-    setSaveState(ok ? 'saved' : 'error');
-    if (ok) setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1800);
-  }, [draft, roster, loadedRosterId]);
+    saveStore.set(ok ? 'saved' : 'error');
+    if (ok) setTimeout(() => saveStore.settle(), 1800);
+  }, [loadedRosterId, saveStore]);
 
   useEffect(() => {
     if (!dirty.current && !rosterDirty.current) return;
@@ -199,8 +240,17 @@ export function OrderForm({
   const extraRows = extraRowCount(draft);
   useEffect(() => {
     const next = syncExtraJerseyDetails(draft.extraJerseyDetails ?? [], extraRows);
+    // A list kept in step with a count typed elsewhere; it only changes when the count does.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (next !== (draft.extraJerseyDetails ?? [])) set('extraJerseyDetails', next);
   }, [extraRows, draft.extraJerseyDetails, set]);
+
+  // Stable handlers for the roster table, so it only re-renders for its own data.
+  const changeRoster = useCallback((next: RosterEntry[]) => {
+    rosterDirty.current = true;
+    setRoster(next);
+  }, []);
+  const openImporter = useCallback(() => setImporting(true), []);
 
   const patchExtra = (i: number, patch: Partial<ExtraJersey>) => {
     const next = [...(draft.extraJerseyDetails ?? [])];
@@ -380,15 +430,11 @@ export function OrderForm({
               const lp = listPrice(draft);
               return (
                 <>
-                  <input
+                  <MoneyInput
                     className="mt-1"
-                    inputMode="numeric"
-                    value={draft.orderValue ?? ''}
+                    value={draft.orderValue}
                     placeholder={lp ? formatCad(lp.total) : 'Pick a jersey tier to price'}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/[^0-9]/g, '');
-                      set('orderValue', v === '' ? null : Number(v));
-                    }}
+                    onChange={(v) => set('orderValue', v)}
                   />
                   {lp && (
                     <details className="mt-1.5 text-xs text-muted">
@@ -1303,12 +1349,9 @@ export function OrderForm({
           sockType={draft.sockType}
           pantShellType={draft.pantShellType}
           nameStyle={draft.nameStyle}
-          spares={draft.extraJerseyDetails ?? []}
-          onImport={() => setImporting(true)}
-          onChange={(next) => {
-            rosterDirty.current = true;
-            setRoster(next);
-          }}
+          spares={draft.extraJerseyDetails ?? NO_SPARES}
+          onImport={openImporter}
+          onChange={changeRoster}
         />
         {importing && (
           <RosterImporter
@@ -1403,7 +1446,7 @@ export function OrderForm({
         </p>
         <p className="mt-2 text-sm text-muted">
           If you go ahead, tell them what changed — and remember the order can&apos;t be changed at
-          all once it&apos;s in production.
+          all once it&apos;s in production. Once you say yes, make your change again.
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
@@ -1433,6 +1476,16 @@ export function OrderForm({
 
   const finish = async () => {
     await flush();
+    // Something still unsaved (a dropped connection): stay, the bar says so.
+    if (dirty.current || rosterDirty.current) return;
+    // Autosaves don't refresh the other pages (that made every keystroke
+    // expensive); the editing is over now, so do it once.
+    try {
+      await revalidateOrder(draft.id);
+    } catch (e) {
+      // Everything is saved; a failed refresh must not trap you in the form.
+      console.error('[form] revalidate failed', e);
+    }
     router.push(`/orders/${draft.id}`);
   };
 
@@ -1448,7 +1501,14 @@ export function OrderForm({
 
   return (
     <AssetSwapContext.Provider value={swapAsset}>
-    <div className="space-y-4 pb-24">
+    <div
+      className="space-y-4 pb-24"
+      // Only a signed, still-locked order needs the gate; otherwise no handler
+      // runs on every press and keystroke in the form.
+      onPointerDownCapture={gateOn ? gateInteraction : undefined}
+      onKeyDownCapture={gateOn ? gateInteraction : undefined}
+      onClickCapture={gateOn ? gateInteraction : undefined}
+    >
       {modificationGate}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1482,7 +1542,11 @@ export function OrderForm({
           {content[sections[Math.min(step, sections.length - 1)].id]}
         </WizardFrame>
       ) : (
-        <div className="flex gap-6">
+        // Phone: the jump menu ABOVE the sections, full width. It used to sit
+        // beside them in the same row, which squeezed the whole form into a
+        // strip a few words wide (Keenan, 2026-11-12). Side by side from lg,
+        // where the menu is the sidebar.
+        <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
           <SectionNav
             sections={sections}
             activeId={activeId}
@@ -1509,10 +1573,10 @@ export function OrderForm({
       )}
 
       {/* Sticky save bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-background/95 backdrop-blur">
+      <div data-no-gate className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <SaveIndicator state={saveState} />
-          <div className="flex gap-2">
+          <SaveIndicator store={saveStore} />
+          <div className="flex shrink-0 gap-2">
             <button type="button" onClick={flush} className="rounded-lg border border-line bg-surface-2 px-4 py-2 text-sm font-semibold hover:border-ppc-gold/60">
               Save now
             </button>
@@ -1527,12 +1591,134 @@ export function OrderForm({
   );
 }
 
-function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error' }) {
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+/** Where the save line's state lives, outside React state — see OrderForm. */
+function createSaveStore() {
+  let state: SaveState = 'idle';
+  const listeners = new Set<() => void>();
+  const emit = (next: SaveState) => {
+    if (next === state) return;
+    state = next;
+    listeners.forEach((l) => l());
+  };
+  return {
+    get: () => state,
+    set: emit,
+    /** "✓ Saved" fades back to idle, unless something else has happened since. */
+    settle: () => emit(state === 'saved' ? 'idle' : state),
+    subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
+  };
+}
+type SaveStore = ReturnType<typeof createSaveStore>;
+
+/**
+ * Runs one save. If it throws (network drop, expired session) the edits are
+ * marked unsaved again before the error carries on up.
+ */
+async function redirtyOnThrow<T>(flag: { current: boolean }, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    flag.current = true;
+    throw e;
+  }
+}
+
+/**
+ * The save itself: sends what differs from the baseline, then the roster.
+ * Lives outside the component so OrderForm stays something the React Compiler
+ * can optimise (it skips components with branching inside try/catch).
+ * Returns false when anything was refused or failed.
+ */
+async function saveChanges({
+  draft, roster, loadedRosterId, dirty, rosterDirty, savedRef, setWarnings, setErrors, setRosterError,
+}: {
+  draft: Draft;
+  roster: RosterEntry[];
+  loadedRosterId: ReturnType<typeof activeRosterIdOf>;
+  dirty: { current: boolean };
+  rosterDirty: { current: boolean };
+  savedRef: { current: Draft };
+  setWarnings: Dispatch<SetStateAction<Record<string, string>>>;
+  setErrors: Dispatch<SetStateAction<Record<string, string>>>;
+  setRosterError: Dispatch<SetStateAction<string | null>>;
+}): Promise<boolean> {
+  let ok = true;
+  try {
+    if (dirty.current) {
+      // Cleared BEFORE the save goes out: a keystroke landing while it's in
+      // flight sets it again and gets its own save, instead of being wiped
+      // by this one finishing.
+      dirty.current = false;
+      const base = savedRef.current;
+      const patch: Partial<Order> = {};
+      for (const k of Object.keys(draft) as Array<keyof Order>) {
+        // Same reference is the usual case (one field changed, the rest are
+        // the very objects that were loaded); only compare by content when
+        // it isn't.
+        if (draft[k] !== base[k] && JSON.stringify(draft[k]) !== JSON.stringify(base[k])) {
+          (patch as Record<string, unknown>)[k] = draft[k];
+        }
+      }
+      // The sets are rebuilt from the mode and the count on the server, so
+      // the three always travel together.
+      if ('orderMode' in patch || 'numberOfSets' in patch || 'sets' in patch) {
+        Object.assign(patch, { orderMode: draft.orderMode, numberOfSets: draft.numberOfSets, sets: draft.sets });
+      }
+      if (Object.keys(patch).length > 0) {
+        const res = await redirtyOnThrow(dirty, () => saveOrder(draft.id, patch));
+        // Only what was sent is now on the server.
+        savedRef.current = { ...base, ...patch };
+        // Warnings for fields not in this save still stand.
+        setWarnings((w) => {
+          const kept = Object.fromEntries(Object.entries(w).filter(([f]) => !(f in patch)));
+          const next = { ...kept, ...(res.warnings ?? {}) };
+          // Nothing to show before or after: keep the same object, no re-render.
+          return Object.keys(w).length === 0 && Object.keys(next).length === 0 ? w : next;
+        });
+        if (res.ok) setErrors((e) => (Object.keys(e).length === 0 ? e : {}));
+        else {
+          setErrors(res.errors ?? {});
+          // A blocked field wasn't stored: keep it out of the baseline so it's sent again.
+          for (const f of Object.keys(res.errors ?? {})) {
+            (savedRef.current as unknown as Record<string, unknown>)[f] = (base as unknown as Record<string, unknown>)[f];
+          }
+          ok = false;
+        }
+      }
+    }
+    if (rosterDirty.current) {
+      // Saved into the roster this page loaded, and only that one: if another
+      // roster went in use meanwhile, the save is refused, not misfiled.
+      rosterDirty.current = false;
+      const res = await redirtyOnThrow(rosterDirty, () => saveRoster(draft.id, roster, loadedRosterId));
+      if (res.ok) setRosterError(null);
+      else {
+        setRosterError(res.error);
+        ok = false;
+      }
+    }
+  } catch (e) {
+    // Network drop, expired session: say so, keep the edits marked unsaved.
+    console.error('[form] save failed', e);
+    ok = false;
+  }
+  return ok;
+}
+
+function SaveIndicator({ store }: { store: SaveStore }) {
+  const state = useSyncExternalStore(store.subscribe, store.get, store.get);
   const text = {
     idle: 'All changes saved automatically',
     saving: 'Saving…',
     saved: '✓ Saved',
-    error: 'Some fields need fixing',
+    error: 'Not saved — check the marked fields or your connection',
   }[state];
   const cls = {
     idle: 'text-muted',
@@ -1540,5 +1726,5 @@ function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error'
     saved: 'text-emerald-300',
     error: 'text-red-300',
   }[state];
-  return <span className={`text-xs font-semibold ${cls}`}>{text}</span>;
+  return <span className={`min-w-0 text-xs font-semibold ${cls}`}>{text}</span>;
 }

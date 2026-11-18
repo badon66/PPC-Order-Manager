@@ -239,6 +239,14 @@ export interface Repository {
   /* Orders ------------------------------------------------------------- */
   listOrders(filters?: OrderListFilters): Promise<Order[]>;
   getOrder(id: string): Promise<OrderBundle | null>;
+  /** Just the order row — no roster, artwork or submissions. Null when missing or in the trash, exactly as getOrder. */
+  getOrderRow(id: string): Promise<Order | null>;
+  /**
+   * The roster IN USE of each given order, keyed by order id — what getOrder
+   * returns as `roster`, for a whole board in one read. Every given order has
+   * a key (an empty list when it has no rows).
+   */
+  rostersForOrders(orders: Order[]): Promise<Record<string, RosterEntry[]>>;
   createOrder(patch: Partial<Order>, actor: Actor): Promise<Order>;
   updateOrder(id: string, patch: Partial<Order>, actor: Actor): Promise<Order>;
   softDeleteOrder(id: string, actor: Actor): Promise<void>;
@@ -279,6 +287,8 @@ export interface Repository {
    * (2026-11-03). Keeps the id, role, slot, name and notes; null if it's gone.
    */
   replaceAssetFile(assetId: string, file: { fileUrl: string; fileName: string }, actor: Actor): Promise<OrderAsset | null>;
+  /** A file's name and notes, changed in place — same id, same row (a logo renamed). */
+  updateAssetText(assetId: string, text: { displayName?: string; notes?: string }): Promise<void>;
 
   /* Public (token-addressed, redacted) --------------------------------- */
   getByShareToken(token: string): Promise<PublicOrderView | null>;

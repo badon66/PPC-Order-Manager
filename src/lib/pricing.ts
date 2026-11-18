@@ -86,7 +86,16 @@ export function listPrice(order: Priceable): Pricing | null {
   const lines: PriceLine[] = [];
   const caveats: string[] = [];
   const jerseys = t.totalJerseys;
-  const players = order.sets.reduce((m, s) => Math.max(m, (s.playerJerseys || 0) + (s.goalieJerseys || 0)), 0);
+  /*
+   * People, not garments (2026-11-12): a home/away order dresses one squad
+   * twice, so it's the larger set; any other order's sets are different
+   * people, so they add up. Same rule as playersDressed.
+   */
+  const people = (f: (s: (typeof order.sets)[number]) => number) =>
+    order.orderMode === 'home_away_set'
+      ? order.sets.reduce((m, s) => Math.max(m, f(s) || 0), 0)
+      : order.sets.reduce((n, s) => n + (f(s) || 0), 0);
+  const players = people((s) => (s.playerJerseys || 0) + (s.goalieJerseys || 0));
 
   const small = jerseys > 0 && jerseys < SMALL_ORDER_THRESHOLD;
   if (small) caveats.push(`Under ${SMALL_ORDER_THRESHOLD} jerseys: +50% each, and shipping isn't free.`);
@@ -168,8 +177,11 @@ export function listPrice(order: Priceable): Pricing | null {
     lines.push({ label: shellTypesUsed.size > 1 ? `Pant shells (${type})` : 'Pant shells', qty, unit, amount: qty * unit });
   }
 
-  if (jerseys > 0 && socks > 0 && shells > 0 && players >= BUNDLE_MIN_PLAYERS) {
-    lines.push({ label: 'Team bundle (jerseys + socks + shells)', qty: players, unit: -BUNDLE_SAVING_PER_PLAYER, amount: -players * BUNDLE_SAVING_PER_PLAYER });
+  // The bundle is per player who gets the whole kit: 16 jerseys, 16 socks and
+  // 1 pant shell is one full kit, not sixteen (it used to give $560 off).
+  const kitted = Math.min(players, people((s) => s.sockPairs || 0), people((s) => s.pantShells || 0));
+  if (jerseys > 0 && socks > 0 && shells > 0 && kitted >= BUNDLE_MIN_PLAYERS) {
+    lines.push({ label: 'Team bundle (jerseys + socks + shells)', qty: kitted, unit: -BUNDLE_SAVING_PER_PLAYER, amount: -kitted * BUNDLE_SAVING_PER_PLAYER });
   }
 
   if (groups.some((g) => g.build.jerseyTier === 'reversible')) caveats.push('Reversible has been quoted at both $120 and $130; this uses $130.');

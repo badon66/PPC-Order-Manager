@@ -124,8 +124,14 @@ export async function logCall(listId: string, contactId: string, raw: CallLogInp
   const newContact = named ? { ...named, id: newId() } : null;
 
   await repo.addCallLog(log, patch, newContact, actor, plan.otherPatches);
-  revalidatePath('/sales');
-  revalidatePath(`/sales/${listId}`);
+  /*
+   * No revalidatePath (it used to revalidate /sales and the list). A
+   * revalidation inside an action makes the response re-render the page the
+   * caller is on — the whole calling screen, after every call. The calling
+   * screen puts the result into its own state; the contacts table (quickStatus)
+   * calls router.refresh() itself; and leaving the calling screen ends the
+   * session, which does revalidate.
+   */
   return { ok: true, log, contact: { ...contact, ...patch }, referral: newContact, others: plan.otherPatches, warnings };
 }
 
@@ -151,8 +157,7 @@ export async function updateCallLog(logId: string, contactId: string, raw: CallL
   const patch = applyCallLog(contact, log, today(BUSINESS_TIMEZONE), { replacing: true });
 
   await repo.updateCallLog(log, patch, actor);
-  revalidatePath('/sales');
-  revalidatePath(`/sales/${existing.listId}`);
+  // No revalidatePath: the calling screen holds the new state, and one here re-renders the whole page per call.
   return { ok: true, log, contact: { ...contact, ...patch }, referral: null, others: [], warnings };
 }
 
@@ -209,8 +214,7 @@ export async function saveListScript(listId: string, items: unknown): Promise<{ 
   const v = validateScript(items);
   if (!v.ok) return v;
   await repo.updateCallList({ ...bundle.list, script: v.items, updatedAt: new Date().toISOString() }, actor);
-  revalidatePath(`/sales/${listId}`);
-  revalidatePath(`/sales/${listId}/call`);
+  // No revalidatePath: the calling screen holds the new state, and one here re-renders the whole page per call.
   return { ok: true, script: v.items };
 }
 
@@ -230,7 +234,7 @@ export async function updateListText(
     updatedAt: new Date().toISOString(),
   };
   await repo.updateCallList(list, actor);
-  revalidatePath(`/sales/${listId}/call`);
+  // No revalidatePath: the calling screen holds the new state, and one here re-renders the whole page per call.
   return { ok: true, list };
 }
 
@@ -244,7 +248,7 @@ export async function startSession(listId: string, callerName: string): Promise<
     await repo.endCallSession(open.id, sessionEnd(open, bundle.logs), actor);
   }
   const session = await repo.createCallSession(blankCallSession(newId(), listId, callerName.trim() || actor.name, new Date().toISOString()), actor);
-  revalidatePath(`/sales/${listId}`);
+  // No revalidatePath: this fires as the calling screen opens, and would re-render it straight away.
   return { ok: true, session };
 }
 
@@ -266,7 +270,7 @@ export async function skipContact(listId: string, contactId: string): Promise<{ 
   const contact = await repo.getContact(contactId);
   if (!contact || contact.listId !== listId) return { ok: false, error: 'Contact not found on this list' };
   await repo.updateContact(contactId, applySkip(contact, new Date().toISOString()), actor);
-  revalidatePath(`/sales/${listId}`);
+  // No revalidatePath: the calling screen holds the new state, and one here re-renders the whole page per call.
   return { ok: true };
 }
 

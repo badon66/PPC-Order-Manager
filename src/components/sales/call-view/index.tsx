@@ -82,7 +82,6 @@ export function CallView(props: CallViewProps) {
   // Nested fields go through `update` so a burst of taps never reads a stale draft.
   const tick = (id: string, on: boolean) => update((d) => ({ ...d, checklist: on ? [...new Set([...d.checklist, id])] : d.checklist.filter((x) => x !== id) }));
   const answer = (id: string, v: string) => update((d) => ({ ...d, answers: { ...d.answers, [id]: v } }));
-  const elapsed = useElapsedSince(currentId ? draft.startedAt : null);
 
   const current = currentId ? contacts[currentId] : null;
   const allContacts = useMemo(() => Object.values(contacts), [contacts]);
@@ -219,8 +218,8 @@ export function CallView(props: CallViewProps) {
         <Link href={`/sales/${list.id}`} onClick={() => { void session.end(); }} className="text-muted hover:text-ppc-gold">← {list.name}</Link>
         <div className="flex items-center gap-5 tabular-nums text-muted">
           <span data-testid="queue-position">{position >= 0 ? `${position + 1} of ${queue.length} in queue` : current ? 'Not in queue' : `${queue.length} in queue`}</span>
-          <span>⏱ calling for <span className="font-semibold text-foreground">{formatClock(session.seconds)}</span></span>
-          {current && <span><span className="font-semibold text-foreground">{formatClock(elapsed)}</span> here</span>}
+          <span>⏱ calling for <Clock since={session.session?.startedAt ?? null} /></span>
+          {current && <span><Clock since={currentId ? draft.startedAt : null} /> here</span>}
           <button type="button" onClick={() => setHelp((h) => !h)} className="rounded border border-line px-1.5 text-[12px] hover:text-ppc-gold" title="Keyboard shortcuts">?</button>
           <button type="button" onClick={() => setSettingsOpen(true)} className="rounded border border-line px-2 py-0.5 text-[13px] hover:border-ppc-gold/60 hover:text-ppc-gold" title="Pickup line and voicemail message">⚙ Settings</button>
         </div>
@@ -351,4 +350,13 @@ export function CallView(props: CallViewProps) {
       />
     </div>
   );
+}
+
+/**
+ * A running clock since `since`. Its own component so the once-a-second tick
+ * re-renders these few characters and not the whole four-column screen.
+ */
+function Clock({ since }: { since: string | null }) {
+  const seconds = useElapsedSince(since);
+  return <span className="font-semibold text-foreground">{formatClock(seconds)}</span>;
 }

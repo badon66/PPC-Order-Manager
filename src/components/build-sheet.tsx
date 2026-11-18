@@ -565,6 +565,9 @@ export function RosterSection({
   const showSocks = orderIncludesSocks(sheet);
   // Pant shells on the order, OR a pant size typed on any row: a size that was
   // entered is shown whatever the totals say, so it can never silently vanish.
+  // Same rule as the pants: a column of "—" on a jerseys-only order reads as missing data.
+  const showSockCol =
+    showSocks || sheet.roster.some((r) => (r.sockSize ?? '').trim() !== '') || spares.some((x) => (x.sockSize ?? '').trim() !== '');
   const showPants =
     orderIncludesPantShells(sheet) || sheet.roster.some((r) => (r.pantShellSize ?? '').trim() !== '');
 
@@ -599,7 +602,7 @@ export function RosterSection({
               <th className="py-2 pr-3">Name</th>
               <th className="py-2 pr-3">#</th>
               <th className="py-2 pr-3">Jersey Size</th>
-              <th className="py-2 pr-3">Sock Size</th>
+              {showSockCol && <th className="py-2 pr-3">Sock Size</th>}
               {/* Only when the order has pant shells; an empty column on every other order reads as "missing". */}
               {showPants && <th className="py-2 pr-3">Pant Shell Size</th>}
               {/*
@@ -635,7 +638,7 @@ export function RosterSection({
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{r.number || '—'}</td>
                 <td className="py-2 pr-3">{r.sockOnly ? 'Sock only' : sizeLabel(r.jerseySize) || '—'}</td>
-                <td className="py-2 pr-3">{sizeLabel(r.sockSize) || '—'}</td>
+                {showSockCol && <td className="py-2 pr-3">{sizeLabel(r.sockSize) || '—'}</td>}
                 {showPants && <td className="py-2 pr-3">{sizeLabel(r.pantShellSize) || '—'}</td>}
                 <td className="py-2 text-muted">{r.notes || '—'}</td>
               </tr>
@@ -663,7 +666,7 @@ export function RosterSection({
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{x.number || '—'}</td>
                 <td className="py-2 pr-3">{x.sockOnly ? 'Socks only' : sizeLabel(x.size) || '—'}</td>
-                <td className="py-2 pr-3">{sizeLabel(x.sockSize) || '—'}</td>
+                {showSockCol && <td className="py-2 pr-3">{sizeLabel(x.sockSize) || '—'}</td>}
                 {showPants && <td className="py-2 pr-3">—</td>}
                 {/* Same column as the players', not tucked beside the badge. */}
                 <td className="py-2 text-muted">{x.notes || '—'}</td>
@@ -683,7 +686,7 @@ export function RosterSection({
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{k.number || '—'}</td>
                 <td className="py-2 pr-3">{sizeLabel(k.size) || '—'}</td>
-                <td className="py-2 pr-3">—</td>
+                {showSockCol && <td className="py-2 pr-3">—</td>}
                 {showPants && <td className="py-2 pr-3">—</td>}
                 <td className="py-2 text-amber-200">
                   {sheet.sets.length > 1 ? `Copy of the ${sheet.sets[k.setIndex]?.label ?? 'set'}. ` : ''}

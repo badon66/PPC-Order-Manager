@@ -56,11 +56,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       { status: 429 },
     );
   }
-  const bundle = await repo.getOrder(gate.orderId);
-  if (!bundle) return Response.json({ ok: false, error: 'This link is not active.' }, { status: 403 });
+  const order = await repo.getOrderRow(gate.orderId);
+  if (!order) return Response.json({ ok: false, error: 'This link is not active.' }, { status: 403 });
 
   const given = String(form.get('fileUrl') ?? '');
-  const ctx = importContextOf(bundle.order);
+  const ctx = importContextOf(order);
   const result = await readRosterFile({
     bytes: new Uint8Array(await file.arrayBuffer()),
     fileName: String(form.get('fileName') ?? '').slice(0, 200) || file.name,

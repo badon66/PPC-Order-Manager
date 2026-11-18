@@ -119,3 +119,18 @@ test('sets built differently each carry their own build add-ons', () => {
   assert.ok(!('ppcBackBranding' in part) && part.underarmVents === true);
   assert.ok(BUILD_ADDON_KEYS.every((k) => !['ppcBackBranding', 'printedSizingTag', 'rubberizedPpcCrest'].includes(k)));
 });
+
+test('team bundle: per full kit, by people — not per jersey when shells are few', () => {
+  const o: Order = { ...blankOrder(), jerseyTier: 'premier', jerseyType: 'sublimated', sockType: 'sublimated', pantShellType: 'sublimated' } as Order;
+  o.sets = [{ ...o.sets[0], playerJerseys: 16, goalieJerseys: 0, sockPairs: 16, pantShells: 1 }];
+  assert.equal(listPrice(o)!.lines.find((l) => /bundle/i.test(l.label)), undefined);
+  o.sets = [{ ...o.sets[0], playerJerseys: 18, goalieJerseys: 0, sockPairs: 18, pantShells: 17 }];
+  assert.equal(listPrice(o)!.lines.find((l) => /bundle/i.test(l.label))!.qty, 17);
+  // two different groups of ten, each fully kitted: twenty kits
+  const multi: Order = { ...o, orderMode: 'multiple_sets' } as Order;
+  multi.sets = [
+    { ...o.sets[0], playerJerseys: 10, sockPairs: 10, pantShells: 10 },
+    { ...o.sets[0], label: 'Set 2', playerJerseys: 10, sockPairs: 10, pantShells: 10 },
+  ];
+  assert.equal(listPrice(multi)!.lines.find((l) => /bundle/i.test(l.label))!.qty, 20);
+});

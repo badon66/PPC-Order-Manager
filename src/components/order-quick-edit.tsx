@@ -10,6 +10,7 @@ import { paymentsOn } from '@/lib/payments';
 import { dueUpdates } from '@/lib/data/customer-updates-logic';
 import { upsTrackingUrl } from '@/lib/data/update-mail';
 import { deleteOrder, saveOrder } from '@/app/orders/actions';
+import { cleanMoneyText } from '@/components/order-form/fields';
 import { markUpdateSentAction } from '@/app/orders/mark-sent-action';
 import {
   PAYMENT_KINDS, PAYMENT_KIND_LABEL, UPDATE_STAGE_LABEL,
@@ -251,7 +252,7 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
             <span className="mb-1 block text-xs font-medium text-muted">
               Order value (CAD){value === '' ? ' — list price' : ' — set by hand'}
             </span>
-            <input inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ''))} placeholder={lp ? formatCad(lp.total) : 'No tier to price'} className="w-full" />
+            <input inputMode="decimal" value={value} onChange={(e) => setValue(cleanMoneyText(e.target.value))} placeholder={lp ? formatCad(lp.total) : 'No tier to price'} className="w-full" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted">Invoice number</span>
@@ -307,10 +308,13 @@ export function OrderQuickEdit({ order, onClose }: { order: QuickEditOrder; onCl
                     type="date"
                     max={today()}
                     value={factoryDay}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setFactoryDay(v);
-                      if (v && v !== order.sentToFactoryAt) save({ sentToFactoryAt: v }, false);
+                    onChange={(e) => setFactoryDay(e.target.value)}
+                    // Saved when you're done with the box, not per keystroke:
+                    // typing a year passes through 0002, 0020, 0202 on the way.
+                    onBlur={() => {
+                      if (/^20\d\d-\d\d-\d\d$/.test(factoryDay) && factoryDay !== order.sentToFactoryAt) {
+                        save({ sentToFactoryAt: factoryDay }, false);
+                      }
                     }}
                     className="!w-auto"
                   />

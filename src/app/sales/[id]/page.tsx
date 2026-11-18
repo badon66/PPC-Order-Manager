@@ -41,9 +41,8 @@ export default async function ContactsPage({
 }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const bundle = await repo.getCallList(id);
+  const [bundle, user] = await Promise.all([repo.getCallList(id), currentUser()]);
   if (!bundle) notFound();
-  const user = await currentUser();
 
   const day = today(BUSINESS_TIMEZONE);
   const logCounts: Record<string, number> = {};

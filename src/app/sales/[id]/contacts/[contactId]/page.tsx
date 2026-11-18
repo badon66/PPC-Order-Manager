@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ContactPage({ params }: { params: Promise<{ id: string; contactId: string }> }) {
   const { id, contactId } = await params;
-  const bundle = await repo.getCallList(id);
+  const [bundle, allLists] = await Promise.all([repo.getCallList(id), repo.listCallLists()]);
   if (!bundle) notFound();
   const contact = bundle.contacts.find((c) => c.id === contactId);
   if (!contact) notFound();
@@ -25,7 +25,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const linked = linkedContacts(contact, bundle.contacts);
   const logs = bundle.logs.filter((g) => g.contactId === contact.id);
   const sessionsById = Object.fromEntries(bundle.sessions.map((s) => [s.id, s]));
-  const otherLists = (await repo.listCallLists()).filter((l) => l.id !== id);
+  const otherLists = allLists.filter((l) => l.id !== id);
   const others = (await Promise.all(otherLists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
   const elsewhere = alsoIn(contact, others);
 

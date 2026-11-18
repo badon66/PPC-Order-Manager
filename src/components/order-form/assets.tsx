@@ -65,6 +65,13 @@ export interface AssetGroupProps {
  */
 export const AssetSwapContext = createContext<((next: ViewableAsset) => void) | null>(null);
 
+/** The lowest slot number not taken. */
+export function firstFreeSlot(used: ReadonlySet<number>): number {
+  let n = 0;
+  while (used.has(n)) n++;
+  return n;
+}
+
 export async function uploadFile(
   file: File,
   /** 'roster' for a roster file to import: spreadsheets and documents allowed, not just artwork. */
@@ -116,6 +123,16 @@ async function uploadThroughServer(
   return json;
 }
 
+/** Runs it; the error's message if it threw, null if it didn't. */
+export async function messageIfThrown(run: () => Promise<void>): Promise<string | null> {
+  try {
+    await run();
+    return null;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
 export function AssetGroup({
   orderId,
   role,
@@ -142,13 +159,20 @@ export function AssetGroup({
   async function handleFiles(files: FileList) {
     setError(null);
     setBusy(true);
-    try {
-      let slot = mine.length;
+    // The loop is in a function of its own so there is no branching inside a
+    // try/catch here, which the React Compiler can't optimise around.
+    const upload = async () => {
+      // The first free slot, not the file count: after removing the Home
+      // reference, its replacement is Home again, not a second "Away Set".
+      const used = new Set(mine.map((a) => a.slot));
+      let added = 0;
       for (const file of Array.from(files)) {
-        if (slot >= max) {
+        if (mine.length + added >= max) {
           setError(`${title} holds up to ${max} files.`);
           break;
         }
+        const slot = firstFreeSlot(used);
+        used.add(slot);
         const stored = await uploadFile(file);
         await onAdd({
           orderId,
@@ -160,13 +184,12 @@ export function AssetGroup({
           notes: '',
           ...(group ? { groupId: group.id } : {}),
         });
-        slot++;
+        added++;
       }
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    };
+    const failed = await messageIfThrown(upload);
+    if (failed !== null) setError(failed);
+    setBusy(false);
   }
 
   return (

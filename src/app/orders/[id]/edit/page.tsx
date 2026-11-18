@@ -20,10 +20,14 @@ export default async function EditOrderPage({
 
   // Artwork lives in a private bucket, so the stored value is a key. Sign it
   // here, once, before the form renders any of it.
-  const assets = (await resolveAll(bundle.assets)).map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
+  const [signedAssets, signedRosterFiles] = await Promise.all([
+    resolveAll(bundle.assets),
+    resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))),
+  ]);
+  const assets = signedAssets.map((a) => ({ ...a, viewUrl: a.resolvedUrl }));
   // The file each imported roster was read from, so the original is a click away.
   const rosterFileLinks = Object.fromEntries(
-    (await resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))))
+    signedRosterFiles
       .filter((v) => v.resolvedUrl)
       .map((v) => [v.id, v.resolvedUrl]),
   );

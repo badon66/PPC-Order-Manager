@@ -47,7 +47,9 @@ export default async function ClientRosterPage({ params }: { params: Promise<{ t
             <p className="mt-1 text-sm text-muted">{stillOpen.text}</p>
           </>
         ) : open.length > 0 ? (
-          previous ? (
+          // After a decline the note above says what happened; "everything you
+          // entered is below" would contradict it.
+          previous && !declined ? (
             <p className="mt-2 text-sm text-muted">
               You&apos;ve sent this to us once already — everything you entered is below. Change
               anything that needs changing and send it again, right up until your order goes

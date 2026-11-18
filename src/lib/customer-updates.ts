@@ -185,10 +185,9 @@ export async function sendCustomerUpdate(
   actor: Actor,
 ): Promise<{ sent: true; id: string; note?: string } | { sent: false; reason: string }> {
   if (!mailConfigured()) return { sent: false, reason: 'Email is not set up on the server (SMTP_USER / SMTP_PASS).' };
-  const bundle = await repo.getOrder(orderId);
+  const [bundle, history] = await Promise.all([repo.getOrder(orderId), repo.getHistory(orderId)]);
   if (!bundle) return { sent: false, reason: 'Order not found.' };
   const { order, assets } = bundle;
-  const history = await repo.getHistory(orderId);
 
   const to = recipientOf(order);
   if (!to) return { sent: false, reason: 'No customer email on this order.' };
@@ -200,8 +199,8 @@ export async function sendCustomerUpdate(
   const paidAlready = stage === 'final_payment_requested' && Boolean(opts.alreadyPaid);
   if (MONEY_STAGES.has(stage) && !paidAlready && !(opts.amount ?? '').trim()) return { sent: false, reason: 'Type the amount first.' };
 
-  const settings = await repo.getSettings();
-  const mailInput = mailInputFor(order, history, settings, await baseUrl(), opts);
+  const [settings, base] = await Promise.all([repo.getSettings(), baseUrl()]);
+  const mailInput = mailInputFor(order, history, settings, base, opts);
 
   // Only the final-payment email carries photos, and only the ones that were
   // actually downloaded successfully — see buildPhotoAttachments.

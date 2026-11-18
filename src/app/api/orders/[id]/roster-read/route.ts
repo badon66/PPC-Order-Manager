@@ -26,8 +26,8 @@ const MAX_POSTED_BYTES = 4 * 1024 * 1024;
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await requireRole('staff');
   const { id } = await params;
-  const bundle = await repo.getOrder(id);
-  if (!bundle) return Response.json({ ok: false, error: 'Order not found.' }, { status: 404 });
+  const order = await repo.getOrderRow(id);
+  if (!order) return Response.json({ ok: false, error: 'Order not found.' }, { status: 404 });
 
   let form: FormData;
   try {
@@ -56,7 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ ok: false, error: 'No file to read.' }, { status: 400 });
   }
 
-  const ctx = importContextOf(bundle.order);
+  const ctx = importContextOf(order);
   const result = await readRosterFile({ bytes, fileName, fileUrl, context: aiContextOf(ctx) });
   return Response.json(result);
 }

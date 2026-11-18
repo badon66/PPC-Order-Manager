@@ -3,6 +3,9 @@ import type {
   SubmittedPlayer, SubmittedRosterFile,
 } from '@/lib/types';
 
+/** A file in our own storage: `artwork/<uuid>.ext` in the bucket, `/uploads/<uuid>.ext` locally. */
+export const STORED_FILE = /^(artwork\/|\/uploads\/)[A-Za-z0-9._-]+$/;
+
 /**
  * What the customer's form posts, and what the server keeps of it.
  *
@@ -119,25 +122,32 @@ export function cleanSubmission(
 
   // Where the rows came from, when the form converted the team's file into
   // them. Kept only with rows, and only a file in our own storage.
+  /*
+   * Every file a team sends must be one of ours: a key in our own storage,
+   * nothing else (2026-11-12). A link typed into the payload — someone else's
+   * site — would otherwise become an asset that shows straight on Keenan's
+   * and the factory's sheets.
+   */
+  const ours = (u: unknown): u is string => typeof u === 'string' && STORED_FILE.test(u);
   const from = payload.convertedFrom;
   const convertedFrom: SubmittedRosterFile | null =
-    players.length && from && typeof from.fileUrl === 'string' && /^(artwork\/|\/uploads\/)[A-Za-z0-9._-]+$/.test(from.fileUrl)
+    players.length && from && ours(from.fileUrl)
       ? { fileUrl: from.fileUrl, fileName: clean(from.fileName).slice(0, 200), notes: '' }
       : null;
 
   const rosterFiles: SubmittedRosterFile[] =
     sec.roster && rosterAnswer === 'file'
       ? (payload.rosterFiles ?? [])
-          .filter((f) => f && typeof f.fileUrl === 'string' && f.fileUrl)
-          .map((f) => ({ fileUrl: f.fileUrl, fileName: clean(f.fileName), notes: clean(f.notes) }))
+          .filter((f) => f && ours(f.fileUrl))
+          .map((f) => ({ fileUrl: f.fileUrl, fileName: clean(f.fileName).slice(0, 200), notes: clean(f.notes) }))
       : [];
 
   const logos: SubmittedLogo[] = sec.logos
     ? (payload.logos ?? [])
-        .filter((l) => l.fileUrl)
+        .filter((l) => l && ours(l.fileUrl))
         .map((l) => ({
           fileUrl: l.fileUrl,
-          fileName: clean(l.fileName),
+          fileName: clean(l.fileName).slice(0, 200),
           logoName: clean(l.logoName),
           placementNotes: clean(l.placementNotes),
           description: clean(l.description),
@@ -146,8 +156,8 @@ export function cleanSubmission(
 
   const inspiration: SubmittedInspiration[] = sec.inspiration
     ? (payload.inspiration ?? [])
-        .filter((i) => i.fileUrl)
-        .map((i) => ({ fileUrl: i.fileUrl, fileName: clean(i.fileName), notes: clean(i.notes) }))
+        .filter((i) => i && ours(i.fileUrl))
+        .map((i) => ({ fileUrl: i.fileUrl, fileName: clean(i.fileName).slice(0, 200), notes: clean(i.notes) }))
     : [];
 
   const contact: SubmittedContact | undefined =

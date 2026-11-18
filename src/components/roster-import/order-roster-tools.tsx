@@ -5,8 +5,16 @@ import { useRouter } from 'next/navigation';
 import { formatShort, timestampDay } from '@/lib/dates';
 import type { ImportContext } from '@/lib/roster-import/build';
 import { nextRosterNumber, type RosterVersionSummary } from '@/lib/roster-versions';
-import { RosterImporter, type ImporterFile } from './importer';
+import dynamic from 'next/dynamic';
+import type { ImporterFile } from './importer';
 import { RosterVersions } from './versions';
+
+// The import screen is big and only opens on demand: its code is fetched the
+// first time it's opened instead of with every order page.
+const RosterImporter = dynamic(
+  () => import('./importer').then((m) => m.RosterImporter),
+  { ssr: false },
+);
 
 export interface TeamRosterFile {
   fileUrl: string;

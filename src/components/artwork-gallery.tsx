@@ -209,6 +209,7 @@ function Tile({
             src={shownUrl}
             alt={`${title} (${extensionOf(asset.fileName, asset.viewUrl)})`}
             loading="lazy"
+            decoding="async"
             className="block h-auto max-w-full"
           />
         </div>

@@ -19,16 +19,15 @@ export default async function CallPage({
 }: { params: Promise<{ id: string }>; searchParams: Promise<{ c?: string }> }) {
   const { id } = await params;
   const { c } = await searchParams;
-  const bundle = await repo.getCallList(id);
+  const [bundle, allLists, user] = await Promise.all([repo.getCallList(id), repo.listCallLists(), currentUser()]);
   if (!bundle) notFound();
-  const user = await currentUser();
   const day = today(BUSINESS_TIMEZONE);
   const queue = buildQueue(bundle.contacts, day);
   const startId = c && bundle.contacts.some((x) => x.id === c) ? c : (queue[0] ?? null);
   if (c && !bundle.contacts.some((x) => x.id === c)) notFound();
 
   // The same person in another list — computed here so the view never has to know about other lists.
-  const otherLists = (await repo.listCallLists()).filter((l) => l.id !== id);
+  const otherLists = allLists.filter((l) => l.id !== id);
   const others = (await Promise.all(otherLists.map((l) => repo.getCallList(l.id)))).filter((b) => b !== null);
   const elsewhere: Record<string, AlsoIn[]> = {};
   for (const x of bundle.contacts) {

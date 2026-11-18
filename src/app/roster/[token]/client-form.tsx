@@ -379,7 +379,11 @@ export function ClientForm({
   async function handleSubmit() {
     setError(null);
     setBusy(true);
-    const res = await submitClientForm(
+    // A server or network failure says so and lets them try again, with
+    // everything they typed still on the page — never a stuck "Sending…".
+    let res: Awaited<ReturnType<typeof submitClientForm>>;
+    try {
+      res = await submitClientForm(
       token,
       {
         players: rosterAnswer === 'typed' ? players : [],
@@ -394,8 +398,12 @@ export function ClientForm({
         sectionsShown: sections,
       },
       stage ?? undefined,
-    );
-    setBusy(false);
+      );
+    } catch {
+      res = { ok: false, error: "That didn't go through — check your connection and press Send again. Nothing you entered is lost." };
+    } finally {
+      setBusy(false);
+    }
     if (res.ok) setDone(true);
     else setError(res.error);
   }
@@ -573,9 +581,10 @@ export function ClientForm({
           <div className="space-y-3">
             {players.map((p, i) => (
               <div key={i} className={`rounded-lg border bg-surface-2 p-3 ${(flags[i] ?? []).length ? 'border-amber-400/70' : 'border-line'}`}>
-                <div className="flex items-center justify-between">
+                {/* Wraps on a phone: Goalie, Socks only, C/A and Remove don't fit one 390px row. */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-muted">Player {i + 1}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <Chip active={p.isGoalie} label="Goalie"
                       onClick={() => edit(i, { isGoalie: !p.isGoalie, sockOnly: false })} />
                     {includesSocks && (
@@ -1036,7 +1045,8 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
   purpose?: UploadPurpose;
   items: T[];
   blank: () => T;
-  onChange: (next: T[]) => void;
+  /** A list setter: takes the next list, or an update of the latest one (uploads land while they type). */
+  onChange: (next: T[] | ((prev: T[]) => T[])) => void;
   addLabel: string;
   emptyHint: string;
   render: (item: T, patch: (p: Partial<T>) => void) => React.ReactNode;
@@ -1055,14 +1065,15 @@ function FileList<T extends { fileUrl: string; fileName: string }>({
   async function handleFiles(files: FileList) {
     setErr(null); setBusy(true);
     try {
-      const added: T[] = [];
+      // Each file is added the moment it lands, onto the LATEST list: a note
+      // typed meanwhile survives, and if file 3 fails, files 1 and 2 are kept.
       for (const f of Array.from(files)) {
         const stored = await upload(token, f, purpose);
         onPreview(stored.fileUrl, stored.previewUrl);
         onPicked?.(f, stored.fileUrl);
-        added.push({ ...blank(), fileUrl: stored.fileUrl, fileName: stored.fileName });
+        const item = { ...blank(), fileUrl: stored.fileUrl, fileName: stored.fileName };
+        onChange((prev) => [...prev, item]);
       }
-      onChange([...items, ...added]);
     } catch (e) {
       setErr((e as Error).message);
     } finally {

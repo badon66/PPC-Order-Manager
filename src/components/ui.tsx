@@ -69,7 +69,7 @@ export function Section({
 }) {
   return (
     // A note is "on Player Roster", not "on Player Roster (19 + 2 spares)": the count goes stale.
-    <Card id={id} noteSection={title.replace(/\s*\([^)]*\)\s*$/, '')} className={`overflow-hidden ${id ? 'scroll-mt-4' : ''}`}>
+    <Card id={id} noteSection={title.replace(/\s*\([^)]*\)\s*$/, '')} className={`overflow-hidden ${id ? 'scroll-mt-20' : ''}`}>
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <h2 className="text-sm font-bold tracking-wide text-ppc-gold uppercase">{title}</h2>
         {action}

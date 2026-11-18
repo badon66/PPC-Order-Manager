@@ -8,6 +8,7 @@ import {
 import { formatCad, isOverridden, orderValueOf } from '@/lib/pricing';
 import { hasDeposit, paymentLabel, paymentsOn } from '@/lib/payments';
 import { OrderCardShell } from '@/components/order-card-shell';
+import type { QuickEditOrder } from '@/components/order-quick-edit';
 import { StageMeter } from '@/components/stage-track';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
@@ -87,6 +88,52 @@ function windowFor(range: Range, now: string): [string, string] | null {
  * Card
  * ------------------------------------------------------------------ */
 
+/**
+ * What the quick-edit dialog reads, and nothing else.
+ *
+ * The card shell is a client component, so whatever it's handed is serialised
+ * into the page for every card on the board. The whole order would carry its
+ * notes and — on a signed order — the drawn signature, an inline image of
+ * tens of kilobytes that the dialog never shows. The record of the sign-off
+ * itself stays; only the picture is left behind.
+ */
+function quickEditOf(o: Order): QuickEditOrder {
+  return {
+    id: o.id,
+    teamName: o.teamName,
+    invoiceNumber: o.invoiceNumber,
+    status: o.status,
+    orderValue: o.orderValue,
+    trackingCode: o.trackingCode,
+    approvedDate: o.approvedDate,
+    approvalRecord: o.approvalRecord ? { ...o.approvalRecord, signatureDataUrl: '' } : o.approvalRecord,
+    datePaid: o.datePaid,
+    productionStartDate: o.productionStartDate,
+    productionFinishDate: o.productionFinishDate,
+    estimatedFinishDate: o.estimatedFinishDate,
+    completedAt: o.completedAt,
+    createdAt: o.createdAt,
+    sentToFactoryAt: o.sentToFactoryAt,
+    jerseyTier: o.jerseyTier,
+    jerseyType: o.jerseyType,
+    sockType: o.sockType,
+    pantShellType: o.pantShellType,
+    sets: o.sets,
+    orderMode: o.orderMode,
+    stitchedSublimatedLogos: o.stitchedSublimatedLogos,
+    shoulderCut: o.shoulderCut,
+    hasCaptainPatches: o.hasCaptainPatches,
+    captainCQuantity: o.captainCQuantity,
+    captainAQuantity: o.captainAQuantity,
+    captainAwayCQuantity: o.captainAwayCQuantity,
+    captainAwayAQuantity: o.captainAwayAQuantity,
+    multiPanelSocks: o.multiPanelSocks,
+    customerEmails: o.customerEmails,
+    paymentsReceived: o.paymentsReceived,
+    contactEmail: o.contactEmail,
+  };
+}
+
 function OrderCard({ order, roster, now, notes = 0 }: { order: Order; roster: RosterEntry[]; now: string; notes?: number }) {
   const totals = computeTotals(order, roster);
   const shipTo = shipToSummary(order);
@@ -114,7 +161,7 @@ function OrderCard({ order, roster, now, notes = 0 }: { order: Order; roster: Ro
         : 'bg-ppc-gold text-black';
 
   return (
-    <OrderCardShell order={order}>
+    <OrderCardShell order={quickEditOf(order)}>
     <Card className="flex h-full flex-col p-4 transition-colors hover:border-ppc-gold/50">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold leading-tight">{order.teamName || 'Untitled order'}</h3>
@@ -360,7 +407,7 @@ function MoneyPanel({
   hints: { confirmed: string; pipeline: string; ytd: string; total: string };
 }) {
   return (
-    <div className="flex min-w-[22rem] flex-col justify-between gap-2.5 rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-4 py-3">
+    <div className="flex w-full min-w-0 flex-col sm:w-auto sm:min-w-[22rem] justify-between gap-2.5 rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-4 py-3">
       <div className="grid grid-cols-2 gap-3">
         <Stat label="💵 Confirmed" value={formatCad(confirmed)} hint={hints.confirmed} size="lg" />
         <Stat label="🔄 Pipeline" value={formatCad(pipeline)} hint={hints.pipeline} tone="plain" />
@@ -388,7 +435,7 @@ function NumbersPanel({
 }) {
   const n = (x: number) => x.toLocaleString('en-CA');
   return (
-    <div className="flex min-w-[22rem] flex-col justify-between gap-2.5 rounded-xl border-2 border-line bg-surface-2 px-4 py-3">
+    <div className="flex w-full min-w-0 flex-col sm:w-auto sm:min-w-[22rem] justify-between gap-2.5 rounded-xl border-2 border-line bg-surface-2 px-4 py-3">
       <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted">The numbers · all time</div>
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Players dressed" value={n(players)} size="xl" />
@@ -528,18 +575,18 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   ];
   const shown = shownList.filter((o, i) => shownList.findIndex((x) => x.id === o.id) === i);
 
-  const bundles = await Promise.all(
-    shown.map(async (o) => {
-      const b = await repo.getOrder(o.id);
-      return { order: o, roster: b?.roster ?? [] };
-    }),
-  );
+  // One read for every shown order's roster, alongside the note counts —
+  // not an order bundle per card.
+  const [rostersById, noteCounts] = await Promise.all([
+    repo.rostersForOrders(shown),
+    repo.openPageNoteCounts(),
+  ]);
+  const bundles = shown.map((o) => ({ order: o, roster: rostersById[o.id] ?? [] }));
 
   // Enquiries (when brought up) first, then the pinned stage; then pipeline
   // position; then soonest finish date.
   const rank = (o: Order) =>
     showEnquiries && isEnquiry(o) ? -2 : pin && o.status === pin ? -1 : STATUS_META[o.status].order;
-  const noteCounts = await repo.openPageNoteCounts();
   // Lifted to the top whatever the sort: the enquiries when brought up, then a pinned stage.
   const lift = (o: Order) => (showEnquiries && isEnquiry(o) ? 0 : pin && o.status === pin ? 1 : 2);
   const byDue = (a: Order, b: Order) => {
@@ -603,7 +650,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <StageButton key={s} status={s} count={countOf(s)} pinned={pin === s} href={linkTo({ pin: pin === s ? null : s })} />
           ))}
         </div>
-        <div className="ml-auto flex shrink-0 flex-wrap gap-3">
+        <div className="ml-auto flex w-full flex-wrap gap-3 sm:w-auto sm:shrink-0">
           <MoneyPanel
             confirmed={confirmedTotal}
             pipeline={pipelineTotal}
@@ -634,7 +681,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           <Button type="submit">Search</Button>
         </form>
 
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">
           {/* How the grid is ordered. */}
           <details className="relative">
             <summary className={`${CHIP} ${sort !== 'stage' ? CHIP_ON : CHIP_OFF}`}>

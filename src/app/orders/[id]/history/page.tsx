@@ -27,27 +27,33 @@ export const dynamic = 'force-dynamic';
 
 function ValueChange({ entry }: { entry: ChangeLogEntry }) {
   if (!entry.field && entry.fromValue == null && entry.toValue == null) return null;
+  // A sheet note's archive entry carries the note's id in `field`; there's no value to show.
+  if (entry.action.startsWith('page_note')) return null;
 
-  const from = entry.fromValue?.trim();
-  const to = entry.toValue?.trim();
+  // Lists (spares, sets, comments) are stored as JSON — long, and one unbroken
+  // word on a phone. Cut short and allowed to wrap anywhere.
+  const cut = (v?: string | null) => {
+    const t = v?.trim();
+    return t && t.length > 240 ? `${t.slice(0, 240)}…` : t;
+  };
+  const from = cut(entry.fromValue);
+  const to = cut(entry.toValue);
 
   return (
     <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs">
       {entry.field && <span className="font-mono text-muted">{entry.field}</span>}
-      <span className="text-muted line-through decoration-red-400/50">{from || '(empty)'}</span>
+      <span className="break-all text-muted line-through decoration-red-400/50">{from || '(empty)'}</span>
       <span className="text-muted">→</span>
-      <span className="font-semibold text-emerald-300">{to || '(empty)'}</span>
+      <span className="break-all font-semibold text-emerald-300">{to || '(empty)'}</span>
     </div>
   );
 }
 
 export default async function OrderHistory({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const bundle = await repo.getOrder(id);
-  if (!bundle) notFound();
-
-  const { order } = bundle;
-  const history = await repo.getHistory(order.id);
+  // Only the order row and its history: no roster, artwork or submissions.
+  const [order, history] = await Promise.all([repo.getOrderRow(id), repo.getHistory(id)]);
+  if (!order) notFound();
 
   // Newest first, then grouped into days. getHistory already sorts, but this
   // page must not depend on that — a store returning them the other way round

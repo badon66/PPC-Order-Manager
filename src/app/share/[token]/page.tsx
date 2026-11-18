@@ -35,7 +35,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const view = await repo.getByShareToken(token);
+  // The sheet's own notes are looked up by the same token, so they don't wait for the view.
+  const [view, notes] = await Promise.all([
+    repo.getByShareToken(token),
+    repo.pageNotesByToken({ sheet: 'team', token }),
+  ]);
   if (!view) notFound();
 
   /*
@@ -68,7 +72,6 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const detailsOpen = shareDetailsOpen(view.status, view.contact, view.pendingContact);
   const stage = stageMessage(view.status);
   // Their own notes, pinned back on what they're about (components/sheet-notes.tsx).
-  const notes = await repo.pageNotesByToken({ sheet: 'team', token });
 
   return (
     <div className="space-y-5">
@@ -256,7 +259,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           </p>
         </Section>
       ) : signOffOpen ? (
-        <div id="sign-off" className="scroll-mt-4 rounded-xl ring-2 ring-ppc-gold">
+        <div id="sign-off" className="scroll-mt-20 rounded-xl ring-2 ring-ppc-gold">
           <Section title="Sign off on your order">
             <ApproveBlock token={token} teamName={view.teamName} rosterCount={view.roster.length} />
           </Section>

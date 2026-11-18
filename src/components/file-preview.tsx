@@ -36,6 +36,7 @@ export function FilePreview({
           src={url}
           alt={fileName}
           loading="lazy"
+          decoding="async"
           className={`block h-auto max-w-full rounded bg-[repeating-conic-gradient(#ffffff0d_0_25%,transparent_0_50%)] bg-[length:16px_16px] ${className}`}
         />
       </a>

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { attachAsset, detachAsset } from '@/app/orders/actions';
-import { uploadFile } from '@/components/order-form/assets';
+import { firstFreeSlot, uploadFile } from '@/components/order-form/assets';
 import { RotateButtons } from '@/components/rotate-buttons';
 import type { ViewableAsset } from '@/lib/types';
 
@@ -33,9 +33,11 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
     setError(null);
     setBusy(true);
     try {
-      let slot = mine.length;
+      const used = new Set(mine.map((p) => p.slot));
+      let count = mine.length;
       for (const file of Array.from(files)) {
-        if (slot >= MAX_FINISHED_PHOTOS) {
+        const slot = firstFreeSlot(used);
+        if (count >= MAX_FINISHED_PHOTOS) {
           setError(`Finished photos hold up to ${MAX_FINISHED_PHOTOS} files.`);
           break;
         }
@@ -49,7 +51,8 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
           displayName: stored.fileName,
           notes: '',
         });
-        slot++;
+        used.add(slot);
+        count++;
       }
     } catch (e) {
       setError((e as Error).message);
@@ -103,7 +106,7 @@ export function FinishedPhotos({ orderId, photos }: { orderId: string; photos: V
           {mine.map((p) => (
             <li key={p.id} className="group relative overflow-hidden rounded-lg border border-line bg-black/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.viewUrl} alt="" className="block h-auto w-full" />
+              <img src={p.viewUrl} alt="" loading="lazy" decoding="async" className="block h-auto w-full" />
               {/* A phone shot of a jersey often lands sideways: turn it before it's emailed. */}
               <RotateButtons asset={p} className="absolute bottom-1 left-1 rounded bg-black/60 p-0.5" />
               <button

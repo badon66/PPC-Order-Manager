@@ -31,7 +31,11 @@ export const dynamic = 'force-dynamic';
  */
 export default async function FactorySheet({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const view = await repo.getByFactoryToken(token);
+  // The sheet's own notes are looked up by the same token, so they don't wait for the view.
+  const [view, notes] = await Promise.all([
+    repo.getByFactoryToken(token),
+    repo.pageNotesByToken({ sheet: 'factory', token }),
+  ]);
   if (!view) notFound();
 
   // Bucket keys, signed for an hour. Same as the customer's page.
@@ -45,7 +49,6 @@ export default async function FactorySheet({ params }: { params: Promise<{ token
   const keepers = view.keeperJerseys;
   const status = STATUS_META[view.status];
 
-  const notes = await repo.pageNotesByToken({ sheet: 'factory', token });
 
   return (
     <div className="space-y-5">

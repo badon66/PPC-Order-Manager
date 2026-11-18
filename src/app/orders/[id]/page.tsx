@@ -54,13 +54,16 @@ export const maxDuration = 60;
 
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const bundle = await repo.getOrder(id);
+  // None of these waits on another: the history and settings are read while
+  // the order is, not after it.
+  // Request-scoped, so the base URL can't be a module constant. See lib/base-url.ts.
+  const [bundle, history, settings, BASE_URL] = await Promise.all([
+    repo.getOrder(id), repo.getHistory(id), repo.getSettings(), baseUrl(),
+  ]);
   if (!bundle) notFound();
 
   const { order, roster, submissions } = bundle;
 
-  // Request-scoped, so it can't be a module constant. See lib/base-url.ts.
-  const BASE_URL = await baseUrl();
   const shareLink = `${BASE_URL}/share/${order.shareToken}`;
   const rosterLink = `${BASE_URL}/roster/${order.rosterToken}`;
   // Empty on orders from before the factory sheet; the button below mints one.
@@ -73,19 +76,25 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
    * went through the same upload path — and handed down as a lookup so the
    * review panel doesn't need to know where files live.
    */
-  const assets = (await resolveAll(bundle.assets)).map((a) => ({
-    ...a,
-    viewUrl: a.resolvedUrl,
-    placementViewUrl: a.placementResolvedUrl,
-  }));
   const submittedFiles = submissions.flatMap((s) => [
     ...s.logos.map((l) => ({ fileUrl: l.fileUrl })),
     ...(s.inspiration ?? []).map((i) => ({ fileUrl: i.fileUrl })),
     ...(s.rosterFiles ?? []).map((f) => ({ fileUrl: f.fileUrl })),
     ...(s.convertedFrom ? [{ fileUrl: s.convertedFrom.fileUrl }] : []),
   ]);
+  // All three lots signed side by side rather than one after another.
+  const [signedAssets, signedSubmitted, signedRosterFiles] = await Promise.all([
+    resolveAll(bundle.assets),
+    resolveAll(submittedFiles),
+    resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))),
+  ]);
+  const assets = signedAssets.map((a) => ({
+    ...a,
+    viewUrl: a.resolvedUrl,
+    placementViewUrl: a.placementResolvedUrl,
+  }));
   const signedUrls = Object.fromEntries(
-    (await resolveAll(submittedFiles)).map((f) => [f.fileUrl, f.resolvedUrl]),
+    signedSubmitted.map((f) => [f.fileUrl, f.resolvedUrl]),
   );
   /*
    * Roster files the team uploaded instead of typing the names — newest first,
@@ -123,17 +132,15 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
     : null;
   // The file each imported roster was read from.
   const rosterFileLinks = Object.fromEntries(
-    (await resolveAll(bundle.rosters.filter((v) => v.fileUrl).map((v) => ({ id: v.id, fileUrl: v.fileUrl! }))))
+    signedRosterFiles
       .filter((v) => v.resolvedUrl)
       .map((v) => [v.id, v.resolvedUrl]),
   );
 
   const totals = computeTotals(order, roster);
-  const history = await repo.getHistory(order.id);
   // Notes pinned on the team's and factory's sheets — from the same history, no second read.
   const sheetNotes = pageNotesOf(history);
   const openSheetNotes = sheetNotes.filter((n) => !n.archivedAt).length;
-  const settings = await repo.getSettings();
   // Same stage-page links the customer's own timeline points at — see
   // stagePagePaths in stage-pages.ts. Without these the compact timeline here
   // renders with no links at all, even on the current step.

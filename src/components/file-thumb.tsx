@@ -43,7 +43,7 @@ export function FileThumb({
 
   if (isPreviewable(fileName) && url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" title={fileName} className={`${box} shrink-0 rounded object-cover`} />;
+    return <img src={url} alt="" title={fileName} loading="lazy" decoding="async" className={`${box} shrink-0 rounded object-cover`} />;
   }
 
   const badge = fileBadge(fileName);

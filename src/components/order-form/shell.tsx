@@ -133,7 +133,7 @@ export function SectionNav({
   return (
     <>
       {/* Desktop sidebar */}
-      <nav aria-label="Form sections" className="sticky top-20 hidden max-h-[calc(100vh-6rem)] w-52 shrink-0 space-y-0.5 overflow-y-auto lg:block">
+      <nav data-no-gate aria-label="Form sections" className="sticky top-20 hidden max-h-[calc(100vh-6rem)] w-52 shrink-0 space-y-0.5 overflow-y-auto lg:block">
         {blurb && (
           <div className="mb-3 rounded-lg border border-ppc-gold/40 bg-ppc-gold/5 p-3">
             <div className="truncate text-sm font-bold text-ppc-gold" title={blurb.teamName}>
@@ -165,7 +165,7 @@ export function SectionNav({
       </nav>
 
       {/* Phone: sticky jump menu */}
-      <div className="sticky top-[3.4rem] z-20 -mx-4 border-b border-line bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
+      <div data-no-gate className="sticky top-[60px] z-20 -mx-4 border-b border-line bg-background px-4 py-2 lg:hidden">
         {blurb && (
           <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
             <span className="truncate font-bold text-ppc-gold">{blurb.teamName || 'Untitled order'}</span>
@@ -193,6 +193,7 @@ export function SectionNav({
 export function useScrollSpy(ids: string[]): [string, (id: string) => void] {
   const [active, setActive] = useState(ids[0] ?? '');
   const suppress = useRef(0);
+  const key = ids.join(',');
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -205,12 +206,14 @@ export function useScrollSpy(ids: string[]): [string, (id: string) => void] {
       },
       { rootMargin: '-15% 0px -70% 0px' },
     );
-    for (const id of ids) {
+    for (const id of key.split(',')) {
       const el = document.getElementById(`sec-${id}`);
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, [ids]);
+    // By content, not identity: `ids` is a new array every render, which tore
+    // the observer down and rebuilt it on every keystroke.
+  }, [key]);
 
   const jump = (id: string) => {
     setActive(id);

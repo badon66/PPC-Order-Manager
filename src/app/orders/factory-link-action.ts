@@ -20,9 +20,9 @@ import { newToken } from '@/lib/order-utils';
 export async function createFactoryLink(orderId: string, rotate = false): Promise<{ ok: boolean; error?: string }> {
   await requireRole('staff');
   const actor = await currentActor();
-  const bundle = await repo.getOrder(orderId);
-  if (!bundle) return { ok: false, error: 'Order not found' };
-  if (bundle.order.factoryToken && !rotate) return { ok: true };
+  const order = await repo.getOrderRow(orderId);
+  if (!order) return { ok: false, error: 'Order not found' };
+  if (order.factoryToken && !rotate) return { ok: true };
 
   await repo.updateOrder(orderId, { factoryToken: newToken() }, actor);
   revalidatePath(`/orders/${orderId}`);

@@ -4,7 +4,7 @@ import { useContext, useRef, useState } from 'react';
 import { ARTWORK_ACCEPT, MAX_FILES_PER_ADDITIONAL_LOGO } from '@/lib/constants';
 import { FilePreview } from '@/components/file-preview';
 import { RotateButtons } from '@/components/rotate-buttons';
-import { AssetSwapContext } from './assets';
+import { AssetSwapContext, firstFreeSlot, messageIfThrown, uploadFile } from './assets';
 import { SlotCounter, useStretchableMax } from './slot-counter';
 import type { OrderAsset, ViewableAsset } from '@/lib/types';
 
@@ -50,16 +50,6 @@ function groupAssets(assets: ViewableAsset[]): Group[] {
   }));
 }
 
-async function uploadFile(
-  file: File,
-): Promise<{ fileUrl: string; fileName: string; previewUrl: string }> {
-  const body = new FormData();
-  body.append('file', file);
-  const res = await fetch('/api/upload', { method: 'POST', body });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? 'Upload failed');
-  return json;
-}
 
 export function AdditionalLogos({
   orderId,
@@ -158,13 +148,18 @@ function LogoCard({
   async function handleFiles(files: FileList) {
     setError(null);
     setBusy(true);
-    try {
-      let slot = group.assets.length;
+    // The loop is in a function of its own so there is no branching inside a
+    // try/catch here, which the React Compiler can't optimise around.
+    const upload = async () => {
+      const used = new Set(group.assets.map((a) => a.slot));
+      let count = group.assets.length;
       for (const file of Array.from(files)) {
-        if (slot >= max) {
+        if (count >= max) {
           setError(`Each logo holds up to ${max} files.`);
           break;
         }
+        const slot = firstFreeSlot(used);
+        used.add(slot);
         const stored = await uploadFile(file);
         await onAdd({
           orderId,
@@ -176,13 +171,12 @@ function LogoCard({
           notes: group.notes,
           groupId: group.id,
         });
-        slot++;
+        count++;
       }
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    };
+    const failed = await messageIfThrown(upload);
+    if (failed !== null) setError(failed);
+    setBusy(false);
   }
 
   function setField(field: 'displayName' | 'notes', value: string) {

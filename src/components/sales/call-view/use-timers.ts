@@ -34,7 +34,7 @@ export interface StoredSession { id: string; startedAt: string }
  * calls it. Closing the tab leaves it open; the list page shows it ended at
  * its last call.
  */
-export function useCallSession(listId: string, callerFallback: string): { session: StoredSession | null; seconds: number; end: () => Promise<void> } {
+export function useCallSession(listId: string, callerFallback: string): { session: StoredSession | null; end: () => Promise<void> } {
   const [session, setSession] = useState<StoredSession | null>(null);
   const starting = useRef(false);
 
@@ -64,14 +64,15 @@ export function useCallSession(listId: string, callerFallback: string): { sessio
       .finally(() => { starting.current = false; });
   }, [listId, callerFallback]);
 
-  const seconds = useElapsedSince(session?.startedAt ?? null);
+  // No ticking clock in here: the screen that uses this would re-render every
+  // second. The clock is its own small component (Clock in index.tsx).
 
   const end = useCallback(async () => {
     try { sessionStorage.removeItem(SESSION_KEY(listId)); } catch { /* ignore */ }
     if (session) await endSession(listId, session.id).catch(() => undefined);
   }, [listId, session]);
 
-  return { session, seconds, end };
+  return { session, end };
 }
 
 export function formatClock(total: number): string {

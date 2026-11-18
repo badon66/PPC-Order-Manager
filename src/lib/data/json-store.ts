@@ -150,6 +150,28 @@ export const jsonStore: Repository = {
     };
   },
 
+  async getOrderRow(id) {
+    const db = await load();
+    return db.orders.find((o) => o.id === id && !o.deletedAt) ?? null;
+  },
+
+  async rostersForOrders(orders) {
+    const db = await load();
+    const wanted = new Set(orders.map((o) => o.id));
+    const byOrder = new Map<string, RosterEntry[]>();
+    for (const r of db.roster) {
+      if (!wanted.has(r.orderId)) continue;
+      const list = byOrder.get(r.orderId);
+      if (list) list.push(r); else byOrder.set(r.orderId, [r]);
+    }
+    const out: Record<string, RosterEntry[]> = {};
+    for (const o of orders) {
+      const all = (byOrder.get(o.id) ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
+      out[o.id] = activeRows(o, all);
+    }
+    return out;
+  },
+
   async createOrder(patch, actor) {
     return withWrite((db) => {
       const order: Order = { ...blankOrder(), ...patch };
@@ -346,6 +368,15 @@ export const jsonStore: Repository = {
         }),
       );
       return created;
+    });
+  },
+
+  async updateAssetText(assetId, text) {
+    await withWrite((db) => {
+      const a = db.assets.find((x) => x.id === assetId);
+      if (!a) return;
+      if (text.displayName !== undefined) a.displayName = text.displayName;
+      if (text.notes !== undefined) a.notes = text.notes;
     });
   },
 

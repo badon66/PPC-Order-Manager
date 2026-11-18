@@ -148,8 +148,11 @@ export function SheetNotes({ initial, save, who }: { initial: PageNote[]; save: 
 
   return (
     <div data-notes-ui>
-      {/* Top-right, always there. */}
-      <div className="fixed right-3 top-[72px] z-50 flex flex-col items-end gap-2 print:hidden">
+      {/*
+        * Bottom-right, always there — like a chat button. At the top it sat
+        * over the team name and the factory's Sign out on a phone.
+        */}
+      <div className="fixed bottom-4 right-3 z-50 flex flex-col-reverse items-end gap-2 print:hidden">
         <div className="flex gap-2">
           {notes.length > 0 && (
             <button
@@ -181,7 +184,7 @@ export function SheetNotes({ initial, save, who }: { initial: PageNote[]; save: 
           </p>
         )}
         {listOpen && notes.length > 0 && (
-          <div className="max-h-[60vh] w-80 overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-2xl">
+          <div className="max-h-[60vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
                 {who === 'team' ? 'Your notes to Powerplay' : 'Notes to Powerplay'}
@@ -213,7 +216,7 @@ export function SheetNotes({ initial, save, who }: { initial: PageNote[]; save: 
         <div
           role="dialog"
           aria-label="Leave a note"
-          className="fixed z-[60] w-80 rounded-xl border border-ppc-gold/60 bg-surface p-3 shadow-2xl"
+          className="fixed z-[60] w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-ppc-gold/60 bg-surface p-3 shadow-2xl"
           style={{ left: box.left, top: box.top }}
         >
           <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Note on</p>

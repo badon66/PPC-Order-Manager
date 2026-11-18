@@ -55,13 +55,19 @@ export function ApproveBlock({
   async function submit() {
     setError(null);
     setBusy(true);
-    const res = await approveOrder(token, {
-      signedName: name.trim(),
-      termsAccepted: agreed,
-      rosterChecked,
-      signatureDataUrl: signature,
-    });
-    setBusy(false);
+    let res: { ok: boolean; error?: string };
+    try {
+      res = await approveOrder(token, {
+        signedName: name.trim(),
+        termsAccepted: agreed,
+        rosterChecked,
+        signatureDataUrl: signature,
+      });
+    } catch {
+      res = { ok: false, error: "That didn't go through — check your connection and try again." };
+    } finally {
+      setBusy(false);
+    }
     if (res.ok) {
       setDone(true);
       setOpen(false);

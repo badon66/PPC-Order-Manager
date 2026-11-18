@@ -19,9 +19,8 @@ export async function markUpdateSentAction(orderId: string, stage: UpdateStage):
   await requireRole('staff');
   const actor = await currentActor();
   if (!(UPDATE_STAGES as readonly string[]).includes(stage)) return { ok: false, error: 'Unknown email' };
-  const bundle = await repo.getOrder(orderId);
-  if (!bundle) return { ok: false, error: 'Order not found' };
-  const { order } = bundle;
+  const order = await repo.getOrderRow(orderId);
+  if (!order) return { ok: false, error: 'Order not found' };
   if (order.customerEmails.some((e) => e.stage === stage)) return { ok: true };
 
   await repo.recordCustomerEmail(
