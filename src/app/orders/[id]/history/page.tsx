@@ -58,7 +58,11 @@ export default async function OrderHistory({ params }: { params: Promise<{ id: s
   // Newest first, then grouped into days. getHistory already sorts, but this
   // page must not depend on that — a store returning them the other way round
   // would silently produce a reversed timeline rather than an obvious error.
-  const sorted = [...history].sort((a, b) => b.at.localeCompare(a.at));
+  // "The factory opened the job" and "Keenan read the factory's activity" are
+  // read-markers, not changes: they'd bury the real history.
+  const sorted = history
+    .filter((h) => h.action !== 'factory_seen' && h.action !== 'factory_ack')
+    .sort((a, b) => b.at.localeCompare(a.at));
   const days = new Map<string, ChangeLogEntry[]>();
   for (const h of sorted) {
     const key = timestampDay(h.at);

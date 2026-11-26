@@ -13,6 +13,7 @@ import { StageMeter } from '@/components/stage-track';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
 import type { Order, OrderStatus, RosterEntry } from '@/lib/types';
+import { FACTORY_ACTIONS, FACTORY_STEP_LABEL, factoryActivityOf } from '@/lib/factory/steps';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,7 +135,15 @@ function quickEditOf(o: Order): QuickEditOrder {
   };
 }
 
-function OrderCard({ order, roster, now, notes = 0 }: { order: Order; roster: RosterEntry[]; now: string; notes?: number }) {
+function OrderCard({
+  order, roster, now, notes = 0, factoryNew = 0, factoryStep = null,
+}: {
+  order: Order; roster: RosterEntry[]; now: string; notes?: number;
+  /** Factory moves Keenan hasn't cleared. */
+  factoryNew?: number;
+  /** Where the factory says the job is at. */
+  factoryStep?: string | null;
+}) {
   const totals = computeTotals(order, roster);
   const shipTo = shipToSummary(order);
   const bucket = statusBucket(order.status);
@@ -174,6 +183,15 @@ function OrderCard({ order, roster, now, notes = 0 }: { order: Order; roster: Ro
               className="rounded-full bg-ppc-gold px-2 py-0.5 text-xs font-bold text-black"
             >
               💬 {notes}
+            </a>
+          )}
+          {(factoryNew > 0 || factoryStep) && (
+            <a
+              href={`/orders/${order.id}#factory`}
+              title={factoryNew > 0 ? `${factoryNew} new from the factory` : `Factory: ${factoryStep}`}
+              className={`rounded-full px-2 py-0.5 text-xs font-bold ${factoryNew > 0 ? 'bg-ppc-gold text-black' : 'border border-line text-muted'}`}
+            >
+              🏭 {factoryStep ?? ''}{factoryNew > 0 ? ` · ${factoryNew}` : ''}
             </a>
           )}
           {order.source === 'website' && <WebsiteBadge />}
@@ -577,10 +595,22 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   // One read for every shown order's roster, alongside the note counts —
   // not an order bundle per card.
-  const [rostersById, noteCounts] = await Promise.all([
+  const [rostersById, noteCounts, factoryLog] = await Promise.all([
     repo.rostersForOrders(shown),
     repo.openPageNoteCounts(),
+    // Everything the factory has done, any order: the alerts and approvals below.
+    repo.historyByActions(null, FACTORY_ACTIONS),
   ]);
+  const factoryByOrder = new Map<string, ReturnType<typeof factoryActivityOf>>();
+  for (const o of all) {
+    const mine = factoryLog.filter((h) => h.orderId === o.id);
+    if (mine.length) factoryByOrder.set(o.id, factoryActivityOf(mine));
+  }
+  // Completed / Shipped requests waiting on Keenan, whatever the board is showing.
+  const approvals = all.flatMap((o) => {
+    const f = factoryByOrder.get(o.id);
+    return f?.state.pending ? [{ order: o, pending: f.state.pending }] : [];
+  });
   const bundles = shown.map((o) => ({ order: o, roster: rostersById[o.id] ?? [] }));
 
   // Enquiries (when brought up) first, then the pinned stage; then pipeline
@@ -760,6 +790,27 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
+      {approvals.length > 0 && (
+        <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-ppc-gold">
+            The factory is waiting on you ({approvals.length})
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {approvals.map(({ order, pending }) => (
+              <li key={order.id}>
+                <Link
+                  href={`/orders/${order.id}#factory`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-surface px-3 py-1.5 text-sm font-semibold hover:bg-ppc-gold/10"
+                >
+                  <span>{order.teamName || 'Untitled order'}</span>
+                  <span className="text-ppc-gold">marked {FACTORY_STEP_LABEL[pending.step]} — approve →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {showEnquiries && (
         <p className="text-sm text-muted">
           <span className="font-semibold text-ppc-gold">Website enquiries</span> at the top — {enquiries.length} open.{' '}
@@ -781,7 +832,15 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 4xl:grid-cols-5">
           {bundles.map(({ order, roster }) => (
-            <OrderCard key={order.id} order={order} roster={roster} now={now} notes={noteCounts[order.id] ?? 0} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              roster={roster}
+              now={now}
+              notes={noteCounts[order.id] ?? 0}
+              factoryNew={factoryByOrder.get(order.id)?.unread ?? 0}
+              factoryStep={factoryByOrder.get(order.id)?.state.step ? FACTORY_STEP_LABEL[factoryByOrder.get(order.id)!.state.step!] : null}
+            />
           ))}
         </div>
       )}

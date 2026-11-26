@@ -1069,7 +1069,15 @@ export type ChangeAction =
   | 'page_note_archived'
   | 'page_note_restored'
   /** Keenan turned a team's submission down; nothing of it reached the order. */
-  | 'submission_declined';
+  | 'submission_declined'
+  /** The factory's dashboard — see lib/factory/steps.ts. */
+  | 'factory_step'
+  | 'factory_step_requested'
+  | 'factory_step_approved'
+  | 'factory_step_declined'
+  | 'factory_finish_date'
+  | 'factory_seen'
+  | 'factory_ack';
 
 export interface ChangeLogEntry {
   id: string;

@@ -731,6 +731,38 @@ export const supabaseStore: Repository = {
 
   /* Settings ----------------------------------------------------------- */
 
+  async historyByActions(orderIds, actions) {
+    if (orderIds && orderIds.length === 0) return [];
+    const out: ChangeLogEntry[] = [];
+    // Ids in chunks (a long .in() list overflows the URL); 1000 rows a page.
+    const chunks = orderIds ? Array.from({ length: Math.ceil(orderIds.length / 150) }, (_, i) => orderIds.slice(i * 150, i * 150 + 150)) : [null];
+    for (const ids of chunks) {
+      for (let from = 0; ; from += 1000) {
+        let q = supabase().from(HISTORY).select('id, data').in('data->>action', [...actions]).order('id').range(from, from + 999);
+        if (ids) q = q.in('order_id', ids);
+        const page = rows<ChangeLogEntry>(unwrap(await q, 'load factory history'));
+        out.push(...page);
+        if (page.length < 1000) break;
+      }
+    }
+    return out;
+  },
+
+  async appendLog(entries) {
+    await appendHistory(entries);
+  },
+
+  async getFactoryGate() {
+    const res = await supabase().from(SETTINGS).select('data').eq('id', 'factory-gate').maybeSingle();
+    if (res.error) throw new Error(`load factory gate: ${res.error.message}`);
+    return res.data?.data ?? null;
+  },
+
+  async saveFactoryGate(state) {
+    const res = await supabase().from(SETTINGS).upsert({ id: 'factory-gate', data: state });
+    if (res.error) throw new Error(`save factory gate: ${res.error.message}`);
+  },
+
   async getSettings() {
     const res = await supabase().from(SETTINGS).select('data').eq('id', 'app').maybeSingle();
     if (res.error) {

@@ -45,6 +45,8 @@ export interface Database {
   callLogs: CallLog[];
   callSessions: CallSession[];
   settings?: AppSettings;
+  /** The factory door's lockout state — lib/factory/gate.ts. */
+  factoryGate?: unknown;
 }
 
 /** PPC_DATA_DIR lets the e2e run point at a throwaway directory instead of data/. */
@@ -592,6 +594,26 @@ export const jsonStore: Repository = {
   },
 
   /* Settings ----------------------------------------------------------- */
+
+  async historyByActions(orderIds, actions) {
+    const db = await load();
+    const ids = orderIds ? new Set(orderIds) : null;
+    return db.history.filter((h) => actions.includes(h.action) && (!ids || ids.has(h.orderId)));
+  },
+
+  async appendLog(entries) {
+    if (entries.length === 0) return;
+    await withWrite((db) => { db.history.push(...entries); });
+  },
+
+  async getFactoryGate() {
+    const db = await load();
+    return db.factoryGate ?? null;
+  },
+
+  async saveFactoryGate(state) {
+    await withWrite((db) => { db.factoryGate = state; });
+  },
 
   async getSettings() {
     const db = await load();

@@ -32,6 +32,9 @@
  * server actions.
  */
 
+/** Shortest factory passcode accepted (kept in step with lib/factory/gate.ts, which explains it). */
+const FACTORY_CODE_MIN_LENGTH = 8;
+
 const COOKIE_NAME = 'ppc_session';
 const SESSION_DAYS = 14;
 const FACTORY_COOKIE_NAME = 'ppc_factory';
@@ -110,6 +113,9 @@ export function isConfigured(): boolean {
 export function configuredFactoryCode(): string | null {
   const code = process.env.FACTORY_ACCESS_CODE?.trim() || readCodeFile('factory');
   if (!code) return null;
+  // Too short to be a passcode: 8888 is ten thousand guesses. The door stays
+  // shut (and says why) until a real one is set — see lib/factory/gate.ts.
+  if (code.length < FACTORY_CODE_MIN_LENGTH) return null;
   const admin = configuredCode();
   if (admin && safeEqual(code, admin)) return null;
   return code;
@@ -117,6 +123,21 @@ export function configuredFactoryCode(): string | null {
 
 export function isFactoryConfigured(): boolean {
   return configuredFactoryCode() !== null;
+}
+
+/** Why the factory door is shut, for the unlock page — never the code itself. */
+export function factoryCodeProblem(): 'missing' | 'short' | 'same-as-admin' | null {
+  const code = process.env.FACTORY_ACCESS_CODE?.trim() || readCodeFile('factory');
+  if (!code) return 'missing';
+  if (code.length < FACTORY_CODE_MIN_LENGTH) return 'short';
+  const admin = configuredCode();
+  if (admin && safeEqual(code, admin)) return 'same-as-admin';
+  return null;
+}
+
+/** A keyed hash, for turning a caller's address into a lockout key without storing the address. */
+export async function keyedHash(value: string): Promise<string> {
+  return (await sign(`gate:${value}`)).slice(0, 24);
 }
 
 /**

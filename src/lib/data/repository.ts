@@ -390,6 +390,20 @@ export interface Repository {
   /** One update email went out: remember it on the order and in the history. */
   recordCustomerEmail(orderId: string, record: CustomerEmailRecord, actor: Actor): Promise<void>;
 
+  /* The factory's dashboard (lib/factory/*) ----------------------------- */
+  /**
+   * History entries of the given actions for the given orders, in one read —
+   * what the factory dashboard and Keenan's board build their lists from.
+   * `orderIds` null means every order. Never returns `snapshot`s' orders'
+   * worth of data the caller didn't ask for: callers name the actions.
+   */
+  historyByActions(orderIds: string[] | null, actions: readonly string[]): Promise<ChangeLogEntry[]>;
+  /** Append history entries as they are (ids and times already set). The factory's moves are only ever this. */
+  appendLog(entries: ChangeLogEntry[]): Promise<void>;
+  /** The factory door's lockout state (lib/factory/gate.ts) — raw; heal it before use. */
+  getFactoryGate(): Promise<unknown>;
+  saveFactoryGate(state: unknown): Promise<void>;
+
   /* Settings ----------------------------------------------------------- */
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings, actor: Actor): Promise<void>;

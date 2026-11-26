@@ -43,6 +43,8 @@ import type { AssetRole } from '@/lib/types';
 import { SheetNotesInbox } from '@/components/sheet-notes-inbox';
 import { pageNotesOf } from '@/lib/page-notes';
 import { sizeLabel } from '@/lib/constants';
+import { FactoryAdminPanel } from '@/components/factory/admin-panel';
+import { factoryActivityOf, isFactoryJob } from '@/lib/factory/steps';
 
 /** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
 const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
@@ -67,7 +69,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const shareLink = `${BASE_URL}/share/${order.shareToken}`;
   const rosterLink = `${BASE_URL}/roster/${order.rosterToken}`;
   // Empty on orders from before the factory sheet; the button below mints one.
-  const factoryLink = order.factoryToken ? `${BASE_URL}/factory/${order.factoryToken}` : null;
+  // The factory's page for this job. Their dashboard is the way in (the per-job token links are retired).
+  const factoryLink = isFactoryJob(order) ? `${BASE_URL}/factory/jobs/${order.id}` : null;
   const keepers = order.keeperJerseys ?? [];
 
   /*
@@ -140,6 +143,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const totals = computeTotals(order, roster);
   // Notes pinned on the team's and factory's sheets — from the same history, no second read.
   const sheetNotes = pageNotesOf(history);
+  // What the factory has done on this job, from the same history.
+  const factory = factoryActivityOf(history);
   const openSheetNotes = sheetNotes.filter((n) => !n.archivedAt).length;
   // Same stage-page links the customer's own timeline points at — see
   // stagePagePaths in stage-pages.ts. Without these the compact timeline here
@@ -186,15 +191,19 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <CopyButton label="Copy Address" value={formattedAddress(order)} />
         <CopyButton label="Copy Share Link" value={shareLink} />
         <CopyButton label="Copy Client Form Link" value={rosterLink} />
-        <FactoryLink orderId={order.id} link={factoryLink} />
+        {factoryLink && <FactoryLink orderId={order.id} link={factoryLink} />}
         <Button href={`/api/orders/${order.id}/roster.csv`}>Download CSV Roster</Button>
       </div>
       <p className="-mt-3 text-xs text-muted">
-        Share link: the customer, no code. Factory link: Michael, asks for the factory code, carries
-        the factory-only notes and the jerseys you&apos;re keeping. Neither shows a price.
+        Share link: the customer, no code. Factory link: this job on the factory&apos;s dashboard (it asks
+        for their passcode), there once the order is sent to the factory. Neither shows a price.
       </p>
 
       {order.enquiry && <EnquiryCard enquiry={order.enquiry} />}
+
+      <Section id="factory" title={`Factory${factory.state.pending ? ' — needs your approval' : factory.unread ? ` (${factory.unread} new)` : ''}`}>
+        <FactoryAdminPanel orderId={order.id} state={factory.state} items={factory.items} unread={factory.unread} jobUrl={factoryLink} />
+      </Section>
 
       <Section
         id="sheet-notes"

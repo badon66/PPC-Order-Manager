@@ -70,6 +70,8 @@ body {
  * widen from the app's 72rem to 120rem. Orders and Production are untouched.
  */
 body:has(.sales-wide) :is(header > div, main) { max-width: 120rem; }
+/* The factory's dashboard uses the width the same way: a board and two side lists. */
+body:has(.factory-wide) :is(header > div, main) { max-width: 120rem; }
 
 /*
  * The calling screen on a wide monitor (1600px and up): the page never

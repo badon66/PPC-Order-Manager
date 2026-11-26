@@ -258,14 +258,19 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 - `/share/<token>` and `/roster/<token>` are **public** — no code. Protected by
   a long random per-order token. The share page **deliberately shows** the
   customer's contact and shipping so they can check it.
-- `/factory/<token>` is **the manufacturer's sheet**: its own per-order token
-  (`factoryToken`, minted at creation or by `createFactoryLink` for older
-  orders) AND the factory code on top (`FACTORY_ACCESS_CODE`, cookie
+- `/factory` is **the manufacturer's dashboard** (Keenan, 2026-11-25; plan:
+  the "Factory Dashboard Plan" artifact). Behind the factory passcode
+  (`FACTORY_ACCESS_CODE` / `factory-code.txt`, at least 8 characters and not
+  the admin code, or the door stays shut — `factoryCodeProblem`), cookie
   `ppc_factory`, 30 days, realm-tagged so it can never pass as the admin
-  cookie — `src/lib/session.ts`). Keenan's admin cookie opens it too; the
-  factory cookie opens nothing else (`src/proxy.ts`). It shows the build, the
-  roster, the artwork with the font, the ship-to contact (Michael ships
-  straight to the team), the factory-only notes and the keepers. Never money.
+  cookie. Keenan's admin cookie opens it too; the factory cookie opens
+  nothing else (`src/proxy.ts`). They type a name at the door (a label for
+  Keenan, not an identity). Five wrong passcodes lock that device for 15
+  minutes and thirty from anywhere shut the door to new sign-ins
+  (`lib/factory/gate.ts`, state in `app_settings` row `factory-gate`); a
+  locked-out device is refused before the code is compared. The per-job
+  token links are retired: `/factory/<token>` only forwards to the job page.
+  See "The factory's dashboard" below. Never money.
 - Per-person login is deferred, not cancelled. `src/lib/auth.ts` is the one
   file that changes when it happens.
 
@@ -301,7 +306,8 @@ src/app/orders/actions.ts every mutation. Server actions. Auth-checked.
 src/app/orders/           list, detail, edit
 src/app/queue/            production queue
 src/app/share/[token]/    customer read-only view
-src/app/factory/[token]/  the manufacturer's sheet (factory code); /factory/unlock is its door
+src/app/factory/          the manufacturer's dashboard, job pages and door (factory passcode)
+src/lib/factory/          its rules: steps, change feed, job card + reminders, lockout
 src/app/roster/[token]/   customer roster form (revisits + change logging)
 src/app/sales/            cold calling: landing (upload, lists), contacts table, calling view
 src/app/sales/actions.ts  every sales mutation — upload, log, edit, skip, delete
@@ -468,6 +474,45 @@ sections (`flex-col lg:flex-row`), never beside them. Check new pages at 390px.
   a helper outside the component (`messageIfThrown` in order-form/assets.tsx).
 - The roster table renders ONE layout (`useIsDesktop`), not both hidden by CSS.
 - No `backdrop-blur` on sticky bars.
+
+## The factory's dashboard
+
+`src/lib/factory/*` (pure, tested in `tests/factory/`), pages in
+`src/app/factory/`, Keenan's side in `components/factory/admin-panel.tsx`.
+
+- **Which orders:** only `isFactoryJob` — sent to the factory, or In
+  Production and beyond; never a draft, a design in progress or a deleted
+  order. EVERY factory read and action checks it (`loadFactoryJob`,
+  `jobFor`); an order id alone opens nothing (404, same as no such order).
+- **What leaves:** a `FactoryJobCard` (`board.ts`, built field by field) or
+  the existing `FactoryOrderView`. No price, no customer payments.
+  "What's new from Powerplay" is built from the change log through the
+  `FACTORY_FIELDS` ALLOWLIST (`changes.ts`): a field not listed there is
+  never described to the factory, so a money field or a field added later
+  says nothing until someone lists it.
+- **The factory never writes the order row.** Step moves, the finish date,
+  "opened the job" and Keenan's approvals are append-only history entries
+  (`factory_step`, `factory_step_requested`, `factory_step_approved` /
+  `_declined`, `factory_finish_date`, `factory_seen`, `factory_ack`);
+  `factoryStateOf(history)` works the state out. Same reason as the sheet
+  notes: nothing they do can collide with autosave or overwrite a field.
+- **Steps:** Received, Prepping, In production, Almost finished, Completed,
+  Shipped. Every move emails Keenan (`notify.ts`) and shows on his board
+  (🏭 badge) and order page (`#factory`). Completed and Shipped are REQUESTS:
+  the job reaches them only when Keenan presses Approve, which is also the
+  only thing that changes the order — `orderPatchOnApproval`: Completed →
+  production finished + (from In Production) Waiting for Final Approval;
+  Shipped → tracking number + Shipped. Never backwards, never a blank over
+  a tracking number. An approval names its request id, so approving twice
+  or approving a withdrawn request does nothing.
+- **Reminders ("To do")** are derived from the job (`remindersFor`), never
+  stored. An order Powerplay already moved past production counts as
+  finished whatever the factory's steps say.
+- **Wording** lives in `lib/factory/text.ts` so Mandarin can be added later.
+- **Not built yet (the plan's later steps):** cost per job and the running
+  balance, "I sent money", the cost check; the click-to-outline question with
+  a saved picture and replies; a note on every selection with "push to
+  customer"; photo upload and the "email it to the factory too" button.
 
 ## Conventions
 

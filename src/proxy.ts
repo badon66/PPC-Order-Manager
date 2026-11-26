@@ -23,9 +23,12 @@ import { SURFACE_HEADER, surfaceFor } from '@/lib/surface';
  * than the database id, so they can't be guessed and can be rotated per order.
  *
  * THE FACTORY'S DOOR, separate from both:
- *   /factory/unlock          the factory code entry page
- *   /factory/<token>         the manufacturer's sheet for one order
- *   /api/factory/<token>/... downloads off that sheet
+ *   /factory/unlock          the factory passcode entry page
+ *   /factory                 the manufacturer's dashboard: every job sent to them
+ *   /factory/jobs/<id>       one job (only ever a job the factory may see —
+ *                            lib/factory/steps.ts isFactoryJob, checked on every read)
+ *   /factory/<token>         the old per-job link; now just forwards to the job page
+ *   /api/factory/...         downloads off a job page
  * These need the factory cookie (Michael's code — see lib/session.ts), or
  * Keenan's admin cookie, so he can open what Michael sees without a second
  * login. The token alone is not enough: a factory link forwarded on still
@@ -63,7 +66,8 @@ export async function proxy(request: NextRequest) {
   // The factory's sheets are a public SURFACE (standard size, whatever Michael
   // opens them on) behind their own code.
   if (pathname === FACTORY_UNLOCK) return next(request, true);
-  if (FACTORY_PREFIXES.some((p) => pathname.startsWith(p))) {
+  // `/factory` itself is the dashboard; `/factory/...` its job pages.
+  if (pathname === '/factory' || FACTORY_PREFIXES.some((p) => pathname.startsWith(p))) {
     const factory = request.cookies.get(FACTORY_COOKIE)?.value;
     const admin = request.cookies.get(SESSION_COOKIE)?.value;
     if ((await isValidFactorySession(factory)) || (await isValidSession(admin))) {

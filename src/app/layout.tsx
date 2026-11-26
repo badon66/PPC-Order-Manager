@@ -66,6 +66,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <span className="sm:hidden">Queue</span>
                   <span className="hidden sm:inline">Production</span>
                 </Link>
+                {/* What Michael sees. Hidden on a phone: the header has to fit 390px. */}
+                <Link
+                  href="/factory"
+                  className="hidden rounded-lg px-2 py-2 font-semibold text-muted hover:bg-surface-2 hover:text-ppc-gold sm:inline sm:px-3"
+                >
+                  Factory
+                </Link>
                 <Link
                   href="/sales"
                   className="rounded-lg px-2 py-2 font-semibold text-muted hover:bg-surface-2 hover:text-ppc-gold sm:px-3"
