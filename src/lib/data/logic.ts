@@ -4,7 +4,7 @@ import type {
   ApprovalRecord, AppSettings, ChangeLogEntry, ClientLinkSections, ClientRosterSubmission, ExtraJersey, Order, OrderAsset, OrderStatus, RosterEntry, RosterVersion, SubmissionChange, SubmittedContact,
 } from '@/lib/types';
 import { COMMENT_AUDIENCES, COMMENT_SECTIONS, DEFAULT_APP_SETTINGS, DEFAULT_CLIENT_LINK_SECTIONS, ROSTER_ANSWER_LABELS } from '@/lib/types';
-import type { CommentAudience, CommentSection, SectionComment, SheetComment } from '@/lib/types';
+import type { CommentAudience, CommentSection, FactoryRates, SectionComment, SheetComment } from '@/lib/types';
 import { STATUS_META, awaitingFinish, captaincyLabel } from '@/lib/constants';
 import { nextHomeAwayClaims } from '@/lib/roster-edit';
 import { planNewRoster, rosterLabel } from '@/lib/roster-versions';
@@ -141,7 +141,27 @@ export function healSettings(s: Partial<AppSettings> | null | undefined): AppSet
     howToPay: s?.howToPay ?? DEFAULT_APP_SETTINGS.howToPay,
     googleReviewUrl: s?.googleReviewUrl ?? DEFAULT_APP_SETTINGS.googleReviewUrl,
     referralLine: s?.referralLine ?? DEFAULT_APP_SETTINGS.referralLine,
+    factoryRates: healRates(s?.factoryRates),
+    factoryFlagAt: amountOr(s?.factoryFlagAt, DEFAULT_APP_SETTINGS.factoryFlagAt) ?? DEFAULT_APP_SETTINGS.factoryFlagAt,
+    usdToCad: (() => {
+      const r = amountOr(s?.usdToCad, null);
+      // A rate outside 0.5–3 is a typo, not an exchange rate.
+      return r !== null && r >= 0.5 && r <= 3 ? r : null;
+    })(),
   };
+}
+
+const amountOr = (v: unknown, fallback: number | null): number | null =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1_000_000 ? v : fallback;
+
+/** Each rate: a number when one was saved, null when it was cleared, the default when it never existed. */
+function healRates(r: Partial<FactoryRates> | null | undefined): FactoryRates {
+  const out = { ...DEFAULT_APP_SETTINGS.factoryRates };
+  if (!r) return out;
+  for (const k of Object.keys(out) as Array<keyof FactoryRates>) {
+    if (k in r) out[k] = amountOr(r[k], null);
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ *

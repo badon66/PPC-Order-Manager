@@ -9,6 +9,7 @@ import { notifyFactoryMove } from '@/lib/factory/notify';
 import {
   FACTORY_STEP_LABEL, factoryStateOf, FACTORY_ACTIONS, isFactoryJob, isFactoryStep, planStepChange,
 } from '@/lib/factory/steps';
+import { jobMoneyOf, MONEY_ACTIONS, parseMoney, usd } from '@/lib/factory/money';
 import { NOTE_MAX_PER_SHEET, cleanNoteInput, type PageNote } from '@/lib/page-notes';
 import { notifyNewNote } from '@/lib/note-notify';
 
@@ -99,6 +100,53 @@ export async function setFactoryFinishDate(orderId: string, dateRaw: string): Pr
       actorName: actor.name,
     }),
   ]);
+  revalidatePath(`/factory/jobs/${order.id}`);
+  revalidatePath('/factory');
+  return { ok: true };
+}
+
+/**
+ * The factory's cost for a job, and any extra shipping on top — USD.
+ * Only what CHANGED is logged, each as its own entry with the amount before,
+ * so Powerplay sees "changed their cost: $1,200 → $1,350" and is emailed.
+ * A blank cost is refused (a cost can be corrected, not un-entered); a blank
+ * shipping box means shipping is included.
+ */
+export async function setFactoryCost(orderId: string, costRaw: string, shippingRaw: string): Promise<Result> {
+  const actor = await requireFactory();
+  const order = await jobFor(orderId);
+  if (!order) return { ok: false, error: NOT_A_JOB };
+
+  const cost = parseMoney(costRaw);
+  if (cost === null || cost <= 0) return { ok: false, error: 'Enter the total cost in US dollars, like 1250 or 1250.50.' };
+  const shipping = String(shippingRaw ?? '').trim() === '' ? 0 : parseMoney(shippingRaw);
+  if (shipping === null) return { ok: false, error: 'Extra shipping must be an amount in US dollars, or left blank.' };
+
+  // `finished` only decides what's due, which this action doesn't read.
+  const now = jobMoneyOf(await repo.historyByActions([order.id], MONEY_ACTIONS), false);
+  const entries = [];
+  const lines: string[] = [];
+  if (now.cost !== cost) {
+    entries.push(logEntry({
+      orderId: order.id, action: 'factory_cost', field: 'factoryCost',
+      fromValue: now.cost === null ? '' : String(now.cost), toValue: String(cost),
+      summary: now.cost === null ? `Factory set their cost: ${usd(cost)} USD` : `Factory changed their cost: ${usd(now.cost)} → ${usd(cost)} USD`,
+      actorEmail: '', actorName: actor.name,
+    }));
+    lines.push(now.cost === null ? `${actor.name} set the cost: ${usd(cost)} USD` : `${actor.name} changed the cost from ${usd(now.cost)} to ${usd(cost)} USD`);
+  }
+  if (now.shipping !== shipping) {
+    entries.push(logEntry({
+      orderId: order.id, action: 'factory_shipping', field: 'factoryShipping',
+      fromValue: String(now.shipping), toValue: String(shipping),
+      summary: shipping > 0 ? `Factory added extra shipping: ${usd(shipping)} USD` : 'Factory removed the extra shipping',
+      actorEmail: '', actorName: actor.name,
+    }));
+    lines.push(shipping > 0 ? `extra shipping ${usd(shipping)} USD` : 'extra shipping removed');
+  }
+  if (entries.length === 0) return { ok: true };
+  await repo.appendLog(entries);
+  await notifyFactoryMove(order.id, order.teamName, lines.join(', '), false);
   revalidatePath(`/factory/jobs/${order.id}`);
   revalidatePath('/factory');
   return { ok: true };

@@ -45,6 +45,10 @@ import { pageNotesOf } from '@/lib/page-notes';
 import { sizeLabel } from '@/lib/constants';
 import { FactoryAdminPanel } from '@/components/factory/admin-panel';
 import { factoryActivityOf, isFactoryJob } from '@/lib/factory/steps';
+import { jobCardOf } from '@/lib/factory/board';
+import { balanceRowOf } from '@/lib/factory/balance';
+import { FactoryMoneySummary } from '@/components/factory/money-summary';
+import { SendMoneyForm } from '@/components/factory/send-money';
 
 /** Shown with Number Details, hidden from the gallery below. Same split as the share sheet. */
 const NUMBER_ROLES: AssetRole[] = ['number_reference', 'number_reference_home', 'number_reference_away'];
@@ -145,6 +149,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const sheetNotes = pageNotesOf(history);
   // What the factory has done on this job, from the same history.
   const factory = factoryActivityOf(history);
+  // What this job costs at the factory and what's been paid — Keenan's eyes only.
+  const factoryMoney = factoryLink ? balanceRowOf(order, jobCardOf(order, roster, history), settings) : null;
   const openSheetNotes = sheetNotes.filter((n) => !n.archivedAt).length;
   // Same stage-page links the customer's own timeline points at — see
   // stagePagePaths in stage-pages.ts. Without these the compact timeline here
@@ -203,6 +209,12 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
 
       <Section id="factory" title={`Factory${factory.state.pending ? ' — needs your approval' : factory.unread ? ` (${factory.unread} new)` : ''}`}>
         <FactoryAdminPanel orderId={order.id} state={factory.state} items={factory.items} unread={factory.unread} jobUrl={factoryLink} />
+        {factoryMoney && (
+          <div className="mt-4 space-y-3 border-t border-line pt-4">
+            <FactoryMoneySummary row={factoryMoney} usdToCad={settings.usdToCad} />
+            <SendMoneyForm jobs={[]} fixedJob={order.id} />
+          </div>
+        )}
       </Section>
 
       <Section

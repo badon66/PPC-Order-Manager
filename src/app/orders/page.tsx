@@ -13,7 +13,8 @@ import { StageMeter } from '@/components/stage-track';
 import { Button, Card, EmptyState, StatusBadge, WebsiteBadge } from '@/components/ui';
 import { NewOrderButton } from '@/components/new-order-button';
 import type { Order, OrderStatus, RosterEntry } from '@/lib/types';
-import { FACTORY_ACTIONS, FACTORY_STEP_LABEL, factoryActivityOf } from '@/lib/factory/steps';
+import { FACTORY_ACTIONS, FACTORY_STEP_LABEL, factoryActivityOf, isFactoryJob } from '@/lib/factory/steps';
+import { balanceTotals, jobMoneyOf, usd } from '@/lib/factory/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -602,10 +603,19 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     repo.historyByActions(null, FACTORY_ACTIONS),
   ]);
   const factoryByOrder = new Map<string, ReturnType<typeof factoryActivityOf>>();
+  // What's owed to the factory across every job — same rule as the balance page (lib/factory/money.ts).
+  const factoryMoney = [];
   for (const o of all) {
     const mine = factoryLog.filter((h) => h.orderId === o.id);
-    if (mine.length) factoryByOrder.set(o.id, factoryActivityOf(mine));
+    if (!mine.length) continue;
+    const activity = factoryActivityOf(mine);
+    factoryByOrder.set(o.id, activity);
+    if (isFactoryJob(o)) {
+      const step = activity.state.step;
+      factoryMoney.push(jobMoneyOf(mine, step === 'completed' || step === 'shipped' || STATUS_META[o.status].order > STATUS_META.in_production.order));
+    }
   }
+  const factoryOwed = balanceTotals(factoryMoney);
   // Completed / Shipped requests waiting on Keenan, whatever the board is showing.
   const approvals = all.flatMap((o) => {
     const f = factoryByOrder.get(o.id);
@@ -809,6 +819,16 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Hidden while searching: `all` is then only the matches, and a part-total would mislead. */}
+      {!search && factoryMoney.length > 0 && (
+        <Link href="/balance" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-surface px-3 py-2 text-sm hover:border-ppc-gold/60">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted">🏭 Factory balance</span>
+          <span>Due now <span className="font-bold tabular-nums text-ppc-gold">{usd(factoryOwed.dueNow)}</span></span>
+          <span>Outstanding <span className="font-bold tabular-nums">{usd(factoryOwed.outstanding)}</span></span>
+          <span className="text-xs text-muted">USD · open →</span>
+        </Link>
       )}
 
       {showEnquiries && (

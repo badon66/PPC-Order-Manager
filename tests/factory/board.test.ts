@@ -52,7 +52,11 @@ test('the job card carries the right numbers and no money, by value or by key', 
   assert.equal(card.neededBy, '2026-12-12');
   assert.equal(card.jobNumber, 'PPC1801');
   assert.equal(JSON.stringify(card).includes(String(SENTINEL)), false, 'a price reached the factory card');
-  assert.deepEqual(keysDeep(card).filter((k) => MONEY_KEY.test(k)), []);
+  // `money` is the factory's OWN (its cost, what Powerplay sent it) — the one money object allowed.
+  const { money, ...rest } = card;
+  assert.deepEqual(keysDeep(rest).filter((k) => MONEY_KEY.test(k)), []);
+  // With no factory_* money entries it is empty, whatever the customer paid Powerplay.
+  assert.deepEqual([money.cost, money.shipping, money.paid, money.total, money.dueNow, money.payments.length], [null, 0, 0, 0, 0, 0]);
   // Only the team-name change is described; the three money changes say nothing at all.
   assert.deepEqual(card.changes.map((c) => c.text), ['Team name: “Riverbend” → “Riverbend Rockets”']);
 });
@@ -88,7 +92,7 @@ test('only changes after the job was sent are shown, and they are new until the 
 test('reminders say what a job needs, and stop once it is done', () => {
   const o = job();
   const fresh = jobCardOf(o, [], []);
-  assert.deepEqual(remindersFor(fresh, '2026-11-15').map((r) => r.text), ['New job — mark it Received', 'Set the date you expect to finish']);
+  assert.deepEqual(remindersFor(fresh, '2026-11-15').map((r) => r.text), ['New job — mark it Received', 'Enter your cost for this job', 'Set the date you expect to finish']);
 
   const late = jobCardOf(o, [], [e('factory_step', { toValue: 'in_production', actorName: 'M' }), e('factory_finish_date', { toValue: '2026-12-20', actorName: 'M' })]);
   assert.ok(remindersFor(late, '2026-11-15').some((r) => /after the day Powerplay needs it/.test(r.text)));
@@ -96,7 +100,7 @@ test('reminders say what a job needs, and stop once it is done', () => {
 
   const req = e('factory_step_requested', { toValue: 'completed', actorName: 'M' });
   const waiting = jobCardOf(o, [], [req]);
-  assert.deepEqual(remindersFor(waiting, '2026-12-25').map((r) => [r.tone, r.text]), [['info', 'Completed is waiting for Powerplay to approve']]);
+  assert.deepEqual(remindersFor(waiting, '2026-12-25').map((r) => [r.tone, r.text]), [['act', 'Enter your cost for this job'], ['info', 'Completed is waiting for Powerplay to approve']]);
 
   const shipReq = e('factory_step_requested', { toValue: 'shipped', actorName: 'M' });
   const done = jobCardOf({ ...o, status: 'shipped' }, [], [req, e('factory_step_approved', { field: req.id, toValue: 'completed' }), shipReq, e('factory_step_approved', { field: shipReq.id, toValue: 'shipped' }), e('factory_seen')]);

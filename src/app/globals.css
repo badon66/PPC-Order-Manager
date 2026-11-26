@@ -148,4 +148,6 @@ body.ppc-note-picking [data-notes-ui], body.ppc-note-picking [data-notes-ui] * {
   font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 6px;
   pointer-events: none;
 }
+/* A chip or a line of text is too small to carry the count inside it: hang it off the corner. */
+span[data-noted]::after, p[data-noted]::after, li[data-noted]::after { top: -9px; right: -9px; }
 .ppc-note-flash { outline: 3px solid var(--gold) !important; outline-offset: 3px; transition: outline-color .3s; }

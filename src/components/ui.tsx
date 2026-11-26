@@ -112,7 +112,7 @@ export function Stat({
 
 function StatBody({ label, value, accent }: { label: string; value: ReactNode; accent?: boolean }) {
   return (
-    <div className="rounded-lg border border-line bg-surface-2 px-3 py-3 text-center">
+    <div className="rounded-lg border border-line bg-surface-2 px-3 py-3 text-center" data-note-key={`stat:${label}`} data-note-label={label}>
       <div className="text-xs text-muted">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${accent ? 'text-ppc-gold' : ''}`}>{value}</div>
     </div>

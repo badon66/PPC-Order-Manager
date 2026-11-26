@@ -13,7 +13,7 @@ import {
   COMMENT_AUDIENCE_LABEL, COMMENT_SECTIONS,
   type AssetRole, type CommentSection, type CustomBrandingItem, type KeeperJersey, type SectionComment, type SheetComment, type ViewableAsset,
 } from '@/lib/types';
-import { Card, Field, Section, Stat } from '@/components/ui';
+import { Field, Section, Stat } from '@/components/ui';
 import { ArtworkGallery } from '@/components/artwork-gallery';
 import { CaptaincyBadge, GoalieBadge } from '@/components/captaincy';
 import { RosterBreakdown } from '@/components/order-form/roster-breakdown';
@@ -143,10 +143,10 @@ export function CustomBrandingList({
         const files = customBrandingFiles(items, assets, item.id);
         return (
           <div key={item.id} className={n > 0 ? 'border-t border-line/60 pt-4' : ''}>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
+            <span data-note-key={`branding:custom:${item.id}`} data-note-label={`Custom branding: ${item.name.trim() || n + 1}`} className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
               <span aria-hidden>&#10003;</span> {item.name.trim() || (items.length > 1 ? `Custom branding ${n + 1}` : 'Custom branding')}
             </span>
-            {item.notes.trim() && <p className="mt-2 whitespace-pre-wrap text-sm">{item.notes}</p>}
+            {item.notes.trim() && <p className="mt-2 whitespace-pre-wrap text-sm" data-note-key={`branding:custom:${item.id}:notes`} data-note-label={`Custom branding notes: ${item.name.trim() || n + 1}`}>{item.notes}</p>}
             {files.length > 0 && <CustomBrandingPictures assets={files} teamName={teamName} />}
           </div>
         );
@@ -166,7 +166,7 @@ export function SetBuildsList({ order }: { order: Pick<BuildSheet, 'sets' | 'jer
   return (
     <div className="mb-4 grid gap-2 sm:grid-cols-2">
       {setBuilds(order).map((b, i) => (
-        <div key={i} className="rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-2">
+        <div key={i} data-note-key={`build:set:${i}`} data-note-label={`${b.label} build`} className="rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-2">
           <div className="text-xs font-bold uppercase tracking-wide text-muted">{b.label}</div>
           <div className="text-sm font-bold text-ppc-gold">
             {[tierById(b.jerseyTier)?.label, b.jerseyType ? JERSEY_TYPE_LABELS[b.jerseyType] : null].filter(Boolean).join(' · ') || 'Not set yet'}
@@ -203,7 +203,7 @@ export function SetAddonsColumns({ order }: { order: Pick<BuildSheet, 'sets' | '
             {on.length ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 {on.map((a) => (
-                  <span key={a.key} title={addonHint(a)} className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
+                  <span key={a.key} title={addonHint(a)} data-note-key={`addon:${i}:${a.key}`} data-note-label={`${b.label}: ${a.label}`} className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold">
                     <span aria-hidden>&#10003;</span> {a.label}
                   </span>
                 ))}
@@ -212,7 +212,7 @@ export function SetAddonsColumns({ order }: { order: Pick<BuildSheet, 'sets' | '
               <p className="mt-2 text-sm text-muted">No build add-ons on this set.</p>
             )}
             {off.length > 0 && (
-              <p className="mt-2 text-xs text-muted"><span className="font-semibold">Not included:</span> {off.map((a) => a.label).join(' · ')}</p>
+              <p className="mt-2 text-xs text-muted" data-note-key={`addon:${i}:off`} data-note-label={`${b.label}: add-ons not included`}><span className="font-semibold">Not included:</span> {off.map((a) => a.label).join(' · ')}</p>
             )}
           </div>
         );
@@ -286,7 +286,7 @@ export function OrderTotalsSection({
         {keeperCount > 0 && <Stat label="+ Jerseys for Powerplay to keep" value={keeperCount} accent />}
       </div>
       {describeOrderTotals(totals) && (
-        <p className="mt-3 text-sm font-semibold text-ppc-gold">{describeOrderTotals(totals)}</p>
+        <p className="mt-3 text-sm font-semibold text-ppc-gold" data-note-key="totals:summary" data-note-label="Order totals summary">{describeOrderTotals(totals)}</p>
       )}
       {keeperCount > 0 && (
         <p className="mt-1 text-sm font-semibold text-amber-300">
@@ -298,7 +298,7 @@ export function OrderTotalsSection({
         {sheet.sets.map((s, i) => {
           const mine = keepers ? keepersOfSet(keepers, i) : [];
           return (
-            <Card key={i} className="p-3">
+            <div key={i} className="rounded-xl border border-line bg-surface p-3" data-note-key={`set:${i}`} data-note-label={`${s.label} quantities`}>
               <div className="text-sm font-bold text-ppc-gold">{s.label}</div>
               <dl className="mt-2 space-y-1 text-sm">
                 <div className="flex justify-between"><dt className="text-muted">Player Jerseys</dt><dd className="font-semibold">{s.playerJerseys}</dd></div>
@@ -315,7 +315,7 @@ export function OrderTotalsSection({
               {describeSet(s) && (
                 <p className="mt-2 border-t border-line pt-2 text-xs font-semibold text-ppc-gold">{describeSet(s)}</p>
               )}
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -335,7 +335,7 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
       {/* The tier is the headline fact about what was bought — it was on the
           order sheet and nowhere on this page. */}
       {tier && !buildsDiffer(sheet) && (
-        <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
+        <div data-note-key="build:tier" data-note-label={`${tier.label} build`} className="mb-4 inline-flex items-center gap-2 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-bold text-ppc-gold">
           {tier.label} build
         </div>
       )}
@@ -365,7 +365,7 @@ export function BuildTypeSection({ sheet, assets }: { sheet: BuildSheet; assets:
       )}
       {assets.some((a) => NUMBER_ROLES.includes(a.role)) && (
         <div className="mt-4">
-          <div className="mb-2 text-xs font-medium text-muted">Number Reference Photos</div>
+          <div className="mb-2 text-xs font-medium text-muted" data-note-key="numbers:photos" data-note-label="Number Reference Photos">Number Reference Photos</div>
           {/* Home and away side by side, each half the width, not stacked. */}
           <div className="grid gap-4 sm:grid-cols-2">
             {NUMBER_ROLES.filter((r) => assets.some((a) => a.role === r)).map((r) => (
@@ -427,6 +427,8 @@ export function AddOnsSection({
             <span
               key={t.key}
               title={t.hint}
+              data-note-key={`addon:${t.key}`}
+              data-note-label={`Add-on: ${t.label}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
             >
               <span aria-hidden>&#10003;</span> {t.label}
@@ -437,7 +439,7 @@ export function AddOnsSection({
         <p className="mt-2 text-sm text-muted">No add-ons on this order.</p>
       )}
       {off.length > 0 && (
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted" data-note-key="addon:off" data-note-label="Add-ons not included">
           <span className="font-semibold">Not included:</span> {off.map((t) => t.label).join(' · ')}
         </p>
       )}
@@ -445,7 +447,7 @@ export function AddOnsSection({
       {on.some((t) => t.hint) && (
         <ul className="mt-2 space-y-1 text-xs text-muted">
           {on.filter((t) => t.hint).map((t) => (
-            <li key={t.key}><span className="font-semibold text-foreground">{t.label}:</span> {t.hint}</li>
+            <li key={t.key} data-note-key={`addon:${t.key}`} data-note-label={`Add-on: ${t.label}`}><span className="font-semibold text-foreground">{t.label}:</span> {t.hint}</li>
           ))}
         </ul>
       )}
@@ -465,6 +467,8 @@ export function AddOnsSection({
             {brandingOn.map((a) => (
               <span
                 key={a.key}
+                data-note-key={`branding:${a.key}`}
+                data-note-label={`Powerplay branding: ${a.label}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-ppc-gold/60 bg-ppc-gold/10 px-3 py-1.5 text-sm font-semibold text-ppc-gold"
               >
                 <span aria-hidden>&#10003;</span> {a.label}
@@ -475,12 +479,12 @@ export function AddOnsSection({
           <p className="mt-2 text-sm text-muted">No Powerplay branding on this order.</p>
         )}
         {brandingOff.length > 0 && (
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted" data-note-key="branding:off" data-note-label="Powerplay branding not included">
             <span className="font-semibold">Not included:</span> {brandingOff.map((a) => a.label).join(' · ')}
           </p>
         )}
         {sheet.brandingNotes && (
-          <div className="mt-3 border-t border-line/60 pt-3">
+          <div className="mt-3 border-t border-line/60 pt-3" data-note-key="branding:notes" data-note-label="Changes to the branding">
             <p className="text-xs font-medium text-muted">Changes to the branding</p>
             <p className="mt-1 whitespace-pre-wrap text-sm">{sheet.brandingNotes}</p>
           </div>
@@ -520,7 +524,7 @@ export function AddOnsSection({
             <CaptainCountFields order={sheet} />
           </div>
           {sheet.captainPatchNotes && (
-            <p className="mt-2 text-sm text-muted">{sheet.captainPatchNotes}</p>
+            <p className="mt-2 text-sm text-muted" data-note-key="captain:notes" data-note-label="Captain patch notes">{sheet.captainPatchNotes}</p>
           )}
         </div>
       )}
@@ -581,7 +585,7 @@ export function RosterSection({
         * component the order form shows Keenan.
         */}
       {(sheet.roster.length > 0 || spares.length > 0) && (
-        <div className="mb-4">
+        <div className="mb-4" data-note-key="roster:sizes" data-note-label="Size breakdown">
           <RosterBreakdown entries={sheet.roster} spares={spares} mode={sheet.orderMode} sets={sheet.sets} showSocks={showSocks} showPantShells={showPants} />
         </div>
       )}
@@ -780,10 +784,10 @@ export function NotesSection({ sheet }: { sheet: BuildSheet }) {
     <Section title="Notes">
       <SectionComments comments={sheet.sectionComments} sections={['team', 'notes']} />
       {sheet.specialNotes && (
-        <p className="whitespace-pre-wrap text-sm">{sheet.specialNotes}</p>
+        <p className="whitespace-pre-wrap text-sm" data-note-key="notes:order" data-note-label="Order notes">{sheet.specialNotes}</p>
       )}
       {sheet.captainPatchNotes && (
-        <div className={sheet.specialNotes ? 'mt-4 border-t border-line/60 pt-4' : ''}>
+        <div className={sheet.specialNotes ? 'mt-4 border-t border-line/60 pt-4' : ''} data-note-key="notes:captain" data-note-label="Captain patch notes">
           <p className="text-xs font-medium text-muted">Captain Patches</p>
           <p className="mt-1 whitespace-pre-wrap text-sm">{sheet.captainPatchNotes}</p>
         </div>

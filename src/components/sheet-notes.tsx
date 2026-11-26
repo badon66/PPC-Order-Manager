@@ -73,7 +73,11 @@ export function SheetNotes({ initial, save, who }: { initial: PageNote[]; save: 
     const over = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest(UI)) return clearHover();
-      const el = (t instanceof HTMLImageElement ? t : t.closest<HTMLElement>('[data-note-key]')) ?? t;
+      // ONE box, and the same one a click pins to (`anchorFor`): the nearest marked
+      // thing — a tile, a chip, a number box, a field, a roster row — else its
+      // section. A picture inside a marked tile outlines the tile, never a
+      // second box inside it. Only something outside every mark outlines itself.
+      const el = t.closest<HTMLElement>('[data-note-key]') ?? t;
       if (el === hovered.current) return;
       clearHover();
       el.classList.add('ppc-note-hover');

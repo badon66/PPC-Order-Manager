@@ -106,6 +106,23 @@ export interface AppSettings {
   googleReviewUrl: string;
   /** The referral sentence in the Review and referral email; empty hides it. */
   referralLine: string;
+  /** What the factory normally charges, USD each. null = no standard rate yet. KEENAN ONLY — lib/factory/money.ts. */
+  factoryRates: FactoryRates;
+  /** Flag a factory cost this many USD or more away from the standard rates. */
+  factoryFlagAt: number;
+  /** 1 USD in CAD, for Keenan's currency switch. null = not set (USD only). */
+  usdToCad: number | null;
+}
+
+export interface FactoryRates {
+  sublimatedJersey: number | null;
+  embroideredJersey: number | null;
+  reversibleJersey: number | null;
+  sublimatedSocks: number | null;
+  embroideredSocks: number | null;
+  reversibleSocks: number | null;
+  sublimatedShells: number | null;
+  embroideredShells: number | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -114,6 +131,18 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   googleReviewUrl: '',
   referralLine:
     "Know another team that needs jerseys? Send them our way and mention your team, and we'll look after you both.",
+  factoryRates: {
+    sublimatedJersey: 25,
+    embroideredJersey: 50,
+    reversibleJersey: null,
+    sublimatedSocks: 12.5,
+    embroideredSocks: 13.5,
+    reversibleSocks: null,
+    sublimatedShells: null,
+    embroideredShells: null,
+  },
+  factoryFlagAt: 100,
+  usdToCad: null,
 };
 
 export const ORDER_MODES = ['single_set', 'home_away_set', 'multiple_sets'] as const;
@@ -166,6 +195,8 @@ export const ASSET_ROLES = [
   'captain_a',
   'captain_extra',
   'additional_logo',
+  // How the socks should look — the same job 'pant_design' does for the shells.
+  'sock_design',
   'pant_design',
   'pant_logo',
   'pant_number',
@@ -1077,7 +1108,12 @@ export type ChangeAction =
   | 'factory_step_declined'
   | 'factory_finish_date'
   | 'factory_seen'
-  | 'factory_ack';
+  | 'factory_ack'
+  /** What Powerplay owes the factory — see lib/factory/money.ts. */
+  | 'factory_cost'
+  | 'factory_shipping'
+  | 'factory_payment'
+  | 'factory_payment_void';
 
 export interface ChangeLogEntry {
   id: string;

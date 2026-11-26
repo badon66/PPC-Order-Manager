@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { loadFactoryBoard } from '@/lib/factory/load';
 import { allReminders, type FactoryJobCard, type ReminderTone } from '@/lib/factory/board';
 import { FACTORY_STEPS, FACTORY_STEP_LABEL } from '@/lib/factory/steps';
+import { balanceTotals, usd } from '@/lib/factory/money';
 import { FACTORY_TEXT as T } from '@/lib/factory/text';
 import { daysBetween, formatShort } from '@/lib/dates';
 import { LocalTime } from '@/components/factory/local-time';
@@ -70,7 +71,7 @@ function DateCell({ date, today, done }: { date: string | null; today: string; d
 function JobsTable({ cards, today }: { cards: FactoryJobCard[]; today: string }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full min-w-[46rem] text-sm">
+      <table className="w-full min-w-[54rem] text-sm">
         <thead>
           <tr className="border-b border-line text-left text-[0.7rem] uppercase tracking-wide text-muted">
             <th className="px-3 py-2">Job</th>
@@ -78,6 +79,7 @@ function JobsTable({ cards, today }: { cards: FactoryJobCard[]; today: string })
             <th className="px-3 py-2">{T.step}</th>
             <th className="px-3 py-2">{T.due}</th>
             <th className="px-3 py-2">{T.yourDate}</th>
+            <th className="px-3 py-2 text-right">Cost · owed (USD)</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
@@ -104,6 +106,18 @@ function JobsTable({ cards, today }: { cards: FactoryJobCard[]; today: string })
                 <td className="px-3 py-2.5"><StepCell card={c} /></td>
                 <td className="px-3 py-2.5"><DateCell date={c.neededBy} today={today} done={finished} /></td>
                 <td className="px-3 py-2.5"><DateCell date={c.state.finishDate || null} today={today} done={finished} /></td>
+                <td className="px-3 py-2.5 text-right tabular-nums">
+                  {c.money.cost === null ? (
+                    <Link href={`/factory/jobs/${c.id}`} className="rounded-full border border-ppc-gold/60 bg-ppc-gold/10 px-2 py-0.5 text-xs font-bold text-ppc-gold">Enter cost</Link>
+                  ) : (
+                    <>
+                      <span className="font-semibold">{usd(c.money.total)}</span>
+                      <div className={`text-xs ${c.money.dueNow > 0 ? 'font-semibold text-ppc-gold' : 'text-muted'}`}>
+                        {c.money.balance <= 0 ? 'Paid ✓' : c.money.dueNow > 0 ? `${usd(c.money.dueNow)} due now` : `${usd(c.money.balance)} later`}
+                      </div>
+                    </>
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-2">
                     {c.newChanges > 0 && (
@@ -146,6 +160,9 @@ export default async function FactoryDashboard() {
     else todoJobs.push({ orderId: r.orderId, teamName: r.teamName, tone: r.tone, lines: [r] });
   }
 
+  // What Powerplay owes, across every job (shipped ones too — money can outlast the job).
+  const owed = balanceTotals(cards.map((c) => c.money));
+
   // How many jobs sit at each step — the strip across the top.
   const counts = [
     { label: T.newBadge, n: active.filter((c) => !c.state.step && c.powerplay === 'making').length },
@@ -175,6 +192,27 @@ export default async function FactoryDashboard() {
           ))}
         </div>
       </div>
+
+      {cards.length > 0 && (
+        <div className="flex flex-wrap items-stretch gap-2 text-sm">
+          <div className="rounded-xl border-2 border-ppc-gold bg-ppc-gold/10 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-ppc-gold">Due now</span>
+            <span className="ml-3 text-xl font-bold tabular-nums">{usd(owed.dueNow)}</span>
+          </div>
+          <div className="rounded-xl border border-line bg-surface px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted">Total outstanding</span>
+            <span className="ml-3 text-xl font-bold tabular-nums">{usd(owed.outstanding)}</span>
+          </div>
+          <div className="rounded-xl border border-line bg-surface px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted">Paid by Powerplay</span>
+            <span className="ml-3 text-xl font-bold tabular-nums">{usd(owed.paid)}</span>
+          </div>
+          <p className="self-center text-xs text-muted">
+            US dollars. Half of a job is due while it&apos;s being made; all of it once it&apos;s Completed.
+            {owed.credit > 0 && ` Includes ${usd(owed.credit)} Powerplay paid ahead.`}
+          </p>
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-12 text-center text-sm text-muted">{T.noJobs}</p>

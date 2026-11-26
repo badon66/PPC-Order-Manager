@@ -1,6 +1,7 @@
 import type { ChangeLogEntry, Order, OrderStatus } from '@/lib/types';
 import { STATUS_META } from '@/lib/constants';
 import { formatLong } from '@/lib/dates';
+import { MONEY_ACTIONS, usd } from './money';
 
 /**
  * Where a job is at the factory (Keenan, 2026-11-25).
@@ -40,6 +41,8 @@ export const isGated = (s: FactoryStep) => GATED_STEPS.includes(s);
 export const FACTORY_ACTIONS = [
   'factory_step', 'factory_step_requested', 'factory_step_approved', 'factory_step_declined',
   'factory_finish_date', 'factory_seen', 'factory_ack',
+  // The money between Powerplay and the factory rides in the same history (lib/factory/money.ts).
+  ...MONEY_ACTIONS,
 ] as const;
 
 export interface PendingStep {
@@ -182,6 +185,14 @@ export function factoryActivityOf(history: ChangeLogEntry[]): { items: FactoryAc
       const tracking = (h.fromValue ?? '').trim();
       text = `Marked ${FACTORY_STEP_LABEL[h.toValue]}${tracking ? ` · tracking ${tracking}` : ''}`;
     } else if (h.action === 'factory_finish_date') text = h.toValue ? `Expects to finish ${formatLong(h.toValue)}` : 'Cleared their finish date';
+    else if (h.action === 'factory_cost') {
+      const from = h.fromValue ? Number(h.fromValue) : null;
+      const to = h.toValue ? Number(h.toValue) : null;
+      text = to === null ? 'Cleared their cost' : from === null ? `Set their cost: ${usd(to)} USD` : `Changed their cost: ${usd(from)} → ${usd(to)} USD`;
+    } else if (h.action === 'factory_shipping') {
+      const to = Number(h.toValue ?? 0);
+      text = to > 0 ? `Extra shipping: ${usd(to)} USD` : 'Removed the extra shipping';
+    }
     if (text === null) continue;
     items.push({ id: h.id, at: h.at, by: h.actorName, text, needsApproval: state.pending?.id === h.id });
   }

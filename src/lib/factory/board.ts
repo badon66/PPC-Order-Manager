@@ -4,6 +4,7 @@ import { daysBetween, formatShort } from '@/lib/dates';
 import { STATUS_META } from '@/lib/constants';
 import { changesFor, type FactoryChange } from './changes';
 import { FACTORY_STEP_LABEL, factoryStateOf, type FactoryState } from './steps';
+import { jobMoneyOf, type JobMoney } from './money';
 
 /**
  * One job as the factory's dashboard shows it.
@@ -11,8 +12,10 @@ import { FACTORY_STEP_LABEL, factoryStateOf, type FactoryState } from './steps';
  * Built FIELD BY FIELD, like the public views (see CLAUDE.md): this object is
  * what reaches the factory's browser, so nothing is spread from the order. A
  * new field on Order reaches the factory only if someone adds it here.
- * No price, no customer payments — tests/factory/board.test.ts checks by
- * value and by key.
+ * No customer price, no customer payments — tests/factory/board.test.ts
+ * checks by value and by key. The one money object on it, `money`, is the
+ * FACTORY'S OWN: what it charges Powerplay, what Powerplay has sent, what's
+ * owed (lib/factory/money.ts) — built only from the factory_* money entries.
  */
 export interface FactoryJobCard {
   id: string;
@@ -39,6 +42,8 @@ export interface FactoryJobCard {
   powerplay: 'making' | 'finished' | 'shipped';
   /** Powerplay has shipped or closed the order: off the open list, nothing to do. */
   done: boolean;
+  /** The factory's own cost for the job and what Powerplay has paid toward it. USD cents. */
+  money: JobMoney;
 }
 
 export function jobCardOf(o: Order, roster: RosterEntry[], history: ChangeLogEntry[]): FactoryJobCard {
@@ -63,6 +68,9 @@ export function jobCardOf(o: Order, roster: RosterEntry[], history: ChangeLogEnt
     newChanges: changes.filter((c) => c.isNew).length,
     powerplay,
     done: powerplay === 'shipped',
+    // The whole amount is due once the job is finished: Completed or Shipped WITH Keenan's
+    // approval (a waiting request doesn't count), or Powerplay already past production.
+    money: jobMoneyOf(mine, state.step === 'completed' || state.step === 'shipped' || powerplay !== 'making'),
   };
 }
 
@@ -93,6 +101,8 @@ export function remindersFor(card: FactoryJobCard, today: string): FactoryRemind
     add(`Powerplay changed ${card.newChanges === 1 ? 'something' : `${card.newChanges} things`} — open the job to see`, 'act');
   }
   if (state.step === null && !state.pending && card.powerplay === 'making') add('New job — mark it Received', 'act');
+  // Only for a job being made now: orders finished before the dashboard existed aren't chased for a cost.
+  if (card.money.cost === null && card.powerplay === 'making') add('Enter your cost for this job', 'act');
   if (state.pending) add(`${FACTORY_STEP_LABEL[state.pending.step]} is waiting for Powerplay to approve`, 'info');
   if (state.step === 'shipped' && !state.pending) {
     // Shipped and approved, but Powerplay still has the order open: nothing for the factory to do.

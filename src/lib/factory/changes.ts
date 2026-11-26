@@ -2,6 +2,7 @@ import type { ChangeLogEntry, Order } from '@/lib/types';
 import { STATUS_META } from '@/lib/constants';
 import { formatLong, isCalendarDate } from '@/lib/dates';
 import { FACTORY_STEP_LABEL, isFactoryStep, type FactoryState } from './steps';
+import { usd } from './money';
 
 /**
  * "What's new from Powerplay" — Keenan's changes to a job, as the factory
@@ -130,6 +131,13 @@ export function describeChange(h: ChangeLogEntry): string | null {
       return isFactoryStep(h.toValue)
         ? `Powerplay did not approve ${FACTORY_STEP_LABEL[h.toValue]}${h.fromValue ? `: “${clip(h.fromValue, 160)}”` : ''}`
         : null;
+    // Powerplay's payments TO THE FACTORY — the factory's own money, the only kind it is told about.
+    case 'factory_payment': {
+      const cents = Number(h.toValue ?? 0);
+      return cents > 0 ? `Powerplay sent ${usd(cents)} USD${h.fromValue ? ` — “${clip(h.fromValue, 120)}”` : ''}` : null;
+    }
+    case 'factory_payment_void':
+      return `Powerplay removed a payment${Number(h.toValue ?? 0) > 0 ? ` of ${usd(Number(h.toValue))} USD` : ''} (entered by mistake)`;
     default:
       return null;
   }
@@ -138,7 +146,7 @@ export function describeChange(h: ChangeLogEntry): string | null {
 /** The history actions the factory's feed is built from — what to ask the store for. */
 export const FEED_ACTIONS = [
   'field_changed', 'status_changed', 'roster_changed', 'asset_added', 'asset_removed', 'asset_rotated',
-  'factory_step_approved', 'factory_step_declined',
+  'factory_step_approved', 'factory_step_declined', 'factory_payment', 'factory_payment_void',
 ] as const;
 
 /**

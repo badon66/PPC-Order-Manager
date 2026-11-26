@@ -7,6 +7,7 @@ import { resolveAll } from '@/lib/storage';
 import { formatLong } from '@/lib/dates';
 import { SheetNotes } from '@/components/sheet-notes';
 import { FactoryProgress } from '@/components/factory/progress';
+import { FactoryCost } from '@/components/factory/cost';
 import { MarkSeen } from '@/components/factory/mark-seen';
 import { LocalTime } from '@/components/factory/local-time';
 import { FactorySheetBody } from '../../sheet-body';
@@ -57,6 +58,8 @@ export default async function FactoryJobPage({ params }: { params: Promise<{ id:
         {/* Right column first in the markup, so on a narrow screen the controls come before the long sheet. */}
         <aside className="space-y-4 xl:sticky xl:top-[76px] xl:order-2 xl:max-h-[calc(100dvh-92px)] xl:overflow-y-auto">
           <FactoryProgress orderId={id} state={card.state} neededBy={card.neededBy ? formatLong(card.neededBy) : null} />
+
+          <FactoryCost orderId={id} money={card.money} />
 
           {reminders.length > 0 && (
             <section className="rounded-xl border border-line bg-surface p-3">

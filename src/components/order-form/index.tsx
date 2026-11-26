@@ -932,6 +932,14 @@ export function OrderForm({
             <span className="font-semibold text-ppc-gold">Add-Ons &amp; Customization</span>.
           </p>
         )}
+        {/* The sock design picture, whenever socks are on the order — like Pant Design for the shells (Keenan, 2026-11-26). */}
+        {orderIncludesSocks(draft) && (
+          <AssetGroup
+            orderId={draft.id} role="sock_design" title="Sock Design" max={2}
+            hint="How the socks should look. Upload a new one to replace what's here."
+            assets={assets} onAdd={addAsset} onRemove={removeAsset}
+          />
+        )}
         {/* Right here with the jersey and sock builds, whenever shells are on the order. */}
         {hasPantShells && !perSetShellTypes(draft) && (
           <ChoiceGroup<PantShellType>

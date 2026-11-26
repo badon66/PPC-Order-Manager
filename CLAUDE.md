@@ -133,6 +133,10 @@ otherwise. Rules in `src/lib/data/intake-logic.ts`, the write in
 - **Home/away captain patches are two designs**: `captainC/AQuantity` is the
   home set's and `captainAwayC/AQuantity` the away set's on a home/away order;
   read them through `captainCounts`. Priced in sets per design.
+- **Socks have a design picture** (Keenan, 2026-11-26): asset role
+  `sock_design`, an upload group under Sock Type whenever the order has
+  socks — the same job `pant_design` does for the shells. Shown in Logos &
+  Artwork on both sheets.
 - **Pictures are two to a row** (2026-10-20) in the artwork galleries and the
   form's upload groups — still whole, scaled to their half.
 - **Two note boxes, two readers.** `specialNotes` is on the customer's sheet
@@ -307,6 +311,7 @@ src/app/orders/           list, detail, edit
 src/app/queue/            production queue
 src/app/share/[token]/    customer read-only view
 src/app/factory/          the manufacturer's dashboard, job pages and door (factory passcode)
+src/app/balance/          Keenan's factory balance: owed, paid, cost check, "I sent money"
 src/lib/factory/          its rules: steps, change feed, job card + reminders, lockout
 src/app/roster/[token]/   customer roster form (revisits + change logging)
 src/app/sales/            cold calling: landing (upload, lists), contacts table, calling view
@@ -408,8 +413,13 @@ the turned asset goes back into the form's state through `AssetSwapContext`.
 (`/share`) and the factory's (`/factory`) have a 💬 Comment button
 (`components/sheet-notes.tsx`): click anything — a photo, a word, a roster
 row, a field — and leave a note; highlighted words are quoted. What a click
-pins to comes from `data-note-key`/`data-note-label` marks (Section/Field in
-ui.tsx, roster and spare rows in build-sheet.tsx, artwork tiles). Notes are
+pins to comes from `data-note-key`/`data-note-label` marks (Section, Field
+and Stat in ui.tsx; in build-sheet.tsx the set cards, tier badge, every
+add-on and branding chip, the "not included" lines, notes, roster and spare
+rows; artwork tiles). ONE outline at a time (2026-11-26): hover outlines the
+nearest marked thing — the same one a click pins to — so a picture inside a
+tile outlines the tile, never a second box inside it. Anything new shown on
+a sheet needs a mark or it can only be commented on as its whole section. Notes are
 APPEND-ONLY HISTORY ENTRIES (`page_note`, archive = `page_note_archived` /
 `page_note_restored`), never a field on the order — the order row is
 read-modify-written by autosave and accept, and a note written onto it at
@@ -509,9 +519,37 @@ sections (`flex-col lg:flex-row`), never beside them. Check new pages at 390px.
   stored. An order Powerplay already moved past production counts as
   finished whatever the factory's steps say.
 - **Wording** lives in `lib/factory/text.ts` so Mandarin can be added later.
-- **Not built yet (the plan's later steps):** cost per job and the running
-  balance, "I sent money", the cost check; the click-to-outline question with
-  a saved picture and replies; a note on every selection with "push to
+- **The factory balance** (Keenan, 2026-11-26; `lib/factory/money.ts`, pure,
+  `tests/factory/money.test.ts`). THE ONLY MONEY THE FACTORY SEES IS ITS OWN:
+  its cost for a job, what Powerplay sent, what's owed — `card.money`
+  (`JobMoney`) on the `FactoryJobCard`, USD only. Never a customer price,
+  never profit, never the cost check. Stored as history like every factory
+  move, in whole CENTS: `factory_cost` and `factory_shipping` (the factory's,
+  `setFactoryCost`; one total per job plus an "extra shipping" box — shipping
+  is otherwise included; a change logs before → after and emails Keenan),
+  `factory_payment` (Keenan's "I sent money", `recordFactoryPayment`; `field`
+  = a payment id made in the browser, so a double press records once) and
+  `factory_payment_void` (Undo). Due rule (`jobMoneyOf`): HALF the total
+  (rounded up) while the job is being made, ALL of it once Completed or
+  Shipped is APPROVED (a waiting request doesn't count) or Powerplay has the
+  order past production; less what's paid. A payment to "the whole balance"
+  covers what's due first, oldest job first, then the rest
+  (`allocatePayment`), written as one entry per job; more than everything
+  outstanding is refused; a named job takes any amount (paying ahead shows
+  as credit). The factory is told of payments through "What's new"
+  (`describeChange`).
+  KEENAN'S SIDE is `lib/factory/balance.ts` + `/balance` (admin code; not
+  under `/factory`, so the factory cookie can't open it), the order page's
+  `#factory` section and a strip on the board: the cost check
+  (`expectedCostOf` × `AppSettings.factoryRates`, spares and keeper jerseys
+  included, extra shipping excluded; a flag at `factoryFlagAt` USD either
+  way; items with no rate are listed and left out — then only a cost BELOW
+  the priced part can flag), profit (`profitOf`, needs `usdToCad`), and the
+  USD/CAD switch (`?cur=cad`). Rates, flag amount and exchange rate are in
+  Settings. A test walks `src/app/factory` and fails if anything there
+  imports `balance.ts`, pricing, or the check.
+- **Not built yet (the plan's later steps):** the click-to-outline question
+  with a saved picture and replies; a note on every selection with "push to
   customer"; photo upload and the "email it to the factory too" button.
 
 ## Conventions
